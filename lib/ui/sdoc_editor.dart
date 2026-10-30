@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:provider/provider.dart';
 
 import '../api/models.dart';
@@ -28,6 +29,10 @@ class _SdocBlock {
   TextEditingController? text;
   List<TextEditingController> children = const [];
   List<Map<String, dynamic>> childElements = const [];
+  TextEditingController? toggleTitle;
+  List<TextEditingController> toggleChildren = const [];
+  List<Map<String, dynamic>> toggleChildElements = const [];
+  bool toggleCollapsed = false;
   bool deleted = false;
 
   String get type => element['type'] as String? ?? 'paragraph';
@@ -60,6 +65,10 @@ class SdocEditorState extends State<SdocEditor> {
     for (final block in _blocks) {
       block.text?.dispose();
       for (final controller in block.children) {
+        controller.dispose();
+      }
+      block.toggleTitle?.dispose();
+      for (final controller in block.toggleChildren) {
         controller.dispose();
       }
     }
@@ -96,6 +105,10 @@ class SdocEditorState extends State<SdocEditor> {
       for (final controller in block.children) {
         controller.dispose();
       }
+      block.toggleTitle?.dispose();
+      for (final controller in block.toggleChildren) {
+        controller.dispose();
+      }
     }
     _blocks.clear();
     for (final controller in _tableControllers.values) {
@@ -122,6 +135,21 @@ class SdocEditorState extends State<SdocEditor> {
           for (final child in children) TextEditingController(text: _textOf(child)),
         ];
         for (final controller in block.children) {
+          controller.addListener(_markDirty);
+        }
+      } else if (type == 'toggle_header') {
+        final children = (element['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
+        final titleElement = children.isNotEmpty ? children.first : null;
+        final contentElement = children.length > 1 ? children[1] : null;
+        block.toggleCollapsed = element['collapsed'] == true;
+        block.toggleTitle = TextEditingController(text: titleElement == null ? '' : _textOf(titleElement));
+        block.toggleTitle!.addListener(_markDirty);
+        final contentChildren = (contentElement?['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
+        block.toggleChildElements = contentChildren;
+        block.toggleChildren = [
+          for (final child in contentChildren) TextEditingController(text: _textOf(child)),
+        ];
+        for (final controller in block.toggleChildren) {
           controller.addListener(_markDirty);
         }
       } else if (_isSimpleEditable(type)) {
@@ -279,6 +307,25 @@ class SdocEditorState extends State<SdocEditor> {
           for (var i = 0; i < block.childElements.length; i++) {
             _setNodeText(block.childElements[i], block.children[i].text);
           }
+          elements.add(block.element);
+        } else if (type == 'toggle_header') {
+          final children = (block.element['children'] as List?)?.whereType<Map>().toList() ?? const [];
+          if (children.isNotEmpty && block.toggleTitle != null) {
+            _setNodeText(children.first.cast<String, dynamic>(), block.toggleTitle!.text);
+          }
+          if (children.length > 1) {
+            final content = children[1]['children'];
+            if (content is List) {
+              final paragraphs = content.whereType<Map>().toList();
+              for (var i = 0; i < block.toggleChildElements.length && i < block.toggleChildren.length; i++) {
+                _setNodeText(block.toggleChildElements[i], block.toggleChildren[i].text);
+              }
+              for (var i = paragraphs.length; i < block.toggleChildren.length; i++) {
+                content.add(_paragraphElement(block.toggleChildren[i].text));
+              }
+            }
+          }
+          block.element['collapsed'] = block.toggleCollapsed;
           elements.add(block.element);
         } else if (type == 'code_block') {
           final lines = (block.text?.text ?? '').split('\n');
@@ -598,7 +645,7 @@ class SdocEditorState extends State<SdocEditor> {
       'image_block' => _imageView(block),
       'video' => _mediaPlaceholder('视频', 'Video'),
       'embed_link' => _mediaPlaceholder('嵌入链接', 'Embedded link'),
-      'formula' => _mediaPlaceholder('公式', 'Formula'),
+      'formula' => _formulaView(block),
       'toggle_header' => _toggleView(block),
       _ => _textField(block, 15, FontWeight.w400, onTap: () => _setActive(index)),
     };
@@ -753,15 +800,52 @@ class SdocEditorState extends State<SdocEditor> {
   }
 
   Widget _toggleView(_SdocBlock block) {
-    final text = _textOf(block.element);
+    final title = block.toggleTitle;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: AppColors.hover, borderRadius: BorderRadius.circular(5)),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const WebIcon('arrow-down', size: 12, color: AppColors.textSecondary),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: AppColors.text))),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => setState(() => block.toggleCollapsed = !block.toggleCollapsed),
+                icon: Transform.rotate(
+                  angle: block.toggleCollapsed ? -1.57 : 0,
+                  child: const WebIcon('arrow-down', size: 12, color: AppColors.textSecondary),
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: TextField(
+                  controller: title,
+                  enabled: !_readOnly,
+                  maxLines: null,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 4)),
+                ),
+              ),
+            ],
+          ),
+          if (!block.toggleCollapsed)
+            Padding(
+              padding: const EdgeInsets.only(left: 32, top: 4),
+              child: Column(
+                children: [
+                  for (final controller in block.toggleChildren)
+                    TextField(
+                      controller: controller,
+                      enabled: !_readOnly,
+                      maxLines: null,
+                      style: const TextStyle(fontSize: 14.5, height: 1.55),
+                      decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 3)),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -804,6 +888,26 @@ class SdocEditorState extends State<SdocEditor> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _formulaView(_SdocBlock block) {
+    final data = block.element['data'];
+    final formula = data is Map ? data['formula'] : null;
+    if (formula is! String || formula.trim().isEmpty) return _mediaPlaceholder('公式', 'Formula');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Math.tex(
+          formula,
+          mathStyle: MathStyle.display,
+          textStyle: const TextStyle(fontSize: 18, color: AppColors.text),
+          onErrorFallback: (error) => Text(formula, style: const TextStyle(fontFamily: 'Menlo', fontSize: 13)),
+        ),
       ),
     );
   }
