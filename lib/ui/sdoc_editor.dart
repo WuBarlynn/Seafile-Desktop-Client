@@ -147,8 +147,7 @@ class SdocEditorState extends State<SdocEditor> {
         type == 'quote' ||
         type == 'check_list_item' ||
         type == 'code_block' ||
-        type.startsWith('header') ||
-        type.startsWith('toggle_header');
+        type.startsWith('header');
   }
 
   String _textOf(dynamic node) {
