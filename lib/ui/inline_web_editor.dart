@@ -13,10 +13,16 @@ import '../state/session.dart';
 import 'widgets.dart';
 
 class InlineWebEditor extends StatefulWidget {
-  const InlineWebEditor({super.key, required this.repo, required this.entry});
+  const InlineWebEditor({super.key, required this.repo, required this.entry})
+      : path = null;
 
-  final Repository repo;
-  final Dirent entry;
+  const InlineWebEditor.page({super.key, required this.path})
+      : repo = null,
+        entry = null;
+
+  final Repository? repo;
+  final Dirent? entry;
+  final String? path;
 
   @override
   State<InlineWebEditor> createState() => _InlineWebEditorState();
@@ -38,8 +44,8 @@ class _InlineWebEditorState extends State<InlineWebEditor> {
 
   Future<void> _prepare() async {
     final session = context.read<AppSession>();
-    final path = encodeRepoPath(widget.entry.path);
-    final target = '${session.serverBase}/lib/${widget.repo.id}/file$path';
+    final remotePath = widget.path ?? '/lib/${widget.repo!.id}/file${encodeRepoPath(widget.entry!.path)}';
+    final target = '${session.serverBase}$remotePath';
     String? token;
     try {
       token = await session.api?.clientLoginToken();
@@ -158,6 +164,22 @@ class _InlineWebEditorState extends State<InlineWebEditor> {
                             _loading = false;
                             _progress = 1;
                           });
+                          controller.evaluateJavascript(source: r"""
+(() => {
+  let tries = 0;
+  const fit = () => {
+    const iframe = document.querySelector('iframe');
+    if (!iframe) return;
+    const top = Math.max(0, iframe.getBoundingClientRect().top);
+    const height = Math.max(480, window.innerHeight - top);
+    iframe.style.width = '100%';
+    iframe.style.height = height + 'px';
+  };
+  const timer = setInterval(() => { fit(); if (++tries > 30) clearInterval(timer); }, 300);
+  window.addEventListener('resize', fit);
+  fit();
+})()
+""");
                         },
                         onProgressChanged: (controller, progress) {
                           if (!mounted) return;

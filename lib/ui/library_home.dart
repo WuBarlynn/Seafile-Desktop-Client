@@ -21,11 +21,13 @@ class LibraryHome extends StatefulWidget {
     required this.filter,
     required this.onOpenLibraries,
     required this.onOpenRepository,
+    this.onOpenWeb,
   });
 
   final LibraryFilter filter;
   final VoidCallback onOpenLibraries;
   final ValueChanged<Repository> onOpenRepository;
+  final void Function(String path, String title)? onOpenWeb;
 
   @override
   State<LibraryHome> createState() => _LibraryHomeState();
@@ -244,7 +246,14 @@ class _LibraryHomeState extends State<LibraryHome> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton.icon(
-                                onPressed: () => openAuthenticatedWeb(context, '/groups/'),
+                                onPressed: () {
+                                  final open = widget.onOpenWeb;
+                                  if (open != null) {
+                                    open('/groups/', L10n.of(context).zh ? '群组' : 'Groups');
+                                  } else {
+                                    openAuthenticatedWeb(context, '/groups/');
+                                  }
+                                },
                                 icon: const WebIcon('plus-sign', size: 14),
                                 label: Text(l10n.newGroup),
                               ),

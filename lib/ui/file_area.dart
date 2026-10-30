@@ -12,7 +12,6 @@ import '../state/workspace.dart';
 import 'details_panel.dart';
 import 'file_actions.dart';
 import 'repo_actions.dart';
-import 'text_editor_page.dart';
 import 'thumbnail_view.dart';
 import 'web_handoff.dart';
 import 'widgets.dart';
@@ -43,6 +42,8 @@ class FileArea extends StatefulWidget {
 
 class _FileAreaState extends State<FileArea> {
   bool _dragging = false;
+  String? _lastOpenPath;
+  DateTime? _lastOpenAt;
 
   WorkspaceController get ws => context.read<WorkspaceController>();
 
@@ -54,6 +55,11 @@ class _FileAreaState extends State<FileArea> {
       ws.toggleSelection(entry, additive: true, range: range);
       return;
     }
+    final now = DateTime.now();
+    final repeated = _lastOpenPath == entry.path && _lastOpenAt != null && now.difference(_lastOpenAt!) < const Duration(milliseconds: 450);
+    if (repeated) return;
+    _lastOpenPath = entry.path;
+    _lastOpenAt = now;
     ws.toggleSelection(entry, additive: false);
     if (entry.isDir) {
       ws.enterPath(entry.path);
@@ -135,10 +141,7 @@ class _FileAreaState extends State<FileArea> {
       case 'copy':
         await copyEntries(context, workspace, targets);
       case 'edit':
-        if (single != null) {
-          final saved = await openTextEditor(context, workspace.repo!, single);
-          if (saved == true) await workspace.loadDir();
-        }
+        if (single != null) widget.onPreview(single);
       case 'lock':
       case 'unlock':
         if (single != null) {

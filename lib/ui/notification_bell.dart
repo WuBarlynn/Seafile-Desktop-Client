@@ -8,13 +8,13 @@ import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
-import '../state/workspace.dart';
-import 'preview_page.dart';
 import 'repo_actions.dart';
 import 'widgets.dart';
 
 class NotificationBell extends StatefulWidget {
-  const NotificationBell({super.key});
+  const NotificationBell({super.key, this.onOpen});
+
+  final void Function(Repository repo, String path, bool isDir)? onOpen;
 
   @override
   State<NotificationBell> createState() => _NotificationBellState();
@@ -108,32 +108,16 @@ class _NotificationBellState extends State<NotificationBell> {
     final repoId = item.repoId;
     if (repoId.isEmpty) return;
     final session = context.read<AppSession>();
-    final workspace = context.read<WorkspaceController>();
     final repo = session.findRepo(repoId);
     if (repo == null) return;
     controller.close();
     if (!await ensureRepoUnlocked(context, repo) || !mounted) return;
-    await workspace.openRepo(repo);
-    if (!mounted) return;
     final filePath = item.filePath;
     final folderPath = item.folderPath;
     if (filePath.isNotEmpty) {
-      await workspace.enterPath(parentRepoPath(filePath));
-      if (!mounted) return;
-      Dirent? entry;
-      for (final dirent in workspace.entries) {
-        if (dirent.path == filePath) {
-          entry = dirent;
-          break;
-        }
-      }
-      if (entry != null && mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (context) => PreviewPage(repo: repo, entry: entry!)),
-        );
-      }
+      widget.onOpen?.call(repo, filePath, false);
     } else if (folderPath.isNotEmpty) {
-      await workspace.enterPath(folderPath);
+      widget.onOpen?.call(repo, folderPath, true);
     }
   }
 

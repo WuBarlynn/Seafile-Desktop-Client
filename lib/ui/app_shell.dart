@@ -18,6 +18,7 @@ import 'activities_page.dart';
 import 'browser_view.dart';
 import 'dialogs.dart';
 import 'file_studio.dart';
+import 'inline_web_editor.dart';
 import 'library_home.dart';
 import 'notification_bell.dart';
 import 'repo_actions.dart';
@@ -33,7 +34,7 @@ import 'widgets.dart';
 
 enum ShellSection { libraries, favorites, activities, wikis, shareAdmin }
 
-enum _TabKind { home, library, file, account, system }
+enum _TabKind { home, library, file, account, system, web }
 
 class _AppTab {
   _AppTab.home()
@@ -42,18 +43,21 @@ class _AppTab {
         workspace = null,
         repo = null,
         entry = null,
-        editorKey = null;
+        editorKey = null,
+        webPath = null;
 
   _AppTab.library(this.workspace, this.repo)
       : kind = _TabKind.library,
         title = repo!.name,
         entry = null,
-        editorKey = null;
+        editorKey = null,
+        webPath = null;
 
   _AppTab.file(this.workspace, this.repo, this.entry)
       : kind = _TabKind.file,
         title = entry!.name,
-        editorKey = GlobalKey<FileStudioState>();
+        editorKey = GlobalKey<FileStudioState>(),
+        webPath = null;
 
   _AppTab.account()
       : kind = _TabKind.account,
@@ -61,11 +65,20 @@ class _AppTab {
         workspace = null,
         repo = null,
         entry = null,
-        editorKey = null;
+        editorKey = null,
+        webPath = null;
 
   _AppTab.system()
       : kind = _TabKind.system,
         title = '',
+        workspace = null,
+        repo = null,
+        entry = null,
+        editorKey = null,
+        webPath = null;
+
+  _AppTab.web(this.webPath, this.title)
+      : kind = _TabKind.web,
         workspace = null,
         repo = null,
         entry = null,
@@ -77,6 +90,7 @@ class _AppTab {
   final Repository? repo;
   final Dirent? entry;
   final GlobalKey<FileStudioState>? editorKey;
+  final String? webPath;
 }
 
 class AppShell extends StatefulWidget {
@@ -170,6 +184,14 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  Future<void> _openPath(Repository repo, String path, bool isDir) async {
+    if (isDir) {
+      await _openLibrary(repo, path: path);
+    } else {
+      await _openFileByPath(repo, path);
+    }
+  }
+
   Future<void> _openFileByPath(Repository repo, String path) async {
     try {
       final api = context.read<AppSession>().api!;
@@ -212,6 +234,18 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _tabs.add(_AppTab.system());
+      _activeIndex = _tabs.length - 1;
+    });
+  }
+
+  void _openWebPage(String path, String title) {
+    final existing = _tabs.indexWhere((tab) => tab.kind == _TabKind.web && tab.webPath == path);
+    if (existing >= 0) {
+      setState(() => _activeIndex = existing);
+      return;
+    }
+    setState(() {
+      _tabs.add(_AppTab.web(path, title));
       _activeIndex = _tabs.length - 1;
     });
   }
@@ -307,6 +341,8 @@ class _AppShellState extends State<AppShell> {
                     onLogout: _logout,
                     onAccountSettings: _openAccountSettings,
                     onSystemSettings: _openSystemSettings,
+                    onOpenNotification: _openPath,
+                    onOpenWebPage: _openWebPage,
                   ),
                   Expanded(
                     child: Row(
@@ -326,7 +362,7 @@ class _AppShellState extends State<AppShell> {
                             onHelp: () => _openHelp('/help/'),
                             onClients: () => _openHelp('/download_client_program/'),
                             onAbout: () => showSeafileAboutDialog(context),
-                            onInviteGuests: () => openAuthenticatedWeb(context, '/invitations/', title: l10n.inviteGuests),
+                            onInviteGuests: () => _openWebPage('/invitations/', l10n.inviteGuests),
                             onToggleCollapse: () => setState(() => _collapsed = !_collapsed),
                           ),
                         ),
@@ -388,7 +424,9 @@ class _AppShellState extends State<AppShell> {
       case _TabKind.account:
         return AccountSettingsPage(onOpenSystemSettings: _openSystemSettings);
       case _TabKind.system:
-        return const SystemSettingsPage();
+        return SystemSettingsPage(onOpenWeb: _openWebPage);
+      case _TabKind.web:
+        return InlineWebEditor.page(path: tab.webPath!);
     }
   }
 
@@ -398,6 +436,7 @@ class _AppShellState extends State<AppShell> {
           filter: _filter,
           onOpenLibraries: _openLibraries,
           onOpenRepository: _openLibrary,
+          onOpenWeb: _openWebPage,
         ),
       ShellSection.favorites => StarredPage(
           onOpenLibrary: _openLibraryAt,
@@ -407,13 +446,13 @@ class _AppShellState extends State<AppShell> {
           onOpenLibrary: _openLibraryAt,
           onOpenFile: _openFileByPath,
         ),
-      ShellSection.wikis => const WikiPage(),
+      ShellSection.wikis => WikiPage(onOpenWeb: _openWebPage),
       ShellSection.shareAdmin => const ShareAdminPage(),
     };
   }
 }
 
-class _TabStrip extends StatelessWidget {
+class _TabStrip extends StatefulWidget {
   const _TabStrip({
     required this.tabs,
     required this.activeIndex,
@@ -425,6 +464,32 @@ class _TabStrip extends StatelessWidget {
   final int activeIndex;
   final ValueChanged<int> onSelect;
   final ValueChanged<int> onClose;
+
+  @override
+  State<_TabStrip> createState() => _TabStripState();
+}
+
+class _TabStripState extends State<_TabStrip> {
+  final _scroll = ScrollController();
+
+  @override
+  void didUpdateWidget(covariant _TabStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeIndex != widget.activeIndex || oldWidget.tabs.length != widget.tabs.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scroll.hasClients) return;
+        if (widget.activeIndex >= widget.tabs.length - 1) {
+          _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 160), curve: Curves.easeOut);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -439,19 +504,20 @@ class _TabStrip extends StatelessWidget {
         children: [
           Expanded(
             child: SingleChildScrollView(
+              controller: _scroll,
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (var index = 0; index < tabs.length; index++)
+                  for (var index = 0; index < widget.tabs.length; index++)
                     _TabChip(
-                      tab: tabs[index],
-                      active: index == activeIndex,
+                      tab: widget.tabs[index],
+                      active: index == widget.activeIndex,
                       closable: index > 0,
                       homeLabel: l10n.zh ? '主页' : 'Home',
                       accountLabel: l10n.accountSettings,
                       systemLabel: l10n.systemSettings,
-                      onTap: () => onSelect(index),
-                      onClose: () => onClose(index),
+                      onTap: () => widget.onSelect(index),
+                      onClose: () => widget.onClose(index),
                     ),
                 ],
               ),
@@ -501,6 +567,7 @@ class _TabChipState extends State<_TabChip> {
       _TabKind.file => tab.title,
       _TabKind.account => widget.accountLabel,
       _TabKind.system => widget.systemLabel,
+      _TabKind.web => tab.title,
     };
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -571,6 +638,7 @@ class _TabChipState extends State<_TabChip> {
       _TabKind.file => FileTypeIcon(name: tab.entry?.name ?? '', isDir: false, size: 15),
       _TabKind.account => const WebIcon('settings', size: 15),
       _TabKind.system => const WebIcon('admin-logs', size: 15),
+      _TabKind.web => const Icon(Icons.language, size: 15, color: AppColors.textSecondary),
     };
   }
 }
@@ -585,6 +653,8 @@ class _GlobalHeader extends StatelessWidget {
     required this.onLogout,
     required this.onAccountSettings,
     required this.onSystemSettings,
+    required this.onOpenNotification,
+    required this.onOpenWebPage,
   });
 
   final double sidebarWidth;
@@ -595,6 +665,8 @@ class _GlobalHeader extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onAccountSettings;
   final VoidCallback onSystemSettings;
+  final void Function(Repository repo, String path, bool isDir) onOpenNotification;
+  final void Function(String path, String title) onOpenWebPage;
 
   PopupMenuItem<String> _menuItem(String value, String icon, String label, {bool danger = false}) {
     return PopupMenuItem<String>(
@@ -645,10 +717,10 @@ class _GlobalHeader extends StatelessWidget {
                     icon: 'open-in-new-tab',
                     tooltip: l10n.fullWebApp,
                     size: 18,
-                    onPressed: () => openAuthenticatedWeb(context, '/libraries/', title: l10n.fullWebApp),
+                    onPressed: () => onOpenWebPage('/libraries/', l10n.fullWebApp),
                   ),
                   const SizedBox(width: 2),
-                  const NotificationBell(),
+                  NotificationBell(onOpen: onOpenNotification),
                   const SizedBox(width: 8),
                   PopupMenuButton<String>(
                     tooltip: '',
@@ -705,7 +777,7 @@ class _GlobalHeader extends StatelessWidget {
                       if (value == 'refresh') onRefresh();
                       if (value == 'settings') onAccountSettings();
                       if (value == 'admin') onSystemSettings();
-                      if (value == 'webapp') openAuthenticatedWeb(context, '/libraries/', title: L10n.of(context).fullWebApp);
+                      if (value == 'webapp') onOpenWebPage('/libraries/', L10n.of(context).fullWebApp);
                       if (value == 'about') onAbout();
                       if (value == 'logout') onLogout();
                     },

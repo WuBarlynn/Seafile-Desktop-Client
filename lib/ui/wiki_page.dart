@@ -10,7 +10,9 @@ import 'web_handoff.dart';
 import 'widgets.dart';
 
 class WikiPage extends StatefulWidget {
-  const WikiPage({super.key});
+  const WikiPage({super.key, this.onOpenWeb});
+
+  final void Function(String path, String title)? onOpenWeb;
 
   @override
   State<WikiPage> createState() => _WikiPageState();
@@ -54,7 +56,12 @@ class _WikiPageState extends State<WikiPage> {
     final path = wiki.legacy
         ? '/published/${Uri.encodeComponent(wiki.slug ?? '')}'
         : '/wikis/${Uri.encodeComponent(wiki.id)}/';
-    await openAuthenticatedWeb(context, path, title: wiki.name);
+    final open = widget.onOpenWeb;
+    if (open != null) {
+      open(path, wiki.name);
+    } else {
+      await openAuthenticatedWeb(context, path, title: wiki.name);
+    }
   }
 
   List<MapEntry<String, List<WikiInfo>>> _sections(L10n l10n) {

@@ -8,7 +8,9 @@ import '../state/session.dart';
 import 'widgets.dart';
 
 class SystemSettingsPage extends StatefulWidget {
-  const SystemSettingsPage({super.key});
+  const SystemSettingsPage({super.key, this.onOpenWeb});
+
+  final void Function(String path, String title)? onOpenWeb;
 
   @override
   State<SystemSettingsPage> createState() => _SystemSettingsPageState();
@@ -148,6 +150,11 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               const SizedBox(width: 9),
               Text(l10n.systemSettings, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
+              TextButton.icon(
+                onPressed: () => widget.onOpenWeb?.call('/sysadmin/', l10n.systemSettings),
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: Text(l10n.zh ? '完整管理后台' : 'Full admin console', style: const TextStyle(fontSize: 12)),
+              ),
               IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: () {
                 _loadOverview();
                 if (_tab == 1) _loadUsers();
