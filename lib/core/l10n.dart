@@ -199,10 +199,14 @@ class L10n {
   String get shareAdminEmpty => zh ? '暂无分享链接' : 'No share links';
   String get shareAdminHint => zh ? '你创建的所有分享链接会显示在这里。' : 'All share links you created are listed here.';
   String get shareAdminLoadFailed => zh ? '加载分享链接失败' : 'Could not load share links.';
-  String get openInWebApp => zh ? '在网页版中打开' : 'Open in web app';
+  String get openInWebApp => zh ? '在浏览器中打开' : 'Open in browser';
+  String get openInApp => zh ? '在应用内打开' : 'Open in app';
+  String get onlineEditorFailed => zh ? '无法打开内嵌编辑器，已改用系统浏览器。' : 'Could not open the embedded editor; using your browser instead.';
   String get openingWebApp => zh ? '正在网页版中打开…' : 'Opening in web app…';
   String get webLoginFallback => zh ? '已在浏览器中打开；若未登录请先登录网页版。' : 'Opened in your browser. Sign in there if needed.';
   String get groupManagement => zh ? '群组管理' : 'Group management';
+  String get accountSettings => zh ? '账户设置' : 'Account settings';
+  String get inviteGuests => zh ? '邀请访客' : 'Invite guests';
   String get myWikis => zh ? '我的知识库' : 'My wikis';
   String get sharedWikis => zh ? '共享给我的知识库' : 'Shared with me';
   String get legacyWikis => zh ? '旧版知识库' : 'Legacy wikis';

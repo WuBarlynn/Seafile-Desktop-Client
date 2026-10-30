@@ -20,6 +20,7 @@ import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
 import 'file_actions.dart';
+import 'online_editor_window.dart';
 import 'text_editor_page.dart';
 import 'web_handoff.dart';
 import 'widgets.dart';
@@ -214,7 +215,14 @@ class _PreviewPageState extends State<PreviewPage> {
                     size: 18,
                     onPressed: canShare ? () => showFileHistory(context, workspace, widget.entry) : null,
                   ),
-                IconAction(icon: 'open-in-new-tab', tooltip: l10n.openInBrowser, size: 18, onPressed: _openInBrowser),
+                if (!_kind.isPreviewable)
+                  IconAction(
+                    icon: 'open-in-new-tab',
+                    tooltip: l10n.openInApp,
+                    size: 18,
+                    onPressed: () => openOnlineEditor(context, widget.repo, widget.entry),
+                  ),
+                IconAction(icon: 'link', tooltip: l10n.openInBrowser, size: 18, onPressed: _openInBrowser),
               ],
             ),
           ),
@@ -379,14 +387,20 @@ class _PreviewPageState extends State<PreviewPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               FilledButton.icon(
+                onPressed: () => openOnlineEditor(context, widget.repo, widget.entry),
+                icon: const WebIcon('open-in-new-tab', size: 14, color: Colors.white),
+                label: Text(l10n.openInApp),
+              ),
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
                 onPressed: _downloading ? null : _download,
-                icon: const WebIcon('download', size: 14, color: Colors.white),
+                icon: const WebIcon('download', size: 14),
                 label: Text(l10n.download),
               ),
               const SizedBox(width: 10),
               OutlinedButton.icon(
                 onPressed: _openInBrowser,
-                icon: const WebIcon('open-in-new-tab', size: 14),
+                icon: const WebIcon('link', size: 14),
                 label: Text(l10n.openInBrowser),
               ),
             ],

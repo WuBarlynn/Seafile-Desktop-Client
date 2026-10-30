@@ -23,6 +23,7 @@ import 'preview_page.dart';
 import 'search_dialog.dart';
 import 'sidebar.dart';
 import 'transfers_panel.dart';
+import 'web_handoff.dart';
 import 'wiki_page.dart';
 import 'widgets.dart';
 
@@ -161,6 +162,7 @@ class _AppShellState extends State<AppShell> {
                         onHelp: () => _openHelp('/help/'),
                         onClients: () => _openHelp('/download_client_program/'),
                         onAbout: () => showSeafileAboutDialog(context),
+                        onInviteGuests: () => openAuthenticatedWeb(context, '/invitations/'),
                         onToggleCollapse: () => setState(() => _collapsed = !_collapsed),
                       ),
                     ),
@@ -289,6 +291,10 @@ class _GlobalHeader extends StatelessWidget {
                         child: Row(children: [const WebIcon('refresh', size: 16), const SizedBox(width: 10), Text(l10n.refreshLibraries)]),
                       ),
                       PopupMenuItem<String>(
+                        value: 'settings',
+                        child: Row(children: [const WebIcon('settings', size: 16), const SizedBox(width: 10), Text(l10n.accountSettings)]),
+                      ),
+                      PopupMenuItem<String>(
                         value: 'about',
                         child: Row(children: [const WebIcon('about', size: 16), const SizedBox(width: 10), Text(l10n.about)]),
                       ),
@@ -300,6 +306,7 @@ class _GlobalHeader extends StatelessWidget {
                     ],
                     onSelected: (value) {
                       if (value == 'refresh') onRefresh();
+                      if (value == 'settings') openAuthenticatedWeb(context, '/settings/');
                       if (value == 'about') onAbout();
                       if (value == 'logout') onLogout();
                     },

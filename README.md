@@ -32,7 +32,7 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Knowledge-base (wiki) list with server-aware sections; wiki editing hands off to the web editor
 - Global file search, with a per-library filename-search fallback
 - Resizable sidebar, directory tree and properties panel; consistent hover/focus feedback
-- Automated macOS and Windows release builds through GitHub Actions
+- Automated macOS and Windows release builds and GitHub Releases through GitHub Actions
 
 ## Server compatibility
 
@@ -66,7 +66,7 @@ flutter build windows --release
 ### macOS notes
 
 - Network access and user-selected file read/write entitlements are configured.
-- Tokens are stored in Keychain. The client uses the legacy Keychain on macOS (`usesDataProtectionKeychain: false`) so no Keychain Sharing entitlement or developer provisioning profile is required for local builds.
+- On macOS, tokens are stored in the sandboxed Application Support directory (`~/Library/Containers/com.seafile.desktop/Data/Library/Application Support/seafile`, restricted to the current user). This avoids Keychain prompts that unsigned/ad-hoc development builds trigger on every rebuild. Windows uses the DPAPI-backed secure storage plugin.
 
 ## Project layout
 
@@ -82,9 +82,10 @@ assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 
 ## Known limitations
 
-- Online OnlyOffice / SeaDoc / Excalidraw editing and wiki editing open the web app in the system browser. A one-time `/api2/client-login/` token is used to establish the browser session automatically when 2FA allows it.
+- Online OnlyOffice / SeaDoc / Excalidraw editing opens an embedded native WebView window (WKWebView on macOS, WebView2 on Windows) with a one-time `/api2/client-login/` login token; if the embedded runtime is unavailable the system browser is used as a fallback. Wiki editing still opens the web editor.
 - Video/audio preview is not built in; files can be downloaded or opened externally.
 - Wiki reading/editing still hands off to the web app; notifications without a configured notification server are hidden.
+- Windows requires the WebView2 Runtime for the embedded online editor; Windows 11 includes it, Windows 10 may need the runtime installed. The editor falls back to the system browser when the embedded runtime is missing.
 - The 13-specific layout and feature differences are detected, but finer 13/14 parity work is ongoing.
 - Windows builds are produced and compile-checked in CI, but runtime verification on a real Windows machine is still pending.
 - There is no two-way folder sync (the Seafile sync protocol is out of scope) and no multi-account support yet.

@@ -23,6 +23,7 @@ class Sidebar extends StatelessWidget {
     required this.onHelp,
     required this.onClients,
     required this.onAbout,
+    required this.onInviteGuests,
     required this.onToggleCollapse,
   });
 
@@ -37,6 +38,7 @@ class Sidebar extends StatelessWidget {
   final VoidCallback onHelp;
   final VoidCallback onClients;
   final VoidCallback onAbout;
+  final VoidCallback onInviteGuests;
   final VoidCallback onToggleCollapse;
 
   @override
@@ -124,6 +126,13 @@ class Sidebar extends StatelessWidget {
                     collapsed: collapsed,
                     active: section == ShellSection.wikis,
                     onTap: () => onSection(ShellSection.wikis),
+                  ),
+                  _NavItem(
+                    icon: 'invite-guests',
+                    label: l10n.inviteGuests,
+                    collapsed: collapsed,
+                    active: false,
+                    onTap: onInviteGuests,
                   ),
                   _NavItem(
                     icon: 'share-admin',
