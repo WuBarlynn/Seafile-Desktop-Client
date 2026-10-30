@@ -18,7 +18,7 @@ import '../state/session.dart';
 import '../state/workspace.dart';
 import 'file_actions.dart';
 import 'inline_web_editor.dart';
-import 'markdown_controller.dart';
+import 'markdown_editor.dart';
 import 'sdoc_editor.dart';
 import 'web_handoff.dart';
 import 'widgets.dart';
@@ -35,6 +35,8 @@ class FileStudio extends StatefulWidget {
 
 class FileStudioState extends State<FileStudio> {
   final _sdocKey = GlobalKey<SdocEditorState>();
+  final _markdownKey = GlobalKey<MarkdownEditorState>();
+  String? _markdownInitial;
   final _scroll = ScrollController();
   TextEditingController? _controller;
   File? _file;
@@ -48,7 +50,11 @@ class FileStudioState extends State<FileStudio> {
   late final FileKind _kind = FileKind.of(widget.entry.name);
 
   bool get _readOnly => widget.entry.isReadOnly || widget.repo.isReadOnly;
-  bool get isDirty => _kind == FileKind.sdoc ? (_sdocKey.currentState?.isDirty ?? false) : _dirty;
+  bool get isDirty {
+    if (_kind == FileKind.sdoc) return _sdocKey.currentState?.isDirty ?? false;
+    if (_kind == FileKind.markdown) return _markdownKey.currentState?.isDirty ?? _dirty;
+    return _dirty;
+  }
 
   @override
   void initState() {
@@ -104,12 +110,14 @@ class FileStudioState extends State<FileStudio> {
         final bytes = await file.readAsBytes();
         var text = utf8.decode(bytes, allowMalformed: true);
         if (text.startsWith('\uFEFF')) text = text.substring(1);
-        _original = text;
-        _controller = _kind == FileKind.markdown
-            ? MarkdownEditingController(text: text)
-            : TextEditingController(text: text);
-        _controller!.addListener(_onChanged);
         _lineCount = text.isEmpty ? 1 : '\n'.allMatches(text).length + 1;
+        if (_kind == FileKind.markdown) {
+          _markdownInitial = text;
+        } else {
+          _original = text;
+          _controller = TextEditingController(text: text);
+          _controller!.addListener(_onChanged);
+        }
       }
       setState(() {
         _file = file;
@@ -125,7 +133,9 @@ class FileStudioState extends State<FileStudio> {
   }
 
   void _onChanged() {
-    final value = _controller!.text;
+    final controller = _controller;
+    if (controller == null) return;
+    final value = controller.text;
     final dirty = value != _original;
     final lines = value.isEmpty ? 1 : '\n'.allMatches(value).length + 1;
     if (dirty != _dirty || lines != _lineCount) {
@@ -139,12 +149,16 @@ class FileStudioState extends State<FileStudio> {
   Future<bool> save() async {
     if (_kind == FileKind.sdoc) return _sdocKey.currentState?.save() ?? true;
     if (_kind != FileKind.text && _kind != FileKind.markdown) return true;
-    if (_readOnly || _controller == null || _saving || !_dirty) return true;
+    if (_readOnly || _saving || !_dirty) return true;
+    final markdown = _kind == FileKind.markdown ? _markdownKey.currentState : null;
+    if (_kind == FileKind.markdown && markdown == null) return true;
+    if (_kind == FileKind.text && _controller == null) return true;
     final l10n = L10n.of(context);
     setState(() => _saving = true);
     try {
       final file = await _cacheFile();
-      await file.writeAsString(_controller!.text, encoding: utf8, flush: true);
+      final content = markdown?.text ?? _controller!.text;
+      await file.writeAsString(content, encoding: utf8, flush: true);
       await context.read<AppSession>().api!.uploadFile(
             repoId: widget.repo.id,
             dirPath: parentRepoPath(widget.entry.path),
@@ -152,7 +166,11 @@ class FileStudioState extends State<FileStudio> {
             fileName: widget.entry.name,
             replace: true,
           );
-      _original = _controller!.text;
+      if (markdown != null) {
+        markdown.markSaved();
+      } else {
+        _original = _controller!.text;
+      }
       if (!mounted) return true;
       setState(() {
         _saving = false;
@@ -173,7 +191,7 @@ class FileStudioState extends State<FileStudio> {
 
   Future<bool> confirmClose() async {
     if (_kind == FileKind.sdoc) return _sdocKey.currentState?.confirmClose() ?? true;
-    if (!_dirty) return true;
+    if (!isDirty) return true;
     final l10n = L10n.of(context);
     final action = await showDialog<String>(
       context: context,
@@ -250,13 +268,12 @@ class FileStudioState extends State<FileStudio> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                if (editable && _kind == FileKind.markdown) _markdownTools(),
                 const Spacer(),
                 if (editable)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: FilledButton.icon(
-                      onPressed: _saving || !_dirty ? null : save,
+                      onPressed: _saving || !isDirty ? null : save,
                       icon: _saving
                           ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.save_outlined, size: 15),
@@ -280,22 +297,6 @@ class FileStudioState extends State<FileStudio> {
     );
   }
 
-  Widget _markdownTools() {
-    return Row(
-      children: [
-        _ToolButton(icon: Icons.title, tooltip: 'Heading', onTap: () => _prefix('# ')),
-        _ToolButton(icon: Icons.format_bold, tooltip: 'Bold', onTap: () => _wrap('**', '**')),
-        _ToolButton(icon: Icons.format_italic, tooltip: 'Italic', onTap: () => _wrap('*', '*')),
-        _ToolButton(icon: Icons.format_strikethrough, tooltip: 'Strikethrough', onTap: () => _wrap('~~', '~~')),
-        _ToolButton(icon: Icons.code, tooltip: 'Code', onTap: () => _wrap('`', '`')),
-        _ToolButton(icon: Icons.format_quote, tooltip: 'Quote', onTap: () => _prefix('> ')),
-        _ToolButton(icon: Icons.format_list_bulleted, tooltip: 'Bulleted list', onTap: () => _prefix('- ')),
-        _ToolButton(icon: Icons.format_list_numbered, tooltip: 'Numbered list', onTap: () => _prefix('1. ')),
-        _ToolButton(icon: Icons.link, tooltip: 'Link', onTap: () => _wrap('[', '](https://)')),
-      ],
-    );
-  }
-
   Widget _plainTools() {
     final l10n = L10n.of(context);
     return Container(
@@ -311,33 +312,6 @@ class FileStudioState extends State<FileStudio> {
           ),
         ],
       ),
-    );
-  }
-
-  void _wrap(String before, String after) {
-    final controller = _controller;
-    if (controller == null) return;
-    final selection = controller.selection;
-    final text = controller.text;
-    final start = selection.isValid ? selection.start : text.length;
-    final end = selection.isValid ? selection.end : text.length;
-    final selected = text.substring(start, end);
-    controller.value = TextEditingValue(
-      text: text.replaceRange(start, end, '$before$selected$after'),
-      selection: TextSelection.collapsed(offset: start + before.length + selected.length),
-    );
-  }
-
-  void _prefix(String prefix) {
-    final controller = _controller;
-    if (controller == null) return;
-    final text = controller.text;
-    final selection = controller.selection;
-    final offset = selection.isValid ? selection.start : text.length;
-    final lineStart = text.lastIndexOf('\n', offset > 0 ? offset - 1 : 0) + 1;
-    controller.value = TextEditingValue(
-      text: text.replaceRange(lineStart, lineStart, prefix),
-      selection: TextSelection.collapsed(offset: offset + prefix.length),
     );
   }
 
@@ -373,10 +347,21 @@ class FileStudioState extends State<FileStudio> {
   }
 
   Widget _textView(L10n l10n) {
+    if (_kind == FileKind.markdown) {
+      final initial = _markdownInitial;
+      if (initial == null) return const SizedBox.shrink();
+      return MarkdownEditor(
+        key: _markdownKey,
+        initialText: initial,
+        readOnly: _readOnly,
+        onChanged: (dirty) {
+          if (dirty != _dirty) setState(() => _dirty = dirty);
+        },
+      );
+    }
     final controller = _controller;
     final file = _file;
     if (controller == null || file == null) return const SizedBox.shrink();
-    final isMarkdown = _kind == FileKind.markdown;
     return Container(
       color: const Color(0xFFF4F5F7),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -396,10 +381,10 @@ class FileStudioState extends State<FileStudio> {
                 maxLines: null,
                 expands: true,
                 textAlignVertical: TextAlignVertical.top,
-                style: TextStyle(
-                  fontFamily: isMarkdown ? null : 'Menlo',
-                  fontSize: isMarkdown ? 15 : 13,
-                  height: isMarkdown ? 1.75 : 1.65,
+                style: const TextStyle(
+                  fontFamily: 'Menlo',
+                  fontSize: 13,
+                  height: 1.65,
                   color: AppColors.text,
                 ),
                 decoration: const InputDecoration(
@@ -420,10 +405,7 @@ class FileStudioState extends State<FileStudio> {
               ),
               child: Row(
                 children: [
-                  Text(
-                    isMarkdown ? 'Markdown' : 'Text',
-                    style: const TextStyle(fontSize: 11, color: AppColors.muted),
-                  ),
+                  const Text('Text', style: TextStyle(fontSize: 11, color: AppColors.muted)),
                   const Spacer(),
                   if (_dirty)
                     Text(

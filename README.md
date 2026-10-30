@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.1.0 — tabbed workspace and in-place editors. Every iteration is published to this repository.
+> **Status:** 1.1.1 — tabbed workspace and in-place editors. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -21,7 +21,7 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Downloads: single file, folder ZIP, progress and cancellation
 - **Tabbed workspace** with a pinned Home tab; single-clicking a library or file opens a new tab, and sidebar sections switch inside Home without spawning tabs
 - **In-place editors** — opening a file never pushes a new page. Images/PDF, text, Markdown, SeaDoc, Office, Excalidraw and media all render inside the file tab
-- Native text and styled Markdown editor with a formatting toolbar (headings, bold/italic/strike, code, quote, lists, links), full-width canvas and unsaved-change protection
+- Native text editor and **block-based Markdown editor**: headings, lists, checklists, quotes and code blocks render as content (no `#`/`-` markers), with a formatting toolbar, full-width canvas and unsaved-change protection
 - Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab
 - Inline web editors for OnlyOffice documents, Excalidraw drawings, audio/video and the full web app; the embedded page is auto-fitted to the tab
 - Native **account settings** (profile, contact details, password) and **system settings** (overview, users with enable/reset/delete, libraries, server switches) for administrators; the complete admin console also opens in a tab
@@ -91,9 +91,9 @@ lib/
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
 
-## Release 1.1.0
+## Release 1.1.1
 
-Tagged `v1.1.0`. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
+Tagged `v1.1.1`. Adds the block-based Markdown editor and fixes the invitation entry staying inside Home. Builds on 1.1.0. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
 
 ## Known limitations
 
