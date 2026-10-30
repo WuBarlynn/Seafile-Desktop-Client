@@ -50,9 +50,7 @@ class _LibrarySettingsViewState extends State<LibrarySettingsView> {
   bool get _metadataTabVisible {
     final workspace = context.watch<WorkspaceController>();
     final repo = workspace.repo;
-    final version = context.watch<AppSession>().serverInfo?.version ?? '';
-    final major = int.tryParse(version.split('.').first) ?? 14;
-    return repo != null && repo.isOwner && !repo.encrypted && major >= 14;
+    return repo != null && repo.isOwner && !repo.encrypted;
   }
 
   Future<void> _saveHistory(int value) async {
@@ -128,7 +126,7 @@ class _LibrarySettingsViewState extends State<LibrarySettingsView> {
                 _tabButton(l10n.generalTab, 0, tab),
                 if (hasMetadataTab) ...[
                   const SizedBox(width: 26),
-                  _tabButton(l10n.metadataAiTab, 1, tab),
+                  _tabButton(workspace.isV14 ? l10n.metadataAiTab : l10n.metadataTab, 1, tab),
                 ],
               ],
             ),
@@ -273,6 +271,7 @@ class _LibrarySettingsViewState extends State<LibrarySettingsView> {
             icon: const WebIcon('eye-slash', size: 14),
             label: Text(l10n.hideProperties),
           ),
+          if (workspace.isV14) ...[
           const SizedBox(height: 26),
           _settingSection(
             title: l10n.enableAiSummary,
@@ -287,6 +286,7 @@ class _LibrarySettingsViewState extends State<LibrarySettingsView> {
               ),
             ),
           ),
+          ],
           const SizedBox(height: 26),
           _settingSection(
             title: l10n.enableTags,

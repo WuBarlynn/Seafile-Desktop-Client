@@ -18,6 +18,7 @@ class TreePanel extends StatefulWidget {
     required this.onDeleteLibrary,
     required this.onLibraryInfo,
     required this.onShareLibrary,
+    this.showQuickActions = true,
   });
 
   final WorkspaceController workspace;
@@ -28,6 +29,7 @@ class TreePanel extends StatefulWidget {
   final VoidCallback onDeleteLibrary;
   final VoidCallback onLibraryInfo;
   final VoidCallback onShareLibrary;
+  final bool showQuickActions;
 
   @override
   State<TreePanel> createState() => _TreePanelState();
@@ -51,7 +53,8 @@ class _TreePanelState extends State<TreePanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
+          if (widget.showQuickActions)
+            Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: Row(
               children: [

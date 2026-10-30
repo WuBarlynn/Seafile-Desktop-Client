@@ -42,6 +42,8 @@ class AppSession extends ChangeNotifier {
   bool get hasSession => _stored != null && _api != null;
   bool get expired => _expired;
   String get serverBase => _stored?.serverUrl ?? '';
+  int get serverMajor => int.tryParse((_serverInfo?.version ?? '').split('.').first) ?? 14;
+  bool get isV14 => serverMajor >= 14;
   String get username => _stored?.username ?? '';
 
   String get displayName {

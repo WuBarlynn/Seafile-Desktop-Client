@@ -254,6 +254,7 @@ class _BrowserViewState extends State<BrowserView> {
                     onDeleteLibrary: () => _openRepoMenu('delete'),
                     onLibraryInfo: () => _openRepoMenu('info'),
                     onShareLibrary: () => _openRepoMenu('share'),
+                    showQuickActions: workspace.isV14,
                   ),
                 ),
                 ResizeHandle(

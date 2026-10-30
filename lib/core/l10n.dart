@@ -76,6 +76,7 @@ class L10n {
   String get downloadSelected => zh ? '下载所选' : 'Download selected';
   String get noTagsHint => zh ? '为文件添加标签，便于分类和搜索。' : 'Add tags to organize and search files.';
   String get metadata => zh ? '元数据' : 'Metadata';
+  String get metadataTab => zh ? '元数据' : 'Metadata';
   String get expiryTime => zh ? '过期时间' : 'Expiry';
   String get collaborators => zh ? '协作者' : 'Collaborators';
   String get status => zh ? '状态' : 'Status';

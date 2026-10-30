@@ -108,7 +108,9 @@ class WorkspaceController extends ChangeNotifier {
 
   bool get hasMetadata => metaStatus?.enabled == true;
   bool get hasTags => metaStatus?.enabled == true && metaStatus?.tagsEnabled == true;
-  bool get canUseAi => aiAvailable && hasMetadata && (metaStatus?.summaryEnabled == true);
+  bool get isV14 => session.isV14;
+
+  bool get canUseAi => isV14 && aiAvailable && hasMetadata && (metaStatus?.summaryEnabled == true);
 
   List<Dirent> get visibleEntries {
     final nameFilter = _filter.trim().toLowerCase();
@@ -868,7 +870,7 @@ class WorkspaceController extends ChangeNotifier {
 
   void openChat() {
     final repo = this.repo;
-    if (repo == null) return;
+    if (repo == null || !canUseAi) return;
     if (chat == null || chat!.repoId != repo.id) {
       chat?.dispose();
       chat = AiChatController(session, repo.id);
