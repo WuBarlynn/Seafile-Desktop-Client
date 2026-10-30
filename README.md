@@ -1,12 +1,12 @@
 # Seafile Desktop Client
 
-A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI: file browsing, previews, uploads, downloads, sharing, trash, history, metadata and AI chat are all implemented as native Flutter widgets on top of the Seafile Web API. Web-only surfaces (online Office/SeaDoc/Excalidraw editors, wiki editing, account settings and the full web app) open in a dedicated embedded WebView window authenticated with a one-time client-login token, so the native shell stays native.
+A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.0.2 — dual-platform release (macOS + Windows). Every iteration is published to this repository.
+> **Status:** 1.1.0 — tabbed workspace and in-place editors. Every iteration is published to this repository.
 
 ## Design goals
 
-- **Native UI for core workflows.** No Electron or Tauri; the file browser, dialogs and editors that can be native are native Flutter. Web-only pages use a dedicated authenticated WebView window instead of replacing the desktop shell.
+- **Native UI for core workflows.** No Electron or Tauri shell. File browsing, text, Markdown and SeaDoc editors, sharing, history and settings are native Flutter. Web-only editors render in an inline WebView inside their tab, using the same one-time client-login handoff.
 - **API-driven.** All data operations use the official Seafile HTTP APIs.
 - **Version-aware.** The client detects the server version and enabled extensions (OnlyOffice, SeaDoc, Excalidraw, metadata) and adapts the visible features accordingly.
 - **Server-side encrypted libraries.** Encrypted libraries are unlocked through the same `set-password` flow as the web UI; decrypted files are handled by the server, so downloads, uploads and previews work without storing a plaintext library key on the client.
@@ -19,9 +19,13 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Web-parity **New** menu: new directory, text file, Markdown, Word/Excel/PowerPoint, plus SeaDoc, Excalidraw and “Import sdoc” when the server enables them; upload files/folders, share, copy path
 - File operations: rename, move, copy, delete, star, lock/unlock, drag-and-drop upload, transfer progress panel
 - Downloads: single file, folder ZIP, progress and cancellation
-- Native preview: images (including SVG), PDF, plain text and Markdown; other types can be downloaded or opened in the web app
-- Native plain-text and Markdown editor with preview toggle, unsaved-change protection and in-place save
-- **Full web app** window for any web-only page, opened from the header or the avatar menu with automatic single sign-on; web navigation stays inside its own window
+- **Tabbed workspace** with a pinned Home tab; single-clicking a library or file opens a new tab, and sidebar sections switch inside Home without spawning tabs
+- **In-place editors** — opening a file never pushes a new page. Images/PDF, text, Markdown, SeaDoc, Office, Excalidraw and media all render inside the file tab
+- Native text and styled Markdown editor with a formatting toolbar (headings, bold/italic/strike, code, quote, lists, links), full-width canvas and unsaved-change protection
+- Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab
+- Inline web editors for OnlyOffice documents, Excalidraw drawings, audio/video and the full web app; the embedded page is auto-fitted to the tab
+- Native **account settings** (profile, contact details, password) and **system settings** (overview, users with enable/reset/delete, libraries, server switches) for administrators; the complete admin console also opens in a tab
+- Native account/system pages replace the previous web hop that failed permission checks
 - Encrypted library unlock with remembered passwords
 - Share links: create with password, expiry and permissions; list, copy and delete
 - Private sharing: share a library or folder with users or groups, choose read/write or read-only, and remove access
@@ -31,7 +35,8 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Library AI chat: streaming answers, conversation history, Markdown rendering
 - Library settings: history retention, metadata/tags/AI toggles, globally hidden properties
 - Notification center with unread badge, general/discussion notifications and deep links
-- Knowledge-base (wiki) list with server-aware sections; wiki editing hands off to the web editor
+- Knowledge-base (wiki) list with server-aware sections; wiki editing opens in an inline tab
+- Notifications deep-link into tabs; invitation and group pages open as tabs
 - Global file search, with a per-library filename-search fallback
 - Resizable sidebar, directory tree and properties panel; consistent hover/focus feedback
 - Automated macOS and Windows release builds and GitHub Releases through GitHub Actions
@@ -45,8 +50,11 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 | AI chat | — | ✅ | 14 + AI extension |
 | SeaDoc / Excalidraw creation | Server-dependent | ✅ | Requires `ENABLE_SEADOC` |
 | Office file creation | Server-dependent | ✅ | Requires the OnlyOffice extension |
-| Online Office / SeaDoc / Excalidraw editing | Embedded WebView | Embedded WebView | Authenticated WebView window; system browser fallback |
-| Full web app, account settings, wiki editing | Embedded WebView | Embedded WebView | Same authenticated handoff |
+| Text / Markdown editing | Native | Native | Toolbar editor, no page navigation |
+| SeaDoc editing | Native | Native | Headings, lists, tables and code blocks |
+| Online Office editing | Inline WebView | Inline WebView | WebView2 / WKWebView, auto-fitted in tab |
+| Excalidraw editing | Inline WebView | Inline WebView | Inline authenticated page |
+| Full web app, wiki editing, admin console | Inline web tab | Inline web tab | Same authenticated handoff |
 
 The client requires an HTTP(S)-reachable Seafile server with the Web API enabled. Self-signed certificates can be allowed from the login page’s advanced options. SSO-only deployments and forced two-factor policies are still being validated.
 
@@ -83,16 +91,16 @@ lib/
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
 
-## Release 1.0.2
+## Release 1.1.0
 
-Tagged `v1.0.2`. Adds an **Open in web app** action to the file context menu, and signing out now closes every embedded web window and clears its cookies/storage so the next account cannot inherit a previous web session. Builds on 1.0.1's authenticated WebView windows for the full web app, account settings, invitation pages, wiki editing and online editors. GitHub Actions builds both platforms and attaches `Seafile-macos.zip` and `Seafile-windows.zip` to the GitHub Release. Earlier 1.0.x releases remain available.
+Tagged `v1.1.0`. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
 
 ## Known limitations
 
-- Web-only pages — including OnlyOffice / SeaDoc / Excalidraw editing, wiki editing, account settings and the full web app — open in an embedded native WebView window (WKWebView on macOS, WebView2 on Windows) with a one-time `/api2/client-login/` login token; if the embedded runtime is unavailable the system browser is used as a fallback.
-- Video/audio preview is not built in; files can be downloaded or opened externally.
-- Wiki reading/editing still hands off to the web app; notifications without a configured notification server are hidden.
-- Windows requires the WebView2 Runtime for embedded web pages; Windows 11 includes it, Windows 10 may need the runtime installed. The client falls back to the system browser when the embedded runtime is missing.
+- Office, Excalidraw, audio/video and some web pages render with an inline WebView (WKWebView on macOS, WebView2 on Windows) because their editors depend on the server's web front-end. Text, Markdown and SeaDoc are native.
+- The native SeaDoc editor covers common text blocks and editable tables; embedded images/video/formula blocks are preserved read-only, and toggle sections render as a summary.
+- Embedded pages require the WebView2 Runtime on Windows 10 (included in Windows 11); if it is missing the client falls back to the system browser.
+- Markdown shows its Markdown source with styled headings/lists and a formatting toolbar rather than a fully rich WYSIWYG surface.
 - The 13-specific layout and feature differences are detected, but finer 13/14 parity work is ongoing.
 - Windows builds are produced and compile-checked in CI, but runtime verification on a real Windows machine is still pending.
 - There is no two-way folder sync (the Seafile sync protocol is out of scope) and no multi-account support yet.
