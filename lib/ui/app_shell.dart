@@ -791,7 +791,11 @@ class _GlobalHeader extends StatelessWidget {
                           shape: BoxShape.circle,
                           color: hovered ? AppColors.hover : Colors.transparent,
                         ),
-                        child: AvatarCircle(name: session.displayName, size: 32),
+                        child: AvatarCircle(
+                          name: session.displayName,
+                          size: 32,
+                          image: (session.avatarUrl?.isNotEmpty == true) ? NetworkImage(session.avatarUrl!) : null,
+                        ),
                       ),
                     ),
                   ),

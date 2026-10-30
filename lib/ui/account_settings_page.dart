@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -26,6 +27,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   bool _loading = true;
   bool _savingProfile = false;
   bool _savingPassword = false;
+  bool _uploadingAvatar = false;
   String? _error;
 
   @override
@@ -181,6 +183,31 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     );
   }
 
+  Future<void> _changeAvatar() async {
+    final l10n = L10n.of(context);
+    final file = await openFile(acceptedTypeGroups: const [XTypeGroup(label: 'image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'])]);
+    if (file == null || !mounted) return;
+    final session = context.read<AppSession>();
+    final oldUrl = session.avatarUrl;
+    setState(() => _uploadingAvatar = true);
+    try {
+      await session.api!.uploadAvatar(file.path);
+      if (oldUrl != null && oldUrl.isNotEmpty) {
+        await NetworkImage(oldUrl).evict();
+      }
+      await session.refreshAccountInfo();
+      if (mounted) {
+        setState(() => _uploadingAvatar = false);
+        showToast(context, l10n.zh ? '头像已更新' : 'Avatar updated');
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _uploadingAvatar = false);
+        showToast(context, friendlyError(context, error), error: true);
+      }
+    }
+  }
+
   Widget _card({required String title, String? subtitle, required List<Widget> children}) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -216,13 +243,30 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       ),
       child: Row(
         children: [
-          AvatarCircle(name: session.displayName, size: 56),
+          AvatarCircle(
+            name: session.displayName,
+            size: 56,
+            image: (session.avatarUrl?.isNotEmpty == true) ? NetworkImage(session.avatarUrl!) : null,
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(session.displayName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                Row(
+                  children: [
+                    Flexible(child: Text(session.displayName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600))),
+                    const SizedBox(width: 10),
+                    TextButton.icon(
+                      onPressed: _uploadingAvatar ? null : _changeAvatar,
+                      icon: _uploadingAvatar
+                          ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.photo_camera_outlined, size: 15),
+                      label: Text(l10n.zh ? '更换头像' : 'Change avatar', style: const TextStyle(fontSize: 11.5)),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 26)),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text(session.emailLabel, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
                 const SizedBox(height: 10),

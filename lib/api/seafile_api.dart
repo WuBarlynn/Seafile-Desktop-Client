@@ -194,6 +194,24 @@ class SeafileApi {
     return asMap(await _get('api/v2.1/user/'));
   }
 
+  Future<String?> uploadAvatar(String filePath) async {
+    final base = _baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    try {
+      final response = await _transfer.post<dynamic>(
+        '$base/api/v2.1/user-avatar/',
+        data: FormData.fromMap({
+          'avatar': await MultipartFile.fromFile(filePath),
+        }),
+        options: Options(headers: {..._authHeaders, 'Accept': 'application/json'}),
+      );
+      final data = response.data;
+      if (data is Map) return firstString(data.cast<String, dynamic>(), ['avatar_url']);
+      return null;
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<Map<String, dynamic>> updateUserProfile(Map<String, dynamic> values) async {
     return asMap(await _putJson('api/v2.1/user/', values));
   }

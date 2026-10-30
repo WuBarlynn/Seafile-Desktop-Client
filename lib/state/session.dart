@@ -79,6 +79,7 @@ class AppSession extends ChangeNotifier {
 
   double? get quotaFraction => _accountInfo?.usageFraction;
   int? get quotaUsage => _accountInfo?.usage;
+  String? get avatarUrl => _accountInfo?.avatarUrl;
   int? get quotaTotal => _accountInfo?.totalQuota;
 
   Repository? findRepo(String id) {
