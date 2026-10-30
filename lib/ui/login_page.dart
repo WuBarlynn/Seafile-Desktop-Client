@@ -456,7 +456,6 @@ class _SsoPollingDialog extends StatefulWidget {
 
 class _SsoPollingDialogState extends State<_SsoPollingDialog> {
   bool _cancelled = false;
-  bool _checking = true;
   String? _error;
 
   @override
@@ -485,13 +484,11 @@ class _SsoPollingDialogState extends State<_SsoPollingDialog> {
           return;
         }
         failures = 0;
-        if (mounted) setState(() => _checking = true);
       } on ApiException catch (error) {
         failures++;
         if (failures >= 3) {
           if (mounted) {
             setState(() {
-              _checking = false;
               _error = error.serverMessage?.isNotEmpty == true ? error.serverMessage : l10n.ssoTimeout;
             });
           }
@@ -503,7 +500,6 @@ class _SsoPollingDialogState extends State<_SsoPollingDialog> {
     }
     if (mounted) {
       setState(() {
-        _checking = false;
         _error = l10n.ssoTimeout;
       });
     }

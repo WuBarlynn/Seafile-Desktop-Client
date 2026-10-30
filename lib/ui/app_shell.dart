@@ -122,7 +122,6 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final session = context.watch<AppSession>();
     final workspace = context.watch<WorkspaceController>();
-    final l10n = L10n.of(context);
     if (workspace.repoId != null) {
       _section = ShellSection.libraries;
     }
@@ -411,26 +410,3 @@ class _QuotaLine extends StatelessWidget {
   }
 }
 
-class _FeaturePlaceholder extends StatelessWidget {
-  const _FeaturePlaceholder({required this.title, required this.description, required this.icon});
-
-  final String title;
-  final String description;
-  final String icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
-          alignment: Alignment.centerLeft,
-          child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-        ),
-        Expanded(child: EmptyState(title: title, message: description, icon: icon)),
-      ],
-    );
-  }
-}

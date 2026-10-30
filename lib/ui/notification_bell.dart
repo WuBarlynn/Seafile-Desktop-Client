@@ -23,7 +23,6 @@ class NotificationBell extends StatefulWidget {
 class _NotificationBellState extends State<NotificationBell> {
   int _unseen = 0;
   bool _available = true;
-  bool _loaded = false;
   NotificationBundle? _bundle;
   final Set<int> _readIds = {};
   bool _loadingBundle = false;
@@ -45,13 +44,11 @@ class _NotificationBellState extends State<NotificationBell> {
       setState(() {
         _unseen = bundle.totalUnseen;
         _available = true;
-        _loaded = true;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _available = false;
-        _loaded = true;
       });
     }
   }
