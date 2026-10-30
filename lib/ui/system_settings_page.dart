@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -23,10 +24,14 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   Map<String, dynamic> _sysInfo = const {};
   List<Map<String, dynamic>> _users = const [];
   List<Map<String, dynamic>> _libraries = const [];
+  List<Map<String, dynamic>> _groups = const [];
+  List<Map<String, dynamic>> _shareLinks = const [];
   Map<String, dynamic> _webSettings = const {};
   final _userQuery = TextEditingController();
   bool _loadingUsers = false;
   bool _loadingLibraries = false;
+  bool _loadingGroups = false;
+  bool _loadingShareLinks = false;
   bool _loadingSettings = false;
   bool _savingSettings = false;
 
@@ -95,6 +100,38 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
+  Future<void> _loadGroups() async {
+    setState(() => _loadingGroups = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminGroups();
+      if (!mounted) return;
+      setState(() {
+        _groups = (data['groups'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
+        _loadingGroups = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingGroups = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _loadShareLinks() async {
+    setState(() => _loadingShareLinks = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminShareLinks();
+      if (!mounted) return;
+      setState(() {
+        _shareLinks = (data['share_link_list'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
+        _loadingShareLinks = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingShareLinks = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   Future<void> _loadWebSettings() async {
     setState(() => _loadingSettings = true);
     try {
@@ -131,8 +168,10 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   void _selectTab(int tab) {
     setState(() => _tab = tab);
     if (tab == 1 && _users.isEmpty) _loadUsers();
-    if (tab == 2 && _libraries.isEmpty) _loadLibraries();
-    if (tab == 3 && _webSettings.isEmpty) _loadWebSettings();
+    if (tab == 2 && _groups.isEmpty) _loadGroups();
+    if (tab == 3 && _libraries.isEmpty) _loadLibraries();
+    if (tab == 4 && _shareLinks.isEmpty) _loadShareLinks();
+    if (tab == 5 && _webSettings.isEmpty) _loadWebSettings();
   }
 
   @override
@@ -158,8 +197,10 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: () {
                 _loadOverview();
                 if (_tab == 1) _loadUsers();
-                if (_tab == 2) _loadLibraries();
-                if (_tab == 3) _loadWebSettings();
+                if (_tab == 2) _loadGroups();
+                if (_tab == 3) _loadLibraries();
+                if (_tab == 4) _loadShareLinks();
+                if (_tab == 5) _loadWebSettings();
               }),
             ],
           ),
@@ -172,8 +213,10 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
             children: [
               _tabButton(0, l10n.zh ? '概览' : 'Overview', Icons.dashboard_outlined),
               _tabButton(1, l10n.zh ? '用户' : 'Users', Icons.people_outline),
-              _tabButton(2, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
-              _tabButton(3, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
+              _tabButton(2, l10n.zh ? '群组' : 'Groups', Icons.groups_outlined),
+              _tabButton(3, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
+              _tabButton(4, l10n.zh ? '分享链接' : 'Share links', Icons.link),
+              _tabButton(5, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
             ],
           ),
         ),
@@ -196,7 +239,9 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                     : switch (_tab) {
                         0 => _overview(l10n),
                         1 => _usersView(l10n),
-                        2 => _librariesView(l10n),
+                        2 => _groupsView(l10n),
+                        3 => _librariesView(l10n),
+                        4 => _shareLinksView(l10n),
                         _ => _settingsView(l10n),
                       },
           ),
@@ -307,6 +352,122 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
           SizedBox(width: 150, child: Text(label, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary))),
           Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 13, color: AppColors.text))),
         ],
+      ),
+    );
+  }
+
+  Widget _groupsView(L10n l10n) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Text(l10n.zh ? '所有群组' : 'All groups', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _createGroup,
+                    icon: const Icon(Icons.group_add_outlined, size: 16),
+                    label: Text(l10n.zh ? '新建群组' : 'New group'),
+                  ),
+                  if (_loadingGroups) ...[
+                    const SizedBox(width: 10),
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 14),
+              _table(
+                headers: [l10n.name, l10n.zh ? '所有者' : 'Owner', l10n.zh ? '创建时间' : 'Created'],
+                rows: [
+                  for (final group in _groups)
+                    [
+                      '${group['name'] ?? ''}',
+                      '${group['owner_name'] ?? group['owner'] ?? ''}',
+                      '${group['created_at'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
+                    ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createGroup() async {
+    final l10n = L10n.of(context);
+    final name = TextEditingController();
+    final owner = TextEditingController(text: context.read<AppSession>().username);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '新建群组' : 'New group'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: name, autofocus: true, decoration: InputDecoration(labelText: l10n.name)),
+              const SizedBox(height: 12),
+              TextField(controller: owner, decoration: InputDecoration(labelText: l10n.zh ? '所有者邮箱' : 'Owner email')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.create)),
+        ],
+      ),
+    );
+    final groupName = name.text.trim();
+    final groupOwner = owner.text.trim();
+    name.dispose();
+    owner.dispose();
+    if (result != true || groupName.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.createAdminGroup(groupName, groupOwner);
+      await _loadGroups();
+      if (mounted) showToast(context, l10n.zh ? '群组已创建' : 'Group created');
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Widget _shareLinksView(L10n l10n) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Text(l10n.zh ? '全站分享链接' : 'All share links', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  const Spacer(),
+                  if (_loadingShareLinks) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _table(
+                headers: [l10n.name, l10n.zh ? '创建者' : 'Creator', l10n.zh ? '访问次数' : 'Views', l10n.zh ? '过期时间' : 'Expires'],
+                rows: [
+                  for (final link in _shareLinks)
+                    [
+                      '${link['obj_name'] ?? ''}',
+                      '${link['creator_name'] ?? link['creator_email'] ?? ''}',
+                      '${link['view_cnt'] ?? 0}',
+                      '${(link['expire_date'] as String?)?.isNotEmpty == true ? link['expire_date'] : (l10n.zh ? '永久' : 'Never')}',
+                    ],
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

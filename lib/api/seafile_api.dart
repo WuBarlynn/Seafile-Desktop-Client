@@ -233,6 +233,36 @@ class SeafileApi {
     }));
   }
 
+  Future<Map<String, dynamic>> adminGroups({int page = 1, int perPage = 50, String name = ''}) async {
+    return asMap(await _get('api/v2.1/admin/groups/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+      if (name.isNotEmpty) 'name': name,
+    }));
+  }
+
+  Future<Map<String, dynamic>> createAdminGroup(String name, String owner) async {
+    return asMap(await _postJson('api/v2.1/admin/groups/', {
+      'group_name': name,
+      'group_owner': owner,
+    }));
+  }
+
+  Future<void> deleteAdminGroup(int id) async {
+    await _delete('api/v2.1/admin/groups/$id/');
+  }
+
+  Future<Map<String, dynamic>> adminShareLinks({int page = 1, int perPage = 50}) async {
+    return asMap(await _get('api/v2.1/admin/share-links/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<void> deleteAdminShareLink(String token) async {
+    await _delete('api/v2.1/admin/share-links/$token/');
+  }
+
   Future<Map<String, dynamic>> createAdminUser(Map<String, dynamic> values) async {
     return asMap(await _postJson('api/v2.1/admin/users/', values));
   }
