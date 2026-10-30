@@ -307,6 +307,19 @@ class SeafileApi {
     );
   }
 
+  Future<void> setFileLock(String repoId, String path, bool lock) async {
+    try {
+      await _api.put<dynamic>(
+        'api/v2.1/repos/$repoId/file/',
+        queryParameters: {'p': path},
+        data: FormData.fromMap({'operation': lock ? 'lock' : 'unlock'}),
+        options: Options(headers: _authHeaders),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<void> createFile(String repoId, String path) async {
     await _postForm(
       'api/v2.1/repos/$repoId/file/',
@@ -720,6 +733,81 @@ class SeafileApi {
     );
     final raw = data is Map ? (data['share_links'] ?? data['links']) : data;
     return asMapList(raw).map(ShareLink.fromJson).toList();
+  }
+
+  Future<List<SharedAccess>> sharedAccess(String repoId, String path) async {
+    final result = <SharedAccess>[];
+    for (final type in ['user', 'group']) {
+      final data = await _get(
+        'api2/repos/$repoId/dir/shared_items/',
+        query: {'p': path, 'share_type': type},
+      );
+      final raw = data is Map ? (data['data'] ?? data['shared_items'] ?? []) : data;
+      for (final item in asMapList(raw)) {
+        final access = SharedAccess.fromJson(item, type: type);
+        if (access.id.isNotEmpty) result.add(access);
+      }
+    }
+    return result;
+  }
+
+  Future<({List<String> success, List<String> failed})> shareAccess({
+    required String repoId,
+    required String path,
+    required String type,
+    required List<String> ids,
+    String permission = 'rw',
+  }) async {
+    final form = FormData();
+    form.fields.add(MapEntry('share_type', type));
+    form.fields.add(MapEntry('permission', permission));
+    for (final id in ids) {
+      form.fields.add(MapEntry(type == 'user' ? 'username' : 'group_id', id));
+    }
+    try {
+      final response = await _api.put<dynamic>(
+        'api2/repos/$repoId/dir/shared_items/',
+        queryParameters: {'p': path},
+        data: form,
+        options: Options(headers: _authHeaders),
+      );
+      final map = asMap(response.data);
+      final success = asMapList(map['success']);
+      final failed = asMapList(map['failed']);
+      return (
+        success: success.map((item) {
+          if (type == 'user') {
+            return firstString(item, ['user_email', 'email']) ?? firstString(asMap(item['user_info']), ['name']) ?? '';
+          }
+          return firstString(item, ['group_id', 'id']) ?? firstString(asMap(item['group_info']), ['id']) ?? '';
+        }).where((id) => id.isNotEmpty).toList(),
+        failed: failed.map((item) => item.toString()).toList(),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<void> removeSharedAccess(String repoId, String path, String type, String id) async {
+    try {
+      await _api.delete<dynamic>(
+        'api2/repos/$repoId/dir/shared_items/',
+        queryParameters: {
+          'p': path,
+          'share_type': type,
+          if (type == 'user') 'username': id else 'group_id': id,
+        },
+        options: Options(headers: _authHeaders),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<List<ShareableGroup>> shareableGroups() async {
+    final data = await _get('api/v2.1/shareable-groups/');
+    final raw = data is Map ? (data['groups'] ?? data['data'] ?? []) : data;
+    return asMapList(raw).map(ShareableGroup.fromJson).where((group) => group.id.isNotEmpty).toList();
   }
 
   Future<ShareLink> createShareLink({

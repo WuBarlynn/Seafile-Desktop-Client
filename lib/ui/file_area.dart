@@ -86,6 +86,11 @@ class _FileAreaState extends State<FileArea> {
       PopupMenuItem(value: 'copy', child: _row('copy', l10n.copy)),
       if (single != null && !single.isDir && FileKind.of(single.name).isPreviewable && (FileKind.of(single.name) == FileKind.text || FileKind.of(single.name) == FileKind.markdown) && canWrite)
         PopupMenuItem(value: 'edit', child: _row('edit', l10n.edit)),
+      if (single != null && !single.isDir && canWrite && !single.name.toLowerCase().endsWith('.sdoc'))
+        PopupMenuItem(
+          value: single.locked ? 'unlock' : 'lock',
+          child: _row(single.locked ? 'unlock' : 'lock', single.locked ? l10n.unlockFile : l10n.lockFile),
+        ),
       if (single != null && !single.isDir) PopupMenuItem(value: 'history', child: _row('history', l10n.history)),
       const PopupMenuDivider(),
       PopupMenuItem(value: 'details', child: _row('info', l10n.details)),
@@ -124,6 +129,17 @@ class _FileAreaState extends State<FileArea> {
         if (single != null) {
           final saved = await openTextEditor(context, workspace.repo!, single);
           if (saved == true) await workspace.loadDir();
+        }
+      case 'lock':
+      case 'unlock':
+        if (single != null) {
+          try {
+            await workspace.session.api!.setFileLock(workspace.repo!.id, single.path, selectedValue == 'lock');
+            await workspace.loadDir();
+            if (context.mounted) showToast(context, selectedValue == 'lock' ? l10n.fileLocked : l10n.fileUnlocked);
+          } catch (error) {
+            if (context.mounted) showToast(context, friendlyError(context, error), error: true);
+          }
         }
       case 'history':
         if (single != null) await showFileHistory(context, workspace, single);

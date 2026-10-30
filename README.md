@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI without embedding a web view: file browsing, previews, uploads, downloads, sharing, trash, history, metadata and AI chat are all implemented as native Flutter widgets on top of the Seafile Web API.
 
-> **Status:** 0.2.0 — under active development. Every iteration is published to this repository.
+> **Status:** 1.0.0 — dual-platform release (macOS + Windows). Every iteration is published to this repository.
 
 ## Design goals
 
@@ -17,12 +17,13 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Libraries grouped as Mine / Shared with me / Groups / Public; create, rename, delete, and restore deleted libraries
 - SeaHub 14-style library view: resizable directory tree, file table and grid, breadcrumbs, sorting, multi-select and context menus
 - Web-parity **New** menu: new directory, text file, Markdown, Word/Excel/PowerPoint, plus SeaDoc, Excalidraw and “Import sdoc” when the server enables them; upload files/folders, share, copy path
-- File operations: rename, move, copy, delete, star, drag-and-drop upload, transfer progress panel
+- File operations: rename, move, copy, delete, star, lock/unlock, drag-and-drop upload, transfer progress panel
 - Downloads: single file, folder ZIP, progress and cancellation
 - Native preview: images (including SVG), PDF, plain text and Markdown; other types can be downloaded or opened in the web app
 - Native plain-text and Markdown editor with preview toggle, unsaved-change protection and in-place save
 - Encrypted library unlock with remembered passwords
 - Share links: create with password, expiry and permissions; list, copy and delete
+- Private sharing: share a library or folder with users or groups, choose read/write or read-only, and remove access
 - Trash: restore single/multiple items, empty trash where supported
 - File and library history: view, download old versions and restore
 - Metadata and tags: enable/disable, tag management and filtering, properties panel, AI summaries
@@ -79,6 +80,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.0.0
+
+Tagged `v1.0.0`. GitHub Actions builds both platforms and attaches `Seafile-macos.zip` and `Seafile-windows.zip` to the GitHub Release.
 
 ## Known limitations
 

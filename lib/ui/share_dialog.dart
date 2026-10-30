@@ -8,6 +8,7 @@ import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
+import 'share_people_dialog.dart';
 import 'widgets.dart';
 
 Future<void> shareEntry(BuildContext context, WorkspaceController workspace, Dirent? entry) async {
@@ -161,7 +162,22 @@ class _ShareDialogState extends State<_ShareDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(l10n.shareLinkHint, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Row(
+              children: [
+                Expanded(child: Text(l10n.shareLinkHint, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))),
+                if (_isDir)
+                  OutlinedButton.icon(
+                    onPressed: () => showPeopleShareDialog(
+                      context,
+                      repo: widget.repo,
+                      path: _path,
+                      title: title,
+                    ),
+                    icon: const WebIcon('share', size: 14),
+                    label: Text(l10n.shareWithPeople),
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
             Expanded(
               child: _loading

@@ -871,3 +871,42 @@ class NotificationBundle {
   final int generalUnseen;
   final int discussionUnseen;
 }
+
+class SharedAccess {
+  const SharedAccess({required this.id, required this.name, required this.type, required this.permission, this.avatarUrl});
+
+  final String id;
+  final String name;
+  final String type;
+  final String permission;
+  final String? avatarUrl;
+
+  factory SharedAccess.fromJson(Map<String, dynamic> json, {required String type}) {
+    final info = type == 'user' ? asMap(json['user_info']) : asMap(json['group_info']);
+    return SharedAccess(
+      id: type == 'user'
+          ? (firstString(info, ['name', 'email']) ?? '')
+          : (firstString(info, ['id', 'group_id']) ?? ''),
+      name: type == 'user'
+          ? (firstString(info, ['nickname', 'name']) ?? '')
+          : (firstString(info, ['name', 'group_name']) ?? ''),
+      type: type,
+      permission: firstString(json, ['permission']) ?? 'rw',
+      avatarUrl: firstString(info, ['avatar_url']),
+    );
+  }
+}
+
+class ShareableGroup {
+  const ShareableGroup({required this.id, required this.name});
+
+  final String id;
+  final String name;
+
+  factory ShareableGroup.fromJson(Map<String, dynamic> json) {
+    return ShareableGroup(
+      id: firstString(json, ['id', 'group_id']) ?? '',
+      name: firstString(json, ['name', 'group_name']) ?? '',
+    );
+  }
+}
