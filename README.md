@@ -60,7 +60,7 @@ The client requires an HTTP(S)-reachable Seafile server with the Web API enabled
 
 ## Build
 
-Requirements: Flutter **3.47.9** (Dart 3.13), macOS 13+ or Windows 10+.
+Requirements: Flutter **3.47.9** (Dart 3.13), macOS 13+ or Windows 10+. Windows builds also need the NuGet CLI (the inline WebView plugin restores WebView2/WIL packages) and the WebView2 Runtime at run time.
 
 ```bash
 flutter pub get
