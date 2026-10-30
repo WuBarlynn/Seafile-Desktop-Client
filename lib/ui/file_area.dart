@@ -50,10 +50,11 @@ class _FileAreaState extends State<FileArea> {
     final keyboard = HardwareKeyboard.instance;
     final additive = keyboard.isMetaPressed || keyboard.isControlPressed;
     final range = keyboard.isShiftPressed;
-    ws.toggleSelection(entry, additive: additive || range, range: range);
-  }
-
-  void _handleDoubleTap(Dirent entry) {
+    if (additive || range) {
+      ws.toggleSelection(entry, additive: true, range: range);
+      return;
+    }
+    ws.toggleSelection(entry, additive: false);
     if (entry.isDir) {
       ws.enterPath(entry.path);
     } else {
@@ -360,7 +361,6 @@ class _FileAreaState extends State<FileArea> {
                       showTags: tagsWidth > 0,
                       tagsWidth: tagsWidth,
                       onTap: () => _handleTap(entry, index),
-                      onDoubleTap: () => _handleDoubleTap(entry),
                       onCheck: () => workspace.toggleSelection(entry, additive: true),
                       onStar: () => toggleStar(context, workspace, entry),
                       onContextMenu: (position) => _showContextMenu(entry, position),
@@ -396,7 +396,7 @@ class _FileAreaState extends State<FileArea> {
               entry: entry,
               selected: workspace.isSelected(entry),
               onTap: () => _handleTap(entry, index),
-              onDoubleTap: () => _handleDoubleTap(entry),
+              onCheck: () => workspace.toggleSelection(entry, additive: true),
               onContextMenu: (position) => _showContextMenu(entry, position),
               onStar: () => toggleStar(context, workspace, entry),
             );
@@ -472,7 +472,6 @@ class _FileRow extends StatefulWidget {
     required this.showTags,
     required this.tagsWidth,
     required this.onTap,
-    required this.onDoubleTap,
     required this.onCheck,
     required this.onStar,
     required this.onContextMenu,
@@ -486,7 +485,6 @@ class _FileRow extends StatefulWidget {
   final bool showTags;
   final double tagsWidth;
   final VoidCallback onTap;
-  final VoidCallback onDoubleTap;
   final VoidCallback onCheck;
   final VoidCallback onStar;
   final ValueChanged<Offset> onContextMenu;
@@ -508,7 +506,6 @@ class _FileRowState extends State<_FileRow> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        onDoubleTap: widget.onDoubleTap,
         onSecondaryTapDown: (details) => widget.onContextMenu(details.globalPosition),
         child: Container(
           height: 46,
@@ -608,7 +605,7 @@ class _FileGridCard extends StatefulWidget {
     required this.entry,
     required this.selected,
     required this.onTap,
-    required this.onDoubleTap,
+    required this.onCheck,
     required this.onContextMenu,
     required this.onStar,
   });
@@ -617,7 +614,7 @@ class _FileGridCard extends StatefulWidget {
   final Dirent entry;
   final bool selected;
   final VoidCallback onTap;
-  final VoidCallback onDoubleTap;
+  final VoidCallback onCheck;
   final ValueChanged<Offset> onContextMenu;
   final VoidCallback onStar;
 
@@ -638,7 +635,6 @@ class _FileGridCardState extends State<_FileGridCard> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        onDoubleTap: widget.onDoubleTap,
         onSecondaryTapDown: (details) => widget.onContextMenu(details.globalPosition),
         child: Container(
           decoration: BoxDecoration(
@@ -688,7 +684,7 @@ class _FileGridCardState extends State<_FileGridCard> {
                 top: 4,
                 child: Checkbox(
                   value: widget.selected,
-                  onChanged: (_) => widget.onTap(),
+                  onChanged: (_) => widget.onCheck(),
                   visualDensity: VisualDensity.compact,
                 ),
               ),

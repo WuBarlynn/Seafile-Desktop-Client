@@ -1,5 +1,6 @@
 import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +21,10 @@ Future<void> clearAuthenticatedWeb() async {
     } catch (_) {}
   }
   _webWindows.clear();
+  try {
+    await InAppWebViewController.clearAllCache();
+    await CookieManager.instance().deleteAllCookies();
+  } catch (_) {}
   try {
     final support = await getApplicationSupportDirectory();
     await WebviewWindow.clearAll(

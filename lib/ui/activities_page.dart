@@ -6,13 +6,14 @@ import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
-import '../state/workspace.dart';
-import 'preview_page.dart';
 import 'repo_actions.dart';
 import 'widgets.dart';
 
 class ActivitiesPage extends StatefulWidget {
-  const ActivitiesPage({super.key});
+  const ActivitiesPage({super.key, required this.onOpenLibrary, required this.onOpenFile});
+
+  final void Function(Repository repo, String path) onOpenLibrary;
+  final void Function(Repository repo, String path) onOpenFile;
 
   @override
   State<ActivitiesPage> createState() => _ActivitiesPageState();
@@ -69,25 +70,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
   Future<void> _open(ActivityEvent event) async {
     final session = context.read<AppSession>();
-    final workspace = context.read<WorkspaceController>();
     final repo = session.findRepo(event.repoId);
     if (repo == null) return;
     if (!await ensureRepoUnlocked(context, repo) || !mounted) return;
-    await workspace.openRepo(repo);
-    if (!mounted) return;
-    await workspace.enterPath(event.isDir ? event.path : parentRepoPath(event.path));
-    if (!mounted || event.isDir) return;
-    Dirent? entry;
-    for (final dirent in workspace.entries) {
-      if (dirent.path == event.path) {
-        entry = dirent;
-        break;
-      }
-    }
-    if (entry != null && mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (context) => PreviewPage(repo: repo, entry: entry!)),
-      );
+    if (event.isDir) {
+      widget.onOpenLibrary(repo, event.path);
+    } else {
+      widget.onOpenFile(repo, event.path);
     }
   }
 

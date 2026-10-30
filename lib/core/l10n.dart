@@ -208,6 +208,7 @@ class L10n {
   String get accountSettings => zh ? '账户设置' : 'Account settings';
   String get inviteGuests => zh ? '邀请访客' : 'Invite guests';
   String get fullWebApp => zh ? '完整网页版' : 'Full web app';
+  String get systemSettings => zh ? '系统设置' : 'System settings';
   String get myWikis => zh ? '我的知识库' : 'My wikis';
   String get sharedWikis => zh ? '共享给我的知识库' : 'Shared with me';
   String get legacyWikis => zh ? '旧版知识库' : 'Legacy wikis';

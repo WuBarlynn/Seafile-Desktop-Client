@@ -24,7 +24,9 @@ import 'tree_panel.dart';
 import 'widgets.dart';
 
 class BrowserView extends StatefulWidget {
-  const BrowserView({super.key});
+  const BrowserView({super.key, this.onOpenFile});
+
+  final void Function(Repository repo, Dirent entry)? onOpenFile;
 
   @override
   State<BrowserView> createState() => _BrowserViewState();
@@ -221,6 +223,10 @@ class _BrowserViewState extends State<BrowserView> {
   void _preview(Dirent entry) {
     final repo = ws.repo;
     if (repo == null) return;
+    if (widget.onOpenFile != null) {
+      widget.onOpenFile!(repo, entry);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => PreviewPage(repo: repo, entry: entry),

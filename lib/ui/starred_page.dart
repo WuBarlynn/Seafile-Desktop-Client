@@ -6,13 +6,14 @@ import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
-import '../state/workspace.dart';
-import 'preview_page.dart';
 import 'repo_actions.dart';
 import 'widgets.dart';
 
 class StarredPage extends StatefulWidget {
-  const StarredPage({super.key});
+  const StarredPage({super.key, required this.onOpenLibrary, required this.onOpenFile});
+
+  final void Function(Repository repo, String path) onOpenLibrary;
+  final void Function(Repository repo, String path) onOpenFile;
 
   @override
   State<StarredPage> createState() => _StarredPageState();
@@ -54,25 +55,13 @@ class _StarredPageState extends State<StarredPage> {
 
   Future<void> _open(StarredItem item) async {
     final session = context.read<AppSession>();
-    final workspace = context.read<WorkspaceController>();
     final repo = session.findRepo(item.repoId);
     if (repo == null) return;
     if (!await ensureRepoUnlocked(context, repo) || !mounted) return;
-    await workspace.openRepo(repo);
-    if (!mounted) return;
-    await workspace.enterPath(item.isDir ? item.path : parentRepoPath(item.path));
-    if (!mounted || item.isDir) return;
-    Dirent? entry;
-    for (final dirent in workspace.entries) {
-      if (dirent.path == item.path) {
-        entry = dirent;
-        break;
-      }
-    }
-    if (entry != null && mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (context) => PreviewPage(repo: repo, entry: entry!)),
-      );
+    if (item.isDir) {
+      widget.onOpenLibrary(repo, item.path);
+    } else {
+      widget.onOpenFile(repo, item.path);
     }
   }
 

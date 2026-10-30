@@ -190,6 +190,147 @@ class SeafileApi {
     return info;
   }
 
+  Future<Map<String, dynamic>> userProfile() async {
+    return asMap(await _get('api/v2.1/user/'));
+  }
+
+  Future<Map<String, dynamic>> updateUserProfile(Map<String, dynamic> values) async {
+    return asMap(await _putJson('api/v2.1/user/', values));
+  }
+
+  Future<void> resetPassword({required String oldPassword, required String newPassword}) async {
+    await _postJson('api/v2.1/user/reset-password/', {
+      'old_password': oldPassword,
+      'new_password': newPassword,
+    });
+  }
+
+  Future<Map<String, dynamic>> adminSysInfo() async {
+    return asMap(await _get('api/v2.1/admin/sysinfo/'));
+  }
+
+  Future<Map<String, dynamic>> adminWebSettings() async {
+    return asMap(await _get('api/v2.1/admin/web-settings/'));
+  }
+
+  Future<void> updateAdminWebSettings(Map<String, dynamic> values) async {
+    await _putJson('api/v2.1/admin/web-settings/', values);
+  }
+
+  Future<Map<String, dynamic>> adminUsers({int page = 1, int perPage = 50, String query = ''}) async {
+    return asMap(await _get('api/v2.1/admin/users/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+      if (query.isNotEmpty) 'q': query,
+    }));
+  }
+
+  Future<Map<String, dynamic>> adminLibraries({int page = 1, int perPage = 50, String query = ''}) async {
+    return asMap(await _get('api/v2.1/admin/libraries/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+      if (query.isNotEmpty) 'q': query,
+    }));
+  }
+
+  Future<Map<String, dynamic>> createAdminUser(Map<String, dynamic> values) async {
+    return asMap(await _postJson('api/v2.1/admin/users/', values));
+  }
+
+  Future<Map<String, dynamic>> updateAdminUser(String email, Map<String, dynamic> values) async {
+    final encoded = Uri.encodeComponent(email);
+    return asMap(await _putJson('api/v2.1/admin/users/$encoded/', values));
+  }
+
+  Future<void> resetAdminUserPassword(String email, String password) async {
+    final encoded = Uri.encodeComponent(email);
+    await _postJson('api/v2.1/admin/users/$encoded/reset-password/', {'password': password});
+  }
+
+  Future<void> deleteAdminUser(String email) async {
+    final encoded = Uri.encodeComponent(email);
+    await _delete('api/v2.1/admin/users/$encoded/');
+  }
+
+  // -------------------------------------------------------------------------
+  // SeaDoc
+
+  Future<(String token, String fileUuid, String serverUrl)> _seadocSession(String repoId, String path) async {
+    final data = asMap(await _get('api/v2.1/seadoc/access-token/$repoId/', query: {'p': path}));
+    final token = firstString(data, ['access_token']) ?? '';
+    if (token.isEmpty) throw ApiException(ApiErrorKind.decoding);
+    String fileUuid = '';
+    try {
+      final payload = token.split('.');
+      if (payload.length >= 2) {
+        final normalized = base64Url.normalize(payload[1]);
+        final decoded = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+        if (decoded is Map) fileUuid = firstString(decoded.cast<String, dynamic>(), ['file_uuid']) ?? '';
+      }
+    } catch (_) {}
+    if (fileUuid.isEmpty) throw ApiException(ApiErrorKind.decoding);
+
+    final base = _baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final candidates = ['$base/sdoc-server', base];
+    for (final candidate in candidates) {
+      try {
+        final response = await _transfer.get<dynamic>(
+          '${candidate.replaceFirst(RegExp(r'/+$'), '')}/api/v1/docs/$fileUuid/',
+          options: Options(
+            headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
+            validateStatus: (status) => status != null && status >= 200 && status < 500,
+          ),
+        );
+        if (response.statusCode == 200) return (token, fileUuid, candidate);
+      } catch (_) {}
+    }
+    throw ApiException(ApiErrorKind.server, serverMessage: 'SeaDoc server unavailable');
+  }
+
+  Future<Map<String, dynamic>> loadSdocDocument(String repoId, String path) async {
+    final (token, fileUuid, serverUrl) = await _seadocSession(repoId, path);
+    try {
+      final response = await _transfer.get<dynamic>(
+        '${serverUrl.replaceFirst(RegExp(r'/+$'), '')}/api/v1/docs/$fileUuid/',
+        options: Options(headers: {'Authorization': 'Token $token', 'Accept': 'application/json'}),
+      );
+      final data = response.data;
+      if (data is Map) return data.cast<String, dynamic>();
+      if (data is String) return asMap(jsonDecode(data));
+      throw ApiException(ApiErrorKind.decoding);
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<void> saveSdocDocument(String repoId, String path, Map<String, dynamic> document) async {
+    final (token, fileUuid, serverUrl) = await _seadocSession(repoId, path);
+    final base = _baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final name = path.split('/').last;
+    try {
+      await _transfer.post<dynamic>(
+        '$base/api/v2.1/seadoc/upload-file/$fileUuid/',
+        data: FormData.fromMap({
+          'file': MultipartFile.fromBytes(
+            utf8.encode(jsonEncode(document)),
+            filename: name,
+          ),
+        }),
+        options: Options(headers: {'Authorization': 'Token $token', 'Accept': 'application/json'}),
+      );
+      await _transfer.post<dynamic>(
+        '${serverUrl.replaceFirst(RegExp(r'/+$'), '')}/api/v1/docs/$fileUuid/replace/',
+        data: {'doc_name': name},
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Libraries
 
@@ -322,9 +463,9 @@ class SeafileApi {
 
   Future<void> createFile(String repoId, String path) async {
     await _postForm(
-      'api/v2.1/repos/$repoId/file/',
-      {'operation': 'create', 'is_draft': 'false'},
-      query: {'p': path},
+      'api2/repos/$repoId/file/',
+      {'operation': 'create'},
+      query: {'p': path, 'reloaddir': 'true'},
     );
   }
 

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -11,23 +13,71 @@ import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
+import 'account_settings_page.dart';
 import 'activities_page.dart';
 import 'browser_view.dart';
 import 'dialogs.dart';
+import 'file_studio.dart';
 import 'library_home.dart';
 import 'notification_bell.dart';
-import 'share_admin_page.dart';
-import 'starred_page.dart';
 import 'repo_actions.dart';
-import 'preview_page.dart';
 import 'search_dialog.dart';
+import 'share_admin_page.dart';
 import 'sidebar.dart';
+import 'starred_page.dart';
+import 'system_settings_page.dart';
 import 'transfers_panel.dart';
 import 'web_handoff.dart';
 import 'wiki_page.dart';
 import 'widgets.dart';
 
 enum ShellSection { libraries, favorites, activities, wikis, shareAdmin }
+
+enum _TabKind { home, library, file, account, system }
+
+class _AppTab {
+  _AppTab.home()
+      : kind = _TabKind.home,
+        title = '',
+        workspace = null,
+        repo = null,
+        entry = null,
+        editorKey = null;
+
+  _AppTab.library(this.workspace, this.repo)
+      : kind = _TabKind.library,
+        title = repo!.name,
+        entry = null,
+        editorKey = null;
+
+  _AppTab.file(this.workspace, this.repo, this.entry)
+      : kind = _TabKind.file,
+        title = entry!.name,
+        editorKey = GlobalKey<FileStudioState>();
+
+  _AppTab.account()
+      : kind = _TabKind.account,
+        title = '',
+        workspace = null,
+        repo = null,
+        entry = null,
+        editorKey = null;
+
+  _AppTab.system()
+      : kind = _TabKind.system,
+        title = '',
+        workspace = null,
+        repo = null,
+        entry = null,
+        editorKey = null;
+
+  final _TabKind kind;
+  final String title;
+  final WorkspaceController? workspace;
+  final Repository? repo;
+  final Dirent? entry;
+  final GlobalKey<FileStudioState>? editorKey;
+}
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -42,33 +92,149 @@ class _AppShellState extends State<AppShell> {
   bool _librariesExpanded = true;
   ShellSection _section = ShellSection.libraries;
   LibraryFilter _filter = LibraryFilter.all;
+  final List<_AppTab> _tabs = [];
+  int _activeIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs.add(_AppTab.home());
+  }
+
+  @override
+  void dispose() {
+    for (final tab in _tabs) {
+      tab.workspace?.dispose();
+    }
+    super.dispose();
+  }
 
   void _selectSection(ShellSection section) {
-    final workspace = context.read<WorkspaceController>();
-    if (section != ShellSection.libraries) {
-      workspace.closeRepo();
-    } else {
-      workspace.closeRepo();
-    }
-    setState(() => _section = section);
+    setState(() {
+      _section = section;
+      _activeIndex = 0;
+    });
   }
 
   void _selectLibraryFilter(LibraryFilter filter) {
-    final workspace = context.read<WorkspaceController>();
-    workspace.closeRepo();
     setState(() {
       _section = ShellSection.libraries;
       _filter = filter;
+      _activeIndex = 0;
     });
   }
 
   void _openLibraries() {
-    final workspace = context.read<WorkspaceController>();
-    workspace.closeRepo();
     setState(() {
       _section = ShellSection.libraries;
       _filter = LibraryFilter.all;
+      _activeIndex = 0;
     });
+  }
+
+  Future<void> _openLibrary(Repository repo, {String? path}) async {
+    final existing = _tabs.indexWhere((tab) => tab.kind == _TabKind.library && tab.repo?.id == repo.id);
+    if (existing >= 0) {
+      final workspace = _tabs[existing].workspace;
+      if (path != null && workspace != null) await workspace.enterPath(path);
+      if (!mounted) return;
+      setState(() => _activeIndex = existing);
+      return;
+    }
+    final session = context.read<AppSession>();
+    final workspace = WorkspaceController(session);
+    try {
+      await workspace.openRepo(repo);
+      if (path != null) await workspace.enterPath(path);
+    } catch (_) {
+      // The workspace surfaces its own error state inside the tab.
+    }
+    if (!mounted) {
+      workspace.dispose();
+      return;
+    }
+    setState(() {
+      _tabs.add(_AppTab.library(workspace, repo));
+      _activeIndex = _tabs.length - 1;
+    });
+  }
+
+  Future<void> _openLibraryAt(Repository repo, String path) => _openLibrary(repo, path: path);
+
+  void _openFile(Repository repo, Dirent entry) {
+    final workspace = WorkspaceController(context.read<AppSession>());
+    unawaited(workspace.openRepo(repo));
+    setState(() {
+      _tabs.add(_AppTab.file(workspace, repo, entry));
+      _activeIndex = _tabs.length - 1;
+    });
+  }
+
+  Future<void> _openFileByPath(Repository repo, String path) async {
+    try {
+      final api = context.read<AppSession>().api!;
+      final detail = await api.fileDetail(repo.id, path);
+      if (!mounted) return;
+      _openFile(
+        repo,
+        Dirent(
+          name: p.basename(path),
+          path: path,
+          isDir: false,
+          size: detail.size ?? 0,
+          mtime: detail.mtime,
+          oid: detail.oid,
+          permission: detail.permission,
+        ),
+      );
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  void _openAccountSettings() {
+    final existing = _tabs.indexWhere((tab) => tab.kind == _TabKind.account);
+    if (existing >= 0) {
+      setState(() => _activeIndex = existing);
+      return;
+    }
+    setState(() {
+      _tabs.add(_AppTab.account());
+      _activeIndex = _tabs.length - 1;
+    });
+  }
+
+  void _openSystemSettings() {
+    final existing = _tabs.indexWhere((tab) => tab.kind == _TabKind.system);
+    if (existing >= 0) {
+      setState(() => _activeIndex = existing);
+      return;
+    }
+    setState(() {
+      _tabs.add(_AppTab.system());
+      _activeIndex = _tabs.length - 1;
+    });
+  }
+
+  Future<void> _closeTab(int index) async {
+    if (index <= 0 || index >= _tabs.length) return;
+    final tab = _tabs[index];
+    if (tab.kind == _TabKind.file) {
+      final state = tab.editorKey?.currentState;
+      if (state != null && !await state.confirmClose()) return;
+      if (!mounted) return;
+    }
+    final workspace = tab.workspace;
+    final wasActive = _activeIndex == index;
+    setState(() {
+      _tabs.removeAt(index);
+      if (index < _activeIndex) {
+        _activeIndex--;
+      } else if (wasActive) {
+        _activeIndex = (index - 1).clamp(0, _tabs.length - 1);
+      }
+    });
+    workspace?.dispose();
   }
 
   Future<void> _openHelp(String path) async {
@@ -90,6 +256,18 @@ class _AppShellState extends State<AppShell> {
     if (!confirmed) return;
     await clearAuthenticatedWeb();
     await session.signOut();
+    if (!mounted) return;
+    for (final tab in _tabs) {
+      tab.workspace?.dispose();
+    }
+    setState(() {
+      _tabs
+        ..clear()
+        ..add(_AppTab.home());
+      _activeIndex = 0;
+      _section = ShellSection.libraries;
+      _filter = LibraryFilter.all;
+    });
   }
 
   Future<void> _search() async {
@@ -101,104 +279,299 @@ class _AppShellState extends State<AppShell> {
     if (repo == null) return;
     if (!await ensureRepoUnlocked(context, repo)) return;
     if (!mounted) return;
-    await workspace.openRepo(repo);
-    if (!mounted) return;
-    await workspace.enterPath(parentRepoPath(result.path));
+    await _openLibrary(repo, path: parentRepoPath(result.path));
     if (!mounted || result.isDir) return;
-    Dirent? entry;
-    for (final item in workspace.entries) {
-      if (item.path == result.path) {
-        entry = item;
-        break;
-      }
-    }
-    if (entry != null && mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (context) => PreviewPage(repo: repo, entry: entry!)),
-      );
-    }
+    await _openFileByPath(repo, result.path);
   }
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<AppSession>();
-    final workspace = context.watch<WorkspaceController>();
-    if (workspace.repoId != null) {
-      _section = ShellSection.libraries;
-    }
+    final l10n = L10n.of(context);
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
           LayoutBuilder(
-        builder: (context, constraints) {
-          final defaultWidth = (constraints.maxWidth * 0.22).clamp(220.0, 306.0);
-          final sidebarWidth = _collapsed ? 64.0 : (_sidebarWidth ?? defaultWidth);
-          return Column(
-            children: [
-              _GlobalHeader(
-                sidebarWidth: sidebarWidth,
-                collapsed: _collapsed,
-                onSearch: _search,
-                onAbout: () => showSeafileAboutDialog(context),
-                onRefresh: session.refreshLibraries,
-                onLogout: _logout,
-              ),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: sidebarWidth,
-                      child: Sidebar(
-                        collapsed: _collapsed,
-                        section: _section,
-                        filter: _filter,
-                        librariesExpanded: _librariesExpanded,
-                        onToggleLibraries: () => setState(() => _librariesExpanded = !_librariesExpanded),
-                        onSection: _selectSection,
-                        onFilter: _selectLibraryFilter,
-                        onOpenLibraries: _openLibraries,
-                        onHelp: () => _openHelp('/help/'),
-                        onClients: () => _openHelp('/download_client_program/'),
-                        onAbout: () => showSeafileAboutDialog(context),
-                        onInviteGuests: () => openAuthenticatedWeb(context, '/invitations/', title: L10n.of(context).inviteGuests),
-                        onToggleCollapse: () => setState(() => _collapsed = !_collapsed),
-                      ),
-                    ),
-                    if (!_collapsed)
-                      ResizeHandle(
-                        onDrag: (delta) => setState(() {
-                          _sidebarWidth = (sidebarWidth + delta).clamp(200.0, (constraints.maxWidth * 0.4).clamp(240.0, 460.0));
-                        }),
-                      )
-                    else
-                      const VerticalDivider(width: 1, thickness: 1, color: AppColors.border),
-                    Expanded(
-                      child: workspace.repoId != null
-                          ? const BrowserView()
-                          : switch (_section) {
-                              ShellSection.libraries => LibraryHome(
-                                  filter: _filter,
-                                  onOpenLibraries: _openLibraries,
+            builder: (context, constraints) {
+              final defaultWidth = (constraints.maxWidth * 0.22).clamp(220.0, 306.0);
+              final sidebarWidth = _collapsed ? 64.0 : (_sidebarWidth ?? defaultWidth);
+              return Column(
+                children: [
+                  _GlobalHeader(
+                    sidebarWidth: sidebarWidth,
+                    collapsed: _collapsed,
+                    onSearch: _search,
+                    onAbout: () => showSeafileAboutDialog(context),
+                    onRefresh: session.refreshLibraries,
+                    onLogout: _logout,
+                    onAccountSettings: _openAccountSettings,
+                    onSystemSettings: _openSystemSettings,
+                  ),
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: sidebarWidth,
+                          child: Sidebar(
+                            collapsed: _collapsed,
+                            section: _section,
+                            filter: _filter,
+                            librariesExpanded: _librariesExpanded,
+                            onToggleLibraries: () => setState(() => _librariesExpanded = !_librariesExpanded),
+                            onSection: _selectSection,
+                            onFilter: _selectLibraryFilter,
+                            onOpenLibraries: _openLibraries,
+                            onHelp: () => _openHelp('/help/'),
+                            onClients: () => _openHelp('/download_client_program/'),
+                            onAbout: () => showSeafileAboutDialog(context),
+                            onInviteGuests: () => openAuthenticatedWeb(context, '/invitations/', title: l10n.inviteGuests),
+                            onToggleCollapse: () => setState(() => _collapsed = !_collapsed),
+                          ),
+                        ),
+                        if (!_collapsed)
+                          ResizeHandle(
+                            onDrag: (delta) => setState(() {
+                              _sidebarWidth = (sidebarWidth + delta).clamp(200.0, (constraints.maxWidth * 0.4).clamp(240.0, 460.0));
+                            }),
+                          )
+                        else
+                          const VerticalDivider(width: 1, thickness: 1, color: AppColors.border),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _TabStrip(
+                                tabs: _tabs,
+                                activeIndex: _activeIndex,
+                                onSelect: (index) => setState(() => _activeIndex = index),
+                                onClose: _closeTab,
+                              ),
+                              Expanded(
+                                child: IndexedStack(
+                                  index: _activeIndex,
+                                  children: [for (final tab in _tabs) _tabContent(tab)],
                                 ),
-                              ShellSection.favorites => const StarredPage(),
-                              ShellSection.activities => const ActivitiesPage(),
-                              ShellSection.wikis => const WikiPage(),
-                              ShellSection.shareAdmin => const ShareAdminPage(),
-                            },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+                  ),
+                ],
+              );
+            },
+          ),
           const Positioned(right: 16, bottom: 16, child: TransfersPanel()),
         ],
       ),
     );
+  }
+
+  Widget _tabContent(_AppTab tab) {
+    switch (tab.kind) {
+      case _TabKind.home:
+        return _homeContent();
+      case _TabKind.library:
+        return ChangeNotifierProvider<WorkspaceController>.value(
+          value: tab.workspace!,
+          child: BrowserView(
+            onOpenFile: _openFile,
+          ),
+        );
+      case _TabKind.file:
+        return ChangeNotifierProvider<WorkspaceController>.value(
+          value: tab.workspace!,
+          child: FileStudio(key: tab.editorKey, repo: tab.repo!, entry: tab.entry!),
+        );
+      case _TabKind.account:
+        return AccountSettingsPage(onOpenSystemSettings: _openSystemSettings);
+      case _TabKind.system:
+        return const SystemSettingsPage();
+    }
+  }
+
+  Widget _homeContent() {
+    return switch (_section) {
+      ShellSection.libraries => LibraryHome(
+          filter: _filter,
+          onOpenLibraries: _openLibraries,
+          onOpenRepository: _openLibrary,
+        ),
+      ShellSection.favorites => StarredPage(
+          onOpenLibrary: _openLibraryAt,
+          onOpenFile: _openFileByPath,
+        ),
+      ShellSection.activities => ActivitiesPage(
+          onOpenLibrary: _openLibraryAt,
+          onOpenFile: _openFileByPath,
+        ),
+      ShellSection.wikis => const WikiPage(),
+      ShellSection.shareAdmin => const ShareAdminPage(),
+    };
+  }
+}
+
+class _TabStrip extends StatelessWidget {
+  const _TabStrip({
+    required this.tabs,
+    required this.activeIndex,
+    required this.onSelect,
+    required this.onClose,
+  });
+
+  final List<_AppTab> tabs;
+  final int activeIndex;
+  final ValueChanged<int> onSelect;
+  final ValueChanged<int> onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = L10n.of(context);
+    return Container(
+      height: 38,
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0F2F5),
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var index = 0; index < tabs.length; index++)
+                    _TabChip(
+                      tab: tabs[index],
+                      active: index == activeIndex,
+                      closable: index > 0,
+                      homeLabel: l10n.zh ? '主页' : 'Home',
+                      accountLabel: l10n.accountSettings,
+                      systemLabel: l10n.systemSettings,
+                      onTap: () => onSelect(index),
+                      onClose: () => onClose(index),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabChip extends StatefulWidget {
+  const _TabChip({
+    required this.tab,
+    required this.active,
+    required this.closable,
+    required this.homeLabel,
+    required this.accountLabel,
+    required this.systemLabel,
+    required this.onTap,
+    required this.onClose,
+  });
+
+  final _AppTab tab;
+  final bool active;
+  final bool closable;
+  final String homeLabel;
+  final String accountLabel;
+  final String systemLabel;
+  final VoidCallback onTap;
+  final VoidCallback onClose;
+
+  @override
+  State<_TabChip> createState() => _TabChipState();
+}
+
+class _TabChipState extends State<_TabChip> {
+  bool _hovered = false;
+  bool _closeHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final tab = widget.tab;
+    final label = switch (tab.kind) {
+      _TabKind.home => widget.homeLabel,
+      _TabKind.library => tab.title,
+      _TabKind.file => tab.title,
+      _TabKind.account => widget.accountLabel,
+      _TabKind.system => widget.systemLabel,
+    };
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: 38,
+          constraints: const BoxConstraints(minWidth: 120, maxWidth: 230),
+          padding: const EdgeInsets.only(left: 12, right: 6),
+          decoration: BoxDecoration(
+            color: widget.active ? Colors.white : (_hovered ? const Color(0xFFF7F8FA) : Colors.transparent),
+            border: Border(
+              right: const BorderSide(color: AppColors.border),
+              top: BorderSide(color: widget.active ? AppColors.primary : Colors.transparent, width: 2),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _tabIcon(tab),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: widget.active ? AppColors.text : AppColors.textSecondary,
+                    fontWeight: widget.active ? FontWeight.w500 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              if (widget.closable)
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  onEnter: (_) => setState(() => _closeHovered = true),
+                  onExit: (_) => setState(() => _closeHovered = false),
+                  child: GestureDetector(
+                    onTap: widget.onClose,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: _closeHovered ? AppColors.hover : Colors.transparent,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: const Icon(Icons.close, size: 13, color: AppColors.muted),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tabIcon(_AppTab tab) {
+    return switch (tab.kind) {
+      _TabKind.home => const Icon(Icons.home_outlined, size: 15, color: AppColors.textSecondary),
+      _TabKind.library => const WebIcon('folder', size: 15, color: AppColors.folder),
+      _TabKind.file => FileTypeIcon(name: tab.entry?.name ?? '', isDir: false, size: 15),
+      _TabKind.account => const WebIcon('settings', size: 15),
+      _TabKind.system => const WebIcon('admin-logs', size: 15),
+    };
   }
 }
 
@@ -210,6 +583,8 @@ class _GlobalHeader extends StatelessWidget {
     required this.onAbout,
     required this.onRefresh,
     required this.onLogout,
+    required this.onAccountSettings,
+    required this.onSystemSettings,
   });
 
   final double sidebarWidth;
@@ -218,6 +593,23 @@ class _GlobalHeader extends StatelessWidget {
   final VoidCallback onAbout;
   final VoidCallback onRefresh;
   final VoidCallback onLogout;
+  final VoidCallback onAccountSettings;
+  final VoidCallback onSystemSettings;
+
+  PopupMenuItem<String> _menuItem(String value, String icon, String label, {bool danger = false}) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          WebIcon(icon, size: 16, color: danger ? AppColors.danger : AppColors.textSecondary),
+          const SizedBox(width: 10),
+          Text(label, style: TextStyle(fontSize: 13, color: danger ? AppColors.danger : AppColors.text)),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -260,9 +652,17 @@ class _GlobalHeader extends StatelessWidget {
                   const SizedBox(width: 8),
                   PopupMenuButton<String>(
                     tooltip: '',
-                    offset: const Offset(0, 40),
+                    position: PopupMenuPosition.under,
+                    offset: const Offset(0, 8),
                     color: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 12,
+                    menuPadding: const EdgeInsets.symmetric(vertical: 6),
+                    constraints: const BoxConstraints(minWidth: 224),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: AppColors.border),
+                    ),
                     itemBuilder: (context) => [
                       PopupMenuItem<String>(
                         enabled: false,
@@ -293,31 +693,18 @@ class _GlobalHeader extends StatelessWidget {
                         ),
                       ),
                       const PopupMenuDivider(),
-                      PopupMenuItem<String>(
-                        value: 'refresh',
-                        child: Row(children: [const WebIcon('refresh', size: 16), const SizedBox(width: 10), Text(l10n.refreshLibraries)]),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'settings',
-                        child: Row(children: [const WebIcon('settings', size: 16), const SizedBox(width: 10), Text(l10n.accountSettings)]),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'webapp',
-                        child: Row(children: [const WebIcon('link', size: 16), const SizedBox(width: 10), Text(l10n.fullWebApp)]),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'about',
-                        child: Row(children: [const WebIcon('about', size: 16), const SizedBox(width: 10), Text(l10n.about)]),
-                      ),
+                      _menuItem('refresh', 'refresh', l10n.refreshLibraries),
+                      _menuItem('settings', 'settings', l10n.accountSettings),
+                      _menuItem('webapp', 'link', l10n.fullWebApp),
+                      if (session.accountInfo?.isStaff == true) _menuItem('admin', 'admin-logs', l10n.systemSettings),
+                      _menuItem('about', 'about', l10n.about),
                       const PopupMenuDivider(),
-                      PopupMenuItem<String>(
-                        value: 'logout',
-                        child: Row(children: [const WebIcon('close', size: 16, color: AppColors.danger), const SizedBox(width: 10), Text(l10n.logout, style: const TextStyle(color: AppColors.danger))]),
-                      ),
+                      _menuItem('logout', 'close', l10n.logout, danger: true),
                     ],
                     onSelected: (value) {
                       if (value == 'refresh') onRefresh();
-                      if (value == 'settings') openAuthenticatedWeb(context, '/settings/', title: L10n.of(context).accountSettings);
+                      if (value == 'settings') onAccountSettings();
+                      if (value == 'admin') onSystemSettings();
                       if (value == 'webapp') openAuthenticatedWeb(context, '/libraries/', title: L10n.of(context).fullWebApp);
                       if (value == 'about') onAbout();
                       if (value == 'logout') onLogout();
@@ -366,18 +753,18 @@ class _SearchButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             color: hovered ? AppColors.hover : Colors.white,
           ),
-        child: Row(
-          children: [
-            const WebIcon('search', size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                hint,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, color: AppColors.muted),
+          child: Row(
+            children: [
+              const WebIcon('search', size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  hint,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                ),
               ),
-            ),
             ],
           ),
         ),
@@ -422,4 +809,3 @@ class _QuotaLine extends StatelessWidget {
     );
   }
 }
-

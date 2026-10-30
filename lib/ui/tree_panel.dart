@@ -304,7 +304,7 @@ class _TreeNodeWidgetState extends State<_TreeNodeWidget> {
                         child: node.loading
                             ? const SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 1.5))
                             : Transform.rotate(
-                                angle: node.expanded ? 0 : -1.57,
+                                angle: node.expanded ? 1.57 : 0,
                                 child: const WebIcon('arrow-right', size: 10, color: AppColors.muted),
                               ),
                       ),

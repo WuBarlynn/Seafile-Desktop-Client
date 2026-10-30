@@ -6,7 +6,6 @@ import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
-import '../state/workspace.dart';
 import 'deleted_libraries_dialog.dart';
 import 'dialogs.dart';
 import 'repo_actions.dart';
@@ -17,10 +16,16 @@ import 'widgets.dart';
 enum _LibrarySort { name, size, modified }
 
 class LibraryHome extends StatefulWidget {
-  const LibraryHome({super.key, required this.filter, required this.onOpenLibraries});
+  const LibraryHome({
+    super.key,
+    required this.filter,
+    required this.onOpenLibraries,
+    required this.onOpenRepository,
+  });
 
   final LibraryFilter filter;
   final VoidCallback onOpenLibraries;
+  final ValueChanged<Repository> onOpenRepository;
 
   @override
   State<LibraryHome> createState() => _LibraryHomeState();
@@ -34,7 +39,7 @@ class _LibraryHomeState extends State<LibraryHome> {
   Future<void> _openRepo(Repository repo) async {
     if (!await ensureRepoUnlocked(context, repo)) return;
     if (!mounted) return;
-    await context.read<WorkspaceController>().openRepo(repo);
+    widget.onOpenRepository(repo);
   }
 
   Future<void> _createLibrary() async {

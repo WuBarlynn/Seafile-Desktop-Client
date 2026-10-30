@@ -10,6 +10,7 @@ class AccountInfo {
     this.usage,
     this.totalQuota,
     this.department,
+    this.isStaff = false,
   });
 
   final String? email;
@@ -17,6 +18,7 @@ class AccountInfo {
   final int? usage;
   final int? totalQuota;
   final String? department;
+  final bool isStaff;
 
   factory AccountInfo.fromJson(Map<String, dynamic> json) {
     return AccountInfo(
@@ -25,6 +27,7 @@ class AccountInfo {
       usage: firstInt(json, ['usage']),
       totalQuota: firstInt(json, ['total', 'quota_total']),
       department: firstString(json, ['department']),
+      isStaff: asBool(json['is_staff']),
     );
   }
 
