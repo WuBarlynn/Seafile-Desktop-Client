@@ -43,6 +43,7 @@ class SdocEditorState extends State<SdocEditor> {
   final List<_SdocBlock> _blocks = [];
   final Map<String, TextEditingController> _tableControllers = {};
   final Map<String, Future<Uint8List>> _imageCache = {};
+  final Map<TextEditingController, String> _lastTexts = {};
   Map<String, dynamic>? _document;
   bool _loading = true;
   bool _saving = false;
@@ -75,6 +76,7 @@ class SdocEditorState extends State<SdocEditor> {
     for (final controller in _tableControllers.values) {
       controller.dispose();
     }
+    _lastTexts.clear();
     _scroll.dispose();
     super.dispose();
   }
@@ -115,6 +117,7 @@ class SdocEditorState extends State<SdocEditor> {
       controller.dispose();
     }
     _tableControllers.clear();
+    _lastTexts.clear();
     final elements = (document['elements'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
     for (final element in elements) {
       final block = _SdocBlock(element);
@@ -126,7 +129,7 @@ class SdocEditorState extends State<SdocEditor> {
           for (final child in children) TextEditingController(text: _textOf(child)),
         ];
         for (final controller in block.children) {
-          controller.addListener(_markDirty);
+          _watch(controller);
         }
       } else if (type == 'callout') {
         final children = (element['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
@@ -135,7 +138,7 @@ class SdocEditorState extends State<SdocEditor> {
           for (final child in children) TextEditingController(text: _textOf(child)),
         ];
         for (final controller in block.children) {
-          controller.addListener(_markDirty);
+          _watch(controller);
         }
       } else if (type == 'toggle_header') {
         final children = (element['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
@@ -143,18 +146,18 @@ class SdocEditorState extends State<SdocEditor> {
         final contentElement = children.length > 1 ? children[1] : null;
         block.toggleCollapsed = element['collapsed'] == true;
         block.toggleTitle = TextEditingController(text: titleElement == null ? '' : _textOf(titleElement));
-        block.toggleTitle!.addListener(_markDirty);
+        _watch(block.toggleTitle!);
         final contentChildren = (contentElement?['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
         block.toggleChildElements = contentChildren;
         block.toggleChildren = [
           for (final child in contentChildren) TextEditingController(text: _textOf(child)),
         ];
         for (final controller in block.toggleChildren) {
-          controller.addListener(_markDirty);
+          _watch(controller);
         }
       } else if (_isSimpleEditable(type)) {
         block.text = TextEditingController(text: _textOf(element));
-        block.text!.addListener(_markDirty);
+        _watch(block.text!);
       }
       _blocks.add(block);
     }
@@ -168,7 +171,7 @@ class SdocEditorState extends State<SdocEditor> {
   void _bindBlock(int index) {
     final block = _blocks[index];
     if (block.text != null) {
-      block.text!.addListener(_markDirty);
+      _watch(block.text!);
     }
   }
 
@@ -267,6 +270,15 @@ class SdocEditorState extends State<SdocEditor> {
         {'id': _textLeafId(element), 'text': value},
       ];
     }
+  }
+
+  void _watch(TextEditingController controller) {
+    _lastTexts[controller] = controller.text;
+    controller.addListener(() {
+      if (_lastTexts[controller] == controller.text) return;
+      _lastTexts[controller] = controller.text;
+      _markDirty();
+    });
   }
 
   void _markDirty() {
@@ -424,7 +436,8 @@ class SdocEditorState extends State<SdocEditor> {
           child.dispose();
         }
         block.childElements = [item];
-        block.children = [TextEditingController(text: text)..addListener(_markDirty)];
+        block.children = [TextEditingController(text: text)];
+        _watch(block.children.first);
       }
     } else if (type == 'code_block') {
       if (!wasCode) {
@@ -442,7 +455,8 @@ class SdocEditorState extends State<SdocEditor> {
         block.element['type'] = 'code_block';
         block.element['language'] = block.element['language'] ?? 'plaintext';
         block.text?.dispose();
-        block.text = TextEditingController(text: text)..addListener(_markDirty);
+        block.text = TextEditingController(text: text);
+        _watch(block.text!);
         for (final child in block.children) {
           child.dispose();
         }
@@ -460,11 +474,13 @@ class SdocEditorState extends State<SdocEditor> {
           {'id': _textLeafId(block.element), 'text': text},
         ];
         block.text?.dispose();
-        block.text = TextEditingController(text: text)..addListener(_markDirty);
+        block.text = TextEditingController(text: text);
+        _watch(block.text!);
       }
       block.element['type'] = type;
       if (block.text == null) {
-        block.text = TextEditingController(text: text)..addListener(_markDirty);
+        block.text = TextEditingController(text: text);
+        _watch(block.text!);
       }
     }
     setState(() => _dirty = true);
@@ -956,7 +972,7 @@ class SdocEditorState extends State<SdocEditor> {
     final id = (cell['id'] as String?) ?? 'cell-${_idSeed++}';
     return _tableControllers.putIfAbsent(id, () {
       final controller = TextEditingController(text: _plainNode(cell));
-      controller.addListener(_markDirty);
+      _watch(controller);
       return controller;
     });
   }
