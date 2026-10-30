@@ -54,7 +54,7 @@ class _WikiPageState extends State<WikiPage> {
     final path = wiki.legacy
         ? '/published/${Uri.encodeComponent(wiki.slug ?? '')}'
         : '/wikis/${Uri.encodeComponent(wiki.id)}/';
-    await openAuthenticatedWeb(context, path);
+    await openAuthenticatedWeb(context, path, title: wiki.name);
   }
 
   List<MapEntry<String, List<WikiInfo>>> _sections(L10n l10n) {

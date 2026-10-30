@@ -161,7 +161,7 @@ class _AppShellState extends State<AppShell> {
                         onHelp: () => _openHelp('/help/'),
                         onClients: () => _openHelp('/download_client_program/'),
                         onAbout: () => showSeafileAboutDialog(context),
-                        onInviteGuests: () => openAuthenticatedWeb(context, '/invitations/'),
+                        onInviteGuests: () => openAuthenticatedWeb(context, '/invitations/', title: L10n.of(context).inviteGuests),
                         onToggleCollapse: () => setState(() => _collapsed = !_collapsed),
                       ),
                     ),
@@ -248,6 +248,13 @@ class _GlobalHeader extends StatelessWidget {
                   const Spacer(),
                   _SearchButton(onTap: onSearch, hint: '${l10n.searchFiles} ($shortcut)'),
                   const SizedBox(width: 10),
+                  IconAction(
+                    icon: 'open-in-new-tab',
+                    tooltip: l10n.fullWebApp,
+                    size: 18,
+                    onPressed: () => openAuthenticatedWeb(context, '/libraries/', title: l10n.fullWebApp),
+                  ),
+                  const SizedBox(width: 2),
                   const NotificationBell(),
                   const SizedBox(width: 8),
                   PopupMenuButton<String>(
@@ -294,6 +301,10 @@ class _GlobalHeader extends StatelessWidget {
                         child: Row(children: [const WebIcon('settings', size: 16), const SizedBox(width: 10), Text(l10n.accountSettings)]),
                       ),
                       PopupMenuItem<String>(
+                        value: 'webapp',
+                        child: Row(children: [const WebIcon('link', size: 16), const SizedBox(width: 10), Text(l10n.fullWebApp)]),
+                      ),
+                      PopupMenuItem<String>(
                         value: 'about',
                         child: Row(children: [const WebIcon('about', size: 16), const SizedBox(width: 10), Text(l10n.about)]),
                       ),
@@ -305,7 +316,8 @@ class _GlobalHeader extends StatelessWidget {
                     ],
                     onSelected: (value) {
                       if (value == 'refresh') onRefresh();
-                      if (value == 'settings') openAuthenticatedWeb(context, '/settings/');
+                      if (value == 'settings') openAuthenticatedWeb(context, '/settings/', title: L10n.of(context).accountSettings);
+                      if (value == 'webapp') openAuthenticatedWeb(context, '/libraries/', title: L10n.of(context).fullWebApp);
                       if (value == 'about') onAbout();
                       if (value == 'logout') onLogout();
                     },
