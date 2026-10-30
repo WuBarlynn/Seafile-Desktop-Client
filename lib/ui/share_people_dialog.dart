@@ -5,7 +5,6 @@ import '../api/models.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
-import 'dialogs.dart';
 import 'widgets.dart';
 
 Future<void> showPeopleShareDialog(
