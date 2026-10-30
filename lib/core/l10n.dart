@@ -31,6 +31,12 @@ class L10n {
   String get trustDevice => zh ? '信任此设备' : 'Trust this device';
   String get verify => zh ? '验证' : 'Verify';
   String get invalidOtp => zh ? '验证码不正确' : 'The verification code is incorrect.';
+  String get ssoLogin => zh ? '使用单点登录' : 'Sign in with SSO';
+  String get ssoTitle => zh ? '单点登录' : 'Single sign-on';
+  String get ssoWaiting => zh ? '请在浏览器中完成登录，此窗口会自动继续…' : 'Complete sign-in in your browser. This window will continue automatically.';
+  String get ssoTimeout => zh ? '单点登录超时，请重试' : 'Single sign-on timed out. Try again.';
+  String get ssoNotAvailable => zh ? '服务器未启用单点登录' : 'Single sign-on is not available on this server.';
+  String get ssoSuccess => zh ? '单点登录成功' : 'Signed in with SSO';
 
   // Common
   String get cancel => zh ? '取消' : 'Cancel';

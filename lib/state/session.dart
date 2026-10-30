@@ -5,11 +5,12 @@ import 'package:flutter/foundation.dart';
 import '../api/api_error.dart';
 import '../api/models.dart';
 import '../api/seafile_api.dart';
+import '../core/app_info.dart';
 import '../core/format.dart';
 import 'session_store.dart';
 
 class AppSession extends ChangeNotifier {
-  AppSession({SessionStore? store, this.clientVersion = '0.1.0'})
+  AppSession({SessionStore? store, this.clientVersion = appVersion})
       : _store = store ?? SessionStore();
 
   final SessionStore _store;
@@ -133,6 +134,46 @@ class AppSession extends ChangeNotifier {
       clientVersion: clientVersion,
       onUnauthorized: _onUnauthorized,
     );
+  }
+
+  Future<void> signInWithToken({
+    required String server,
+    required String username,
+    required String token,
+    bool allowUntrusted = false,
+    bool persist = true,
+  }) async {
+    final uri = SeafileApi.normalizeServerUrl(server);
+    final target = uri.toString();
+    final authenticated = SeafileApi(
+      serverUrl: target,
+      token: token,
+      allowUntrustedCertificate: allowUntrusted,
+      clientVersion: clientVersion,
+      onUnauthorized: _onUnauthorized,
+    );
+    _api?.close();
+    _api = authenticated;
+    _accountInfo = null;
+    _serverInfo = null;
+    _repositories = const [];
+    _librariesError = null;
+    _loadedLibraries = false;
+    _expired = false;
+    _stored = StoredSession(
+      serverUrl: target,
+      username: username,
+      token: token,
+      allowUntrustedCertificate: allowUntrusted,
+    );
+    if (persist) {
+      await _store.writeSession(_stored!);
+    } else {
+      await _store.clearSession();
+    }
+    await SessionStore.saveLastLogin(target, username);
+    _notify();
+    await _bootstrap();
   }
 
   Future<void> signIn({

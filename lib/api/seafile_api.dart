@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
+import '../core/app_info.dart';
 import '../core/format.dart';
 import 'api_error.dart';
 import 'json_utils.dart';
@@ -17,7 +18,7 @@ class SeafileApi {
     this.token,
     this.allowUntrustedCertificate = false,
     this.onUnauthorized,
-    this.clientVersion = '0.1.0',
+    this.clientVersion = appVersion,
   }) : serverUri = normalizeServerUrl(serverUrl) {
     _api = Dio(
       BaseOptions(
@@ -148,6 +149,33 @@ class SeafileApi {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<Uri> clientSsoLink() async {
+    final data = await _postForm('api2/client-sso-link/', const {});
+    final raw = firstString(asMap(data), ['link']);
+    if (raw == null || raw.isEmpty) throw ApiException(ApiErrorKind.unknown, serverMessage: 'SSO is not available.');
+    return Uri.parse(raw);
+  }
+
+  Future<({String username, String token})?> clientSsoStatus(Uri link) async {
+    final text = link.toString();
+    final index = text.indexOf('client-sso/');
+    if (index < 0) throw ApiException(ApiErrorKind.decoding);
+    final path = text.substring(index + 'client-sso/'.length).split('?').first.replaceAll(RegExp(r'/+$'), '');
+    final data = await _get('api2/client-sso-link/$path');
+    final map = asMap(data);
+    final status = firstString(map, ['status']);
+    if (status == 'success') {
+      final username = firstString(map, ['username']);
+      final token = firstString(map, ['apiToken', 'api_token']);
+      if (username == null || token == null) throw ApiException(ApiErrorKind.decoding);
+      return (username: username, token: token);
+    }
+    if (status == 'error') {
+      throw ApiException(ApiErrorKind.unknown, serverMessage: firstString(map, ['message', 'error_msg']));
+    }
+    return null;
   }
 
   Future<AccountInfo> accountInfo() async {

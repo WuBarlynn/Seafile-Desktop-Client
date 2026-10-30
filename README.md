@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI without embedding a web view: file browsing, previews, uploads, downloads, sharing, trash, history, metadata and AI chat are all implemented as native Flutter widgets on top of the Seafile Web API.
 
-> **Status:** 0.1.0 — under active development. Every iteration is published to this repository.
+> **Status:** 0.2.0 — under active development. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -13,7 +13,7 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 
 ## Features
 
-- Sign in with username/password, two-factor authentication (OTP, trusted device), secure token storage and automatic sign-in
+- Sign in with username/password, two-factor authentication (OTP, trusted device), single sign-on via browser polling, secure token storage and automatic sign-in
 - Libraries grouped as Mine / Shared with me / Groups / Public; create, rename, delete, and restore deleted libraries
 - SeaHub 14-style library view: resizable directory tree, file table and grid, breadcrumbs, sorting, multi-select and context menus
 - Web-parity **New** menu: new directory, text file, Markdown, Word/Excel/PowerPoint, plus SeaDoc, Excalidraw and “Import sdoc” when the server enables them; upload files/folders, share, copy path

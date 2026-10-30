@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_error.dart';
 import '../api/seafile_api.dart';
+import '../core/app_info.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
@@ -35,6 +36,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _submitting = false;
   bool _requiresOtp = false;
   bool _trustDevice = false;
+  bool _ssoBusy = false;
   String? _error;
 
   @override
@@ -135,6 +137,52 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) setState(() => _error = error.toString());
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _ssoLogin() async {
+    if (_ssoBusy || _submitting) return;
+    final l10n = L10n.of(context);
+    final server = _serverController.text.trim();
+    if (server.isEmpty) {
+      setState(() => _error = l10n.invalidServer);
+      return;
+    }
+    final session = context.read<AppSession>();
+    SeafileApi? temp;
+    setState(() {
+      _ssoBusy = true;
+      _error = null;
+    });
+    try {
+      final uri = SeafileApi.normalizeServerUrl(server);
+      temp = SeafileApi(
+        serverUrl: uri.toString(),
+        allowUntrustedCertificate: _allowUntrusted,
+      );
+      final link = await temp.clientSsoLink();
+      final launched = await launchUrl(link, mode: LaunchMode.externalApplication);
+      if (!launched) throw ApiException(ApiErrorKind.unknown, serverMessage: l10n.ssoNotAvailable);
+      if (!mounted) return;
+      final result = await showDialog<({String username, String token})>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => _SsoPollingDialog(api: temp!, link: link),
+      );
+      if (result == null || !mounted) return;
+      await session.signInWithToken(
+        server: uri.toString(),
+        username: result.username,
+        token: result.token,
+        allowUntrusted: _allowUntrusted,
+      );
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error.serverMessage?.isNotEmpty == true ? error.serverMessage : l10n.ssoNotAvailable);
+    } catch (error) {
+      if (mounted) setState(() => _error = l10n.ssoNotAvailable);
+    } finally {
+      temp?.close();
+      if (mounted) setState(() => _ssoBusy = false);
     }
   }
 
@@ -336,11 +384,24 @@ class _LoginPageState extends State<LoginPage> {
                           onPressed: _submitting ? null : _backToCredentials,
                           child: Text(l10n.back),
                         ),
+                      )
+                    else ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 40,
+                        child: OutlinedButton.icon(
+                          onPressed: _ssoBusy || _submitting ? null : _ssoLogin,
+                          icon: _ssoBusy
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.verified_user_outlined, size: 17),
+                          label: Text(l10n.ssoLogin),
+                        ),
                       ),
+                    ],
                     const SizedBox(height: 40),
                     Center(
                       child: Text(
-                        'Seafile Desktop 0.1.0',
+                        'Seafile Desktop $appVersion',
                         style: TextStyle(fontSize: 12, color: AppColors.muted.withValues(alpha: 0.85)),
                       ),
                     ),
@@ -378,6 +439,104 @@ class _MessageBox extends StatelessWidget {
           Expanded(child: Text(message, style: TextStyle(fontSize: 13, color: color, height: 1.45))),
         ],
       ),
+    );
+  }
+}
+
+
+class _SsoPollingDialog extends StatefulWidget {
+  const _SsoPollingDialog({required this.api, required this.link});
+
+  final SeafileApi api;
+  final Uri link;
+
+  @override
+  State<_SsoPollingDialog> createState() => _SsoPollingDialogState();
+}
+
+class _SsoPollingDialogState extends State<_SsoPollingDialog> {
+  bool _cancelled = false;
+  bool _checking = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _poll();
+  }
+
+  @override
+  void dispose() {
+    _cancelled = true;
+    super.dispose();
+  }
+
+  Future<void> _poll() async {
+    final l10n = L10n.of(context);
+    var failures = 0;
+    for (var attempt = 0; attempt < 90; attempt++) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted || _cancelled) return;
+      try {
+        final result = await widget.api.clientSsoStatus(widget.link);
+        if (!mounted || _cancelled) return;
+        if (result != null) {
+          Navigator.pop(context, result);
+          return;
+        }
+        failures = 0;
+        if (mounted) setState(() => _checking = true);
+      } on ApiException catch (error) {
+        failures++;
+        if (failures >= 3) {
+          if (mounted) {
+            setState(() {
+              _checking = false;
+              _error = error.serverMessage?.isNotEmpty == true ? error.serverMessage : l10n.ssoTimeout;
+            });
+          }
+          return;
+        }
+      } catch (_) {
+        failures++;
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _checking = false;
+        _error = l10n.ssoTimeout;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = L10n.of(context);
+    return AlertDialog(
+      title: Text(l10n.ssoTitle),
+      content: SizedBox(
+        width: 380,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_error == null) ...[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 18),
+              Text(l10n.ssoWaiting, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            ] else
+              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.danger)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            _cancelled = true;
+            Navigator.pop(context);
+          },
+          child: Text(_error == null ? l10n.cancel : l10n.close),
+        ),
+      ],
     );
   }
 }

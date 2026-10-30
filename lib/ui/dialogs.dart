@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_error.dart';
 import '../api/models.dart';
+import '../core/app_info.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
@@ -264,7 +265,7 @@ Future<void> showSeafileAboutDialog(BuildContext context) async {
           children: [
             Text(l10n.aboutDescription, style: const TextStyle(fontSize: 13, height: 1.6, color: AppColors.textSecondary)),
             const SizedBox(height: 18),
-            _infoRow(l10n.clientVersion, '0.1.0'),
+            _infoRow(l10n.clientVersion, appVersion),
             _infoRow(l10n.serverVersion, session.serverInfo?.version ?? '—'),
             _infoRow(l10n.server, session.serverBase),
             const SizedBox(height: 16),
