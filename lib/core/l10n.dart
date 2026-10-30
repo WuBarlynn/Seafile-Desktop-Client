@@ -255,6 +255,8 @@ class L10n {
   String get uploadFolder => zh ? '上传文件夹' : 'Upload folder';
   String get newFolder => zh ? '新建文件夹' : 'New folder';
   String get newButton => zh ? '新建' : 'New';
+  String get newDirectory => zh ? '新建目录' : 'New directory';
+  String get uploadDirectory => zh ? '上传目录' : 'Upload directory';
   String get newFile => zh ? '新建文件' : 'New file';
   String get newTextFile => zh ? '新建文本文件' : 'New text file';
   String get newSeaDocFile => zh ? '新建 SeaDoc 文件' : 'New SeaDoc file';

@@ -63,7 +63,7 @@ class NewMenuButton extends StatelessWidget {
             style: _itemStyle,
             leadingIcon: const WebIcon('new-folder', size: 16, color: AppColors.textSecondary),
             onPressed: () => _newFolder(context),
-            child: Text(l10n.newFolder, style: const TextStyle(fontSize: 14, color: AppColors.text)),
+            child: Text(l10n.newDirectory, style: const TextStyle(fontSize: 14, color: AppColors.text)),
           ),
           SubmenuButton(
             style: _itemStyle,
@@ -83,7 +83,7 @@ class NewMenuButton extends StatelessWidget {
             style: _itemStyle,
             leadingIcon: const WebIcon('upload-folder', size: 16, color: AppColors.textSecondary),
             onPressed: onUploadFolder,
-            child: Text(l10n.uploadFolder, style: const TextStyle(fontSize: 14, color: AppColors.text)),
+            child: Text(l10n.uploadDirectory, style: const TextStyle(fontSize: 14, color: AppColors.text)),
           ),
         ],
         const Divider(height: 10, color: AppColors.border),
