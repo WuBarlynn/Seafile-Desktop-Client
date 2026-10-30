@@ -88,6 +88,7 @@ class _AppShellState extends State<AppShell> {
       confirmLabel: l10n.logout,
     );
     if (!confirmed) return;
+    await clearAuthenticatedWeb();
     await session.signOut();
   }
 

@@ -11,6 +11,23 @@ import 'widgets.dart';
 
 final List<Webview> _webWindows = [];
 
+/// Closes every embedded web window and clears its cookies/storage. Called on
+/// sign-out so a later account cannot inherit the previous web session.
+Future<void> clearAuthenticatedWeb() async {
+  for (final webview in List<Webview>.of(_webWindows)) {
+    try {
+      await webview.close();
+    } catch (_) {}
+  }
+  _webWindows.clear();
+  try {
+    final support = await getApplicationSupportDirectory();
+    await WebviewWindow.clearAll(
+      windows: WindowsWebviewOptions(userDataFolder: p.join(support.path, 'WebView2')),
+    );
+  } catch (_) {}
+}
+
 /// Opens a SeaHub page in an embedded WebView window when possible, using a
 /// one-time client-login token for an authenticated session. Falls back to the
 /// system browser when the platform WebView runtime is unavailable.
