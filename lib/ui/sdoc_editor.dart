@@ -668,7 +668,8 @@ class SdocEditorState extends State<SdocEditor> {
       'embed_link' => _embedView(block),
       'formula' => _formulaView(block),
       'toggle_header' => _toggleView(block),
-      _ => _textField(block, 15, FontWeight.w400, onTap: () => _setActive(index)),
+      'multi_column' => _multiColumnView(block),
+      _ => _unknownView(block),
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -867,6 +868,53 @@ class SdocEditorState extends State<SdocEditor> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _multiColumnView(_SdocBlock block) {
+    final columns = (block.element['children'] as List?)?.whereType<Map>().toList() ?? const [];
+    if (columns.isEmpty) return _unknownView(block);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < columns.length; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: AppColors.border)),
+                child: Text(
+                  _textOf(columns[i]).trim().isEmpty ? '—' : _textOf(columns[i]),
+                  style: const TextStyle(fontSize: 12.5, height: 1.55),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _unknownView(_SdocBlock block) {
+    final text = _textOf(block.element).trim();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: AppColors.hover, borderRadius: BorderRadius.circular(5)),
+      child: Row(
+        children: [
+          const WebIcon('info', size: 15, color: AppColors.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text.isEmpty ? block.type : '$text  ·  ${block.type}',
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+            ),
+          ),
         ],
       ),
     );
