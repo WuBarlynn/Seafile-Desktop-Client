@@ -14,6 +14,7 @@ import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
 import 'file_actions.dart';
+import 'sdoc_comments_panel.dart';
 import 'widgets.dart';
 
 class SdocEditor extends StatefulWidget {
@@ -48,6 +49,7 @@ class SdocEditorState extends State<SdocEditor> {
   final Map<String, TextEditingController> _tableControllers = {};
   final Map<String, Future<Uint8List>> _imageCache = {};
   final Set<String> _openingVideos = {};
+  bool _commentsOpen = false;
   final Map<TextEditingController, String> _lastTexts = {};
   Map<String, dynamic>? _document;
   bool _loading = true;
@@ -522,7 +524,19 @@ class SdocEditorState extends State<SdocEditor> {
       children: [
         _header(l10n, workspace),
         if (_saving) const LinearProgressIndicator(minHeight: 2),
-        Expanded(child: _content(l10n)),
+        Expanded(
+          child: Row(
+            children: [
+              Expanded(child: _content(l10n)),
+              if (_commentsOpen)
+                SdocCommentsPanel(
+                  repo: widget.repo,
+                  entry: widget.entry,
+                  onClose: () => setState(() => _commentsOpen = false),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -568,6 +582,12 @@ class SdocEditorState extends State<SdocEditor> {
                   style: FilledButton.styleFrom(minimumSize: const Size(0, 30), padding: const EdgeInsets.symmetric(horizontal: 12)),
                 ),
                 const SizedBox(width: 4),
+                IconAction(
+                  icon: 'comment',
+                  tooltip: l10n.zh ? '评论' : 'Comments',
+                  size: 17,
+                  onPressed: () => setState(() => _commentsOpen = !_commentsOpen),
+                ),
                 if (workspace.repoId == widget.repo.id)
                   IconAction(icon: 'share', tooltip: l10n.share, size: 17, onPressed: () => shareEntry(context, workspace, widget.entry)),
                 IconAction(icon: 'history', tooltip: l10n.history, size: 17, onPressed: () => showFileHistory(context, workspace, widget.entry)),

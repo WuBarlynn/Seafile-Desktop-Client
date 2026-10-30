@@ -338,6 +338,79 @@ class SeafileApi {
     }
   }
 
+  Future<Map<String, dynamic>> seadocComments(String repoId, String path) async {
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    try {
+      final response = await _api.get<dynamic>(
+        'api/v2.1/seadoc/comments/$fileUuid/',
+        options: Options(headers: {'Authorization': 'Token $token', 'Accept': 'application/json'}),
+      );
+      return asMap(response.data);
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<void> addSeadocComment(String repoId, String path, String comment, {String detail = ''}) async {
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    try {
+      await _api.post<dynamic>(
+        'api/v2.1/seadoc/comments/$fileUuid/',
+        data: {'comment': comment, 'detail': detail},
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<void> addSeadocCommentReply(String repoId, String path, int commentId, String reply) async {
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    try {
+      await _api.post<dynamic>(
+        'api/v2.1/seadoc/comments/$fileUuid/$commentId/replies/',
+        data: {'reply': reply},
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<void> setSeadocCommentResolved(String repoId, String path, int commentId, bool resolved) async {
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    try {
+      await _api.put<dynamic>(
+        'api/v2.1/seadoc/comments/$fileUuid/$commentId/',
+        data: {'resolved': '$resolved'},
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<void> deleteSeadocComment(String repoId, String path, int commentId) async {
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    try {
+      await _api.delete<dynamic>(
+        'api/v2.1/seadoc/comments/$fileUuid/$commentId/',
+        options: Options(headers: {'Authorization': 'Token $token', 'Accept': 'application/json'}),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<Uint8List> loadSdocVideo(String repoId, String path, String src) async {
     final (_, fileUuid, _) = await _seadocSession(repoId, path);
     final name = src.split('/').last;
