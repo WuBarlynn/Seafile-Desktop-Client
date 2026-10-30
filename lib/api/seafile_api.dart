@@ -140,6 +140,16 @@ class SeafileApi {
     throw ApiException(ApiErrorKind.unknown, serverMessage: extractMessage(data));
   }
 
+  Future<String?> clientLoginToken() async {
+    try {
+      final data = await _postForm('api2/client-login/', const {});
+      final token = firstString(asMap(data), ['token']);
+      return token?.isEmpty == true ? null : token;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<AccountInfo> accountInfo() async {
     final data = await _get('api2/account/info/');
     return AccountInfo.fromJson(asMap(data));

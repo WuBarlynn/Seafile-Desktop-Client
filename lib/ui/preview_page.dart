@@ -21,6 +21,7 @@ import '../state/session.dart';
 import '../state/workspace.dart';
 import 'file_actions.dart';
 import 'text_editor_page.dart';
+import 'web_handoff.dart';
 import 'widgets.dart';
 
 class PreviewPage extends StatefulWidget {
@@ -146,10 +147,8 @@ class _PreviewPageState extends State<PreviewPage> {
   }
 
   Future<void> _openInBrowser() async {
-    final session = context.read<AppSession>();
-    final path = encodeRepoPath(widget.entry.path).replaceFirst(RegExp(r'^/'), '');
-    final url = '${session.serverBase}/lib/${widget.repo.id}/file/$path';
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    final path = encodeRepoPath(widget.entry.path);
+    await openAuthenticatedWeb(context, '/lib/${widget.repo.id}/file$path');
   }
 
   @override

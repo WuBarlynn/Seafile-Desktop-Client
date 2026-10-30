@@ -82,7 +82,7 @@ assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 
 ## Known limitations
 
-- Online OnlyOffice / SeaDoc / Excalidraw editing opens the web app; native editors are not embedded yet.
+- Online OnlyOffice / SeaDoc / Excalidraw editing and wiki editing open the web app in the system browser. A one-time `/api2/client-login/` token is used to establish the browser session automatically when 2FA allows it.
 - Video/audio preview is not built in; files can be downloaded or opened externally.
 - Wiki reading/editing still hands off to the web app; notifications without a configured notification server are hidden.
 - The 13-specific layout and feature differences are detected, but finer 13/14 parity work is ongoing.

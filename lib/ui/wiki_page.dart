@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/models.dart';
 import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
+import 'web_handoff.dart';
 import 'widgets.dart';
 
 class WikiPage extends StatefulWidget {
@@ -51,12 +51,10 @@ class _WikiPageState extends State<WikiPage> {
   }
 
   Future<void> _open(WikiInfo wiki) async {
-    final session = context.read<AppSession>();
-    final base = session.serverBase;
-    final uri = wiki.legacy
-        ? Uri.parse('$base/published/${Uri.encodeComponent(wiki.slug ?? '')}')
-        : Uri.parse('$base/wikis/${Uri.encodeComponent(wiki.id)}/');
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final path = wiki.legacy
+        ? '/published/${Uri.encodeComponent(wiki.slug ?? '')}'
+        : '/wikis/${Uri.encodeComponent(wiki.id)}/';
+    await openAuthenticatedWeb(context, path);
   }
 
   List<MapEntry<String, List<WikiInfo>>> _sections(L10n l10n) {

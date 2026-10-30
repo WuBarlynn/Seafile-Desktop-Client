@@ -194,6 +194,8 @@ class L10n {
   String get shareAdminHint => zh ? '你创建的所有分享链接会显示在这里。' : 'All share links you created are listed here.';
   String get shareAdminLoadFailed => zh ? '加载分享链接失败' : 'Could not load share links.';
   String get openInWebApp => zh ? '在网页版中打开' : 'Open in web app';
+  String get openingWebApp => zh ? '正在网页版中打开…' : 'Opening in web app…';
+  String get webLoginFallback => zh ? '已在浏览器中打开；若未登录请先登录网页版。' : 'Opened in your browser. Sign in there if needed.';
   String get groupManagement => zh ? '群组管理' : 'Group management';
   String get myWikis => zh ? '我的知识库' : 'My wikis';
   String get sharedWikis => zh ? '共享给我的知识库' : 'Shared with me';

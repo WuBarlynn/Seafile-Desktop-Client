@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/models.dart';
 import '../core/format.dart';
@@ -11,6 +10,7 @@ import '../state/workspace.dart';
 import 'deleted_libraries_dialog.dart';
 import 'dialogs.dart';
 import 'repo_actions.dart';
+import 'web_handoff.dart';
 import 'sidebar.dart';
 import 'widgets.dart';
 
@@ -239,10 +239,7 @@ class _LibraryHomeState extends State<LibraryHome> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton.icon(
-                                onPressed: () async {
-                                  final uri = Uri.parse('${context.read<AppSession>().serverBase}/groups/');
-                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                                },
+                                onPressed: () => openAuthenticatedWeb(context, '/groups/'),
                                 icon: const WebIcon('plus-sign', size: 14),
                                 label: Text(l10n.newGroup),
                               ),
