@@ -131,7 +131,7 @@ class Sidebar extends StatelessWidget {
                     icon: 'invite-guests',
                     label: l10n.inviteGuests,
                     collapsed: collapsed,
-                    active: false,
+                    active: section == ShellSection.inviteGuests,
                     onTap: onInviteGuests,
                   ),
                   _NavItem(

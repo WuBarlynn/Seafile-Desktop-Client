@@ -32,7 +32,7 @@ import 'web_handoff.dart';
 import 'wiki_page.dart';
 import 'widgets.dart';
 
-enum ShellSection { libraries, favorites, activities, wikis, shareAdmin }
+enum ShellSection { libraries, favorites, activities, wikis, shareAdmin, inviteGuests }
 
 enum _TabKind { home, library, file, account, system, web }
 
@@ -321,7 +321,6 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<AppSession>();
-    final l10n = L10n.of(context);
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -362,7 +361,10 @@ class _AppShellState extends State<AppShell> {
                             onHelp: () => _openHelp('/help/'),
                             onClients: () => _openHelp('/download_client_program/'),
                             onAbout: () => showSeafileAboutDialog(context),
-                            onInviteGuests: () => _openWebPage('/invitations/', l10n.inviteGuests),
+                            onInviteGuests: () => setState(() {
+                            _section = ShellSection.inviteGuests;
+                            _activeIndex = 0;
+                          }),
                             onToggleCollapse: () => setState(() => _collapsed = !_collapsed),
                           ),
                         ),
@@ -448,6 +450,7 @@ class _AppShellState extends State<AppShell> {
         ),
       ShellSection.wikis => WikiPage(onOpenWeb: _openWebPage),
       ShellSection.shareAdmin => const ShareAdminPage(),
+      ShellSection.inviteGuests => const InlineWebEditor.page(path: '/invitations/'),
     };
   }
 }
