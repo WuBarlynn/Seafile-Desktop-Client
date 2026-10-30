@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.1.5 — tabbed workspace and in-place editors. Every iteration is published to this repository.
+> **Status:** 1.1.6 — tabbed workspace and in-place editors. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -91,9 +91,9 @@ lib/
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
 
-## Release 1.1.5
+## Release 1.1.6
 
-Tagged `v1.1.5`. Adds SeaDoc video cards with authenticated download/system playback, embed-link cards, and a native admin operation-log page. Builds on 1.1.4/1.1.3. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
+Tagged `v1.1.6`. Adds a native SeaDoc comments panel (list, post, reply, resolve) and preserves all SeaDoc block types visibly, including multi-column and unknown blocks. Builds on 1.1.5. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
 
 ## Known limitations
 

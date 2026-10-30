@@ -673,6 +673,7 @@ class SdocEditorState extends State<SdocEditor> {
     final active = _active == index;
     final child = switch (block.type) {
       'title' => _textField(block, 28, FontWeight.w700, onTap: () => _setActive(index)),
+      'paragraph' => _textField(block, 15, FontWeight.w400, onTap: () => _setActive(index)),
       'header1' => _textField(block, 26, FontWeight.w700, onTap: () => _setActive(index)),
       'header2' => _textField(block, 22, FontWeight.w600, onTap: () => _setActive(index)),
       'header3' => _textField(block, 18, FontWeight.w600, onTap: () => _setActive(index)),
