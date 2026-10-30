@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI: file browsing, previews, uploads, downloads, sharing, trash, history, metadata and AI chat are all implemented as native Flutter widgets on top of the Seafile Web API. Web-only surfaces (online Office/SeaDoc/Excalidraw editors, wiki editing, account settings and the full web app) open in a dedicated embedded WebView window authenticated with a one-time client-login token, so the native shell stays native.
 
-> **Status:** 1.0.1 — dual-platform release (macOS + Windows). Every iteration is published to this repository.
+> **Status:** 1.0.2 — dual-platform release (macOS + Windows). Every iteration is published to this repository.
 
 ## Design goals
 
@@ -83,9 +83,9 @@ lib/
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
 
-## Release 1.0.1
+## Release 1.0.2
 
-Tagged `v1.0.1`. Adds the authenticated embedded WebView window for the full web app, account settings, invitation pages, wiki editing and online editors, plus the header shortcut and avatar-menu entry. GitHub Actions builds both platforms and attaches `Seafile-macos.zip` and `Seafile-windows.zip` to the GitHub Release. `v1.0.0` remains available as the initial 1.0 release.
+Tagged `v1.0.2`. Adds an **Open in web app** action to the file context menu, and signing out now closes every embedded web window and clears its cookies/storage so the next account cannot inherit a previous web session. Builds on 1.0.1's authenticated WebView windows for the full web app, account settings, invitation pages, wiki editing and online editors. GitHub Actions builds both platforms and attaches `Seafile-macos.zip` and `Seafile-windows.zip` to the GitHub Release. Earlier 1.0.x releases remain available.
 
 ## Known limitations
 
