@@ -277,6 +277,78 @@ class SeafileApi {
     );
   }
 
+  Future<NotificationBundle> notifications({int page = 1, int perPage = 25}) async {
+    final data = await _get(
+      'api/v2.1/all-notifications/',
+      query: {'page': '$page', 'per_page': '$perPage'},
+    );
+    final map = asMap(data);
+    final general = asMap(map['general']);
+    final discussion = asMap(map['discussion']);
+    final items = <NotificationItem>[
+      for (final item in asMapList(general['notification_list'])) NotificationItem.fromJson(item),
+      for (final item in asMapList(discussion['notification_list'])) NotificationItem.fromJson(item),
+    ]..sort((a, b) => (b.time?.millisecondsSinceEpoch ?? 0).compareTo(a.time?.millisecondsSinceEpoch ?? 0));
+    return NotificationBundle(
+      items: items,
+      totalUnseen: firstInt(map, ['total_unseen_count']) ?? 0,
+      generalUnseen: firstInt(general, ['unseen_count']) ?? 0,
+      discussionUnseen: firstInt(discussion, ['unseen_count']) ?? 0,
+    );
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await _put('api/v2.1/all-notifications/');
+  }
+
+  Future<void> markNotificationRead(NotificationItem item, {bool discussion = false}) async {
+    final endpoint = discussion ? 'api/v2.1/sdoc-notification/' : 'api/v2.1/notification/';
+    try {
+      await _api.put<dynamic>(
+        endpoint,
+        data: FormData.fromMap({'notice_id': '${item.id}'}),
+        options: Options(headers: _authHeaders),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<List<WikiInfo>> wikis() async {
+    final result = <WikiInfo>[];
+    ApiException? lastError;
+    try {
+      final data = await _get('api/v2.1/wikis2/');
+      final map = asMap(data);
+      for (final item in asMapList(map['wikis'])) {
+        final wiki = WikiInfo.fromJson(item);
+        if (wiki.id.isNotEmpty && wiki.name.isNotEmpty) result.add(wiki);
+      }
+      for (final group in asMapList(map['group_wikis'])) {
+        final groupName = firstString(group, ['group_name']) ?? '';
+        for (final item in asMapList(group['wiki_info'])) {
+          final wiki = WikiInfo.fromJson(item, groupName: groupName);
+          if (wiki.id.isNotEmpty && wiki.name.isNotEmpty) result.add(wiki);
+        }
+      }
+    } on ApiException catch (error) {
+      lastError = error;
+      if (error.status != 404) rethrow;
+    }
+    try {
+      final data = await _get('api/v2.1/wikis/');
+      final raw = asMap(data)['data'] ?? data;
+      for (final item in asMapList(raw)) {
+        final wiki = WikiInfo.fromJson(item, legacy: true);
+        if (wiki.name.isNotEmpty) result.add(wiki);
+      }
+    } on ApiException catch (error) {
+      lastError = error;
+    }
+    if (result.isEmpty && lastError != null) throw lastError;
+    return result;
+  }
+
   Future<void> importSdoc(String repoId, String parentDir, String filePath) async {
     final form = FormData.fromMap({
       'parent_dir': parentDir,

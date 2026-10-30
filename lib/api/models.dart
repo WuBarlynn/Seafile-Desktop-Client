@@ -771,3 +771,103 @@ class DeletedLibrary {
     );
   }
 }
+
+class WikiInfo {
+  const WikiInfo({
+    required this.id,
+    required this.name,
+    this.type = 'mine',
+    this.owner,
+    this.ownerNickname,
+    this.permission,
+    this.publicUrl,
+    this.slug,
+    this.repoId,
+    this.updatedAt,
+    this.isPublished = false,
+    this.groupName,
+    this.legacy = false,
+  });
+
+  final String id;
+  final String name;
+  final String type;
+  final String? owner;
+  final String? ownerNickname;
+  final String? permission;
+  final String? publicUrl;
+  final String? slug;
+  final String? repoId;
+  final DateTime? updatedAt;
+  final bool isPublished;
+  final String? groupName;
+  final bool legacy;
+
+  bool get canEdit {
+    final value = permission?.toLowerCase();
+    return !legacy && id.isNotEmpty && (value == 'rw' || value == 'admin');
+  }
+
+  factory WikiInfo.fromJson(Map<String, dynamic> json, {bool legacy = false, String? groupName}) {
+    return WikiInfo(
+      id: firstString(json, ['id']) ?? '',
+      name: firstString(json, ['name']) ?? '',
+      type: legacy ? 'old' : (firstString(json, ['type']) ?? 'mine'),
+      owner: firstString(json, ['owner']),
+      ownerNickname: firstString(json, ['owner_nickname']),
+      permission: firstString(json, ['permission']),
+      publicUrl: firstString(json, ['link', 'public_url']),
+      slug: firstString(json, ['slug']),
+      repoId: firstString(json, ['repo_id']),
+      updatedAt: firstDate(json, ['updated_at', 'created_at']),
+      isPublished: legacy || asBool(json['is_published']),
+      groupName: groupName,
+      legacy: legacy,
+    );
+  }
+}
+
+class NotificationItem {
+  const NotificationItem({
+    required this.id,
+    required this.type,
+    this.detail = const {},
+    this.time,
+    this.seen = false,
+  });
+
+  final int id;
+  final String type;
+  final Map<String, dynamic> detail;
+  final DateTime? time;
+  final bool seen;
+
+  String get repoId => firstString(detail, ['repo_id']) ?? '';
+  String get repoName => firstString(detail, ['repo_name']) ?? '';
+  String get filePath => firstString(detail, ['file_path']) ?? '';
+  String get folderPath => firstString(detail, ['folder_path']) ?? '';
+
+  factory NotificationItem.fromJson(Map<String, dynamic> json) {
+    return NotificationItem(
+      id: firstInt(json, ['id']) ?? 0,
+      type: firstString(json, ['type']) ?? 'notice',
+      detail: asMap(json['detail']),
+      time: firstDate(json, ['time', 'ctime']),
+      seen: asBool(json['seen']),
+    );
+  }
+}
+
+class NotificationBundle {
+  const NotificationBundle({
+    required this.items,
+    this.totalUnseen = 0,
+    this.generalUnseen = 0,
+    this.discussionUnseen = 0,
+  });
+
+  final List<NotificationItem> items;
+  final int totalUnseen;
+  final int generalUnseen;
+  final int discussionUnseen;
+}

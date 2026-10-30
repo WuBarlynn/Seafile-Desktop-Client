@@ -20,6 +20,7 @@ import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
 import 'file_actions.dart';
+import 'text_editor_page.dart';
 import 'widgets.dart';
 
 class PreviewPage extends StatefulWidget {
@@ -185,6 +186,20 @@ class _PreviewPageState extends State<PreviewPage> {
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),
+                if ((_kind == FileKind.text || _kind == FileKind.markdown) && !widget.repo.isReadOnly)
+                  IconAction(
+                    icon: 'edit',
+                    tooltip: l10n.edit,
+                    size: 18,
+                    onPressed: () async {
+                      final saved = await openTextEditor(context, widget.repo, widget.entry);
+                      if (saved == true && mounted) {
+                        final file = await _cacheFile();
+                        if (await file.exists()) await file.delete();
+                        await _prepare();
+                      }
+                    },
+                  ),
                 IconAction(icon: 'download', tooltip: l10n.download, size: 18, onPressed: _download),
                 if (canShare)
                   IconAction(

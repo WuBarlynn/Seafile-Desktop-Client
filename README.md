@@ -20,6 +20,7 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - File operations: rename, move, copy, delete, star, drag-and-drop upload, transfer progress panel
 - Downloads: single file, folder ZIP, progress and cancellation
 - Native preview: images (including SVG), PDF, plain text and Markdown; other types can be downloaded or opened in the web app
+- Native plain-text and Markdown editor with preview toggle, unsaved-change protection and in-place save
 - Encrypted library unlock with remembered passwords
 - Share links: create with password, expiry and permissions; list, copy and delete
 - Trash: restore single/multiple items, empty trash where supported
@@ -27,8 +28,11 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Metadata and tags: enable/disable, tag management and filtering, properties panel, AI summaries
 - Library AI chat: streaming answers, conversation history, Markdown rendering
 - Library settings: history retention, metadata/tags/AI toggles, globally hidden properties
+- Notification center with unread badge, general/discussion notifications and deep links
+- Knowledge-base (wiki) list with server-aware sections; wiki editing hands off to the web editor
 - Global file search, with a per-library filename-search fallback
 - Resizable sidebar, directory tree and properties panel; consistent hover/focus feedback
+- Automated macOS and Windows release builds through GitHub Actions
 
 ## Server compatibility
 
@@ -80,9 +84,9 @@ assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 
 - Online OnlyOffice / SeaDoc / Excalidraw editing opens the web app; native editors are not embedded yet.
 - Video/audio preview is not built in; files can be downloaded or opened externally.
-- Wiki is still a placeholder that hands off to the web app.
+- Wiki reading/editing still hands off to the web app; notifications without a configured notification server are hidden.
 - The 13-specific layout and feature differences are detected, but finer 13/14 parity work is ongoing.
-- Windows builds have not yet been verified on a real Windows machine.
+- Windows builds are produced and compile-checked in CI, but runtime verification on a real Windows machine is still pending.
 - There is no two-way folder sync (the Seafile sync protocol is out of scope) and no multi-account support yet.
 
 ## Development

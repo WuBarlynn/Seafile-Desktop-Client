@@ -15,6 +15,7 @@ import 'activities_page.dart';
 import 'browser_view.dart';
 import 'dialogs.dart';
 import 'library_home.dart';
+import 'notification_bell.dart';
 import 'share_admin_page.dart';
 import 'starred_page.dart';
 import 'repo_actions.dart';
@@ -22,6 +23,7 @@ import 'preview_page.dart';
 import 'search_dialog.dart';
 import 'sidebar.dart';
 import 'transfers_panel.dart';
+import 'wiki_page.dart';
 import 'widgets.dart';
 
 enum ShellSection { libraries, favorites, activities, wikis, shareAdmin }
@@ -180,11 +182,7 @@ class _AppShellState extends State<AppShell> {
                                 ),
                               ShellSection.favorites => const StarredPage(),
                               ShellSection.activities => const ActivitiesPage(),
-                              ShellSection.wikis => _FeaturePlaceholder(
-                                  title: l10n.wikis,
-                                  description: l10n.featureNotAvailable,
-                                  icon: 'wiki',
-                                ),
+                              ShellSection.wikis => const WikiPage(),
                               ShellSection.shareAdmin => const ShareAdminPage(),
                             },
                     ),
@@ -248,7 +246,9 @@ class _GlobalHeader extends StatelessWidget {
                 children: [
                   const Spacer(),
                   _SearchButton(onTap: onSearch, hint: '${l10n.searchFiles} ($shortcut)'),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
+                  const NotificationBell(),
+                  const SizedBox(width: 8),
                   PopupMenuButton<String>(
                     tooltip: '',
                     offset: const Offset(0, 40),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../api/models.dart';
+import '../core/file_kind.dart';
 import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
@@ -11,6 +12,7 @@ import '../state/workspace.dart';
 import 'details_panel.dart';
 import 'file_actions.dart';
 import 'repo_actions.dart';
+import 'text_editor_page.dart';
 import 'thumbnail_view.dart';
 import 'widgets.dart';
 
@@ -82,6 +84,8 @@ class _FileAreaState extends State<FileArea> {
       if (canWrite) PopupMenuItem(value: 'rename', child: _row('rename', l10n.rename)),
       if (canWrite) PopupMenuItem(value: 'move', child: _row('move', l10n.move)),
       PopupMenuItem(value: 'copy', child: _row('copy', l10n.copy)),
+      if (single != null && !single.isDir && FileKind.of(single.name).isPreviewable && (FileKind.of(single.name) == FileKind.text || FileKind.of(single.name) == FileKind.markdown) && canWrite)
+        PopupMenuItem(value: 'edit', child: _row('edit', l10n.edit)),
       if (single != null && !single.isDir) PopupMenuItem(value: 'history', child: _row('history', l10n.history)),
       const PopupMenuDivider(),
       PopupMenuItem(value: 'details', child: _row('info', l10n.details)),
@@ -116,6 +120,11 @@ class _FileAreaState extends State<FileArea> {
         await moveEntries(context, workspace, targets);
       case 'copy':
         await copyEntries(context, workspace, targets);
+      case 'edit':
+        if (single != null) {
+          final saved = await openTextEditor(context, workspace.repo!, single);
+          if (saved == true) await workspace.loadDir();
+        }
       case 'history':
         if (single != null) await showFileHistory(context, workspace, single);
       case 'details':
