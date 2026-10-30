@@ -34,6 +34,7 @@ class _SdocBlock {
 class SdocEditorState extends State<SdocEditor> {
   final _scroll = ScrollController();
   final List<_SdocBlock> _blocks = [];
+  final Map<String, TextEditingController> _tableControllers = {};
   Map<String, dynamic>? _document;
   bool _loading = true;
   bool _saving = false;
@@ -58,6 +59,9 @@ class SdocEditorState extends State<SdocEditor> {
       for (final controller in block.children) {
         controller.dispose();
       }
+    }
+    for (final controller in _tableControllers.values) {
+      controller.dispose();
     }
     _scroll.dispose();
     super.dispose();
@@ -91,6 +95,10 @@ class SdocEditorState extends State<SdocEditor> {
       }
     }
     _blocks.clear();
+    for (final controller in _tableControllers.values) {
+      controller.dispose();
+    }
+    _tableControllers.clear();
     final elements = (document['elements'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
     for (final element in elements) {
       final block = _SdocBlock(element);
@@ -239,6 +247,18 @@ class SdocEditorState extends State<SdocEditor> {
     if (_active != index) setState(() => _active = index);
   }
 
+  void _saveTableText(dynamic node) {
+    if (node is! Map) return;
+    if (node['type'] == 'table_cell') {
+      final id = node['id'] as String?;
+      final controller = id == null ? null : _tableControllers[id];
+      if (controller != null) _setNodeText(node.cast<String, dynamic>(), controller.text);
+    }
+    for (final child in (node['children'] as List?) ?? const []) {
+      _saveTableText(child);
+    }
+  }
+
   Future<bool> save() async {
     if (_readOnly || _saving || !_dirty || _document == null) return true;
     final l10n = L10n.of(context);
@@ -278,6 +298,9 @@ class SdocEditorState extends State<SdocEditor> {
         } else {
           elements.add(block.element);
         }
+      }
+      for (final element in elements) {
+        _saveTableText(element);
       }
       final version = _document!['version'];
       _document!['elements'] = elements;
@@ -760,9 +783,18 @@ class SdocEditorState extends State<SdocEditor> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         decoration: const BoxDecoration(border: Border(right: BorderSide(color: AppColors.border), bottom: BorderSide(color: AppColors.border))),
-                        child: Text(
-                          _plainNode(cell),
-                          style: const TextStyle(fontSize: 13),
+                        child: TextField(
+                          controller: _controllerForCell(cell),
+                          enabled: !_readOnly,
+                          maxLines: null,
+                          style: const TextStyle(fontSize: 13, height: 1.45),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
                         ),
                       ),
                     ),
@@ -772,6 +804,15 @@ class SdocEditorState extends State<SdocEditor> {
         ],
       ),
     );
+  }
+
+  TextEditingController _controllerForCell(Map cell) {
+    final id = (cell['id'] as String?) ?? 'cell-${_idSeed++}';
+    return _tableControllers.putIfAbsent(id, () {
+      final controller = TextEditingController(text: _plainNode(cell));
+      controller.addListener(_markDirty);
+      return controller;
+    });
   }
 
   Widget _mediaPlaceholder(String zh, String en) {
