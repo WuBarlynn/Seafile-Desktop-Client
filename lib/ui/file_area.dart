@@ -14,6 +14,7 @@ import 'file_actions.dart';
 import 'repo_actions.dart';
 import 'text_editor_page.dart';
 import 'thumbnail_view.dart';
+import 'web_handoff.dart';
 import 'widgets.dart';
 
 class FileArea extends StatefulWidget {
@@ -74,6 +75,8 @@ class _FileAreaState extends State<FileArea> {
         value: 'open',
         child: _row(entry.isDir ? 'folder-open' : 'open-in-new-tab', entry.isDir ? l10n.open : l10n.preview),
       ),
+      if (single != null && !single.isDir)
+        PopupMenuItem(value: 'web', child: _row('link', l10n.openInBrowser)),
       PopupMenuItem(value: 'download', child: _row('download', l10n.download)),
       PopupMenuItem(value: 'share', child: _row('share', l10n.share)),
       const PopupMenuDivider(),
@@ -112,6 +115,11 @@ class _FileAreaState extends State<FileArea> {
           workspace.enterPath(entry.path);
         } else {
           widget.onPreview(entry);
+        }
+      case 'web':
+        if (single != null) {
+          final path = encodeRepoPath(single.path);
+          await openAuthenticatedWeb(context, '/lib/${workspace.repo!.id}/file$path', title: single.name);
         }
       case 'download':
         await downloadEntries(context, workspace, targets);
