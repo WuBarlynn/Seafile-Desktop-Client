@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/models.dart';
 import '../core/format.dart';
@@ -7,6 +8,7 @@ import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
+import 'deleted_libraries_dialog.dart';
 import 'dialogs.dart';
 import 'repo_actions.dart';
 import 'sidebar.dart';
@@ -237,7 +239,10 @@ class _LibraryHomeState extends State<LibraryHome> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton.icon(
-                                onPressed: () => showToast(context, l10n.featureNotAvailable),
+                                onPressed: () async {
+                                  final uri = Uri.parse('${context.read<AppSession>().serverBase}/groups/');
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                },
                                 icon: const WebIcon('plus-sign', size: 14),
                                 label: Text(l10n.newGroup),
                               ),
@@ -371,7 +376,7 @@ class _LibraryHomeState extends State<LibraryHome> {
                 const Spacer(),
                 if (showNew)
                   TextButton(
-                    onPressed: () => showToast(context, l10n.featureNotAvailable),
+                    onPressed: () => showDeletedLibrariesDialog(context),
                     child: Text(l10n.deletedLibraries, style: const TextStyle(fontSize: 13, color: AppColors.text)),
                   ),
               ],

@@ -359,6 +359,7 @@ class ShareLink {
     this.isExpired = false,
     this.objName,
     this.createdAt,
+    this.repoName,
   });
 
   final String token;
@@ -372,6 +373,7 @@ class ShareLink {
   final bool isExpired;
   final String? objName;
   final DateTime? createdAt;
+  final String? repoName;
 
   factory ShareLink.fromJson(Map<String, dynamic> json) {
     final token = firstString(json, ['token', 'link_token']) ?? '';
@@ -388,6 +390,7 @@ class ShareLink {
       isExpired: asBool(json['is_expired']),
       objName: firstString(json, ['obj_name']),
       createdAt: firstDate(json, ['ctime', 'created_at']),
+      repoName: firstString(json, ['repo_name']),
     );
   }
 
@@ -706,4 +709,65 @@ class AiChatEvent {
   final int? searchFound;
   final bool done;
   final Map<String, dynamic>? raw;
+}
+
+
+class ActivityEvent {
+  const ActivityEvent({
+    required this.opType,
+    required this.repoId,
+    required this.repoName,
+    required this.objType,
+    required this.path,
+    required this.name,
+    this.authorName,
+    this.time,
+    this.count = 1,
+  });
+
+  final String opType;
+  final String repoId;
+  final String repoName;
+  final String objType;
+  final String path;
+  final String name;
+  final String? authorName;
+  final DateTime? time;
+  final int count;
+
+  bool get isDir => objType == 'dir' || objType == 'folder';
+
+  factory ActivityEvent.fromJson(Map<String, dynamic> json) {
+    final details = asMapList(json['details']);
+    final first = details.isNotEmpty ? details.first : const <String, dynamic>{};
+    return ActivityEvent(
+      opType: firstString(json, ['op_type']) ?? 'create',
+      repoId: firstString(json, ['repo_id']) ?? '',
+      repoName: firstString(json, ['repo_name']) ?? firstString(first, ['repo_name']) ?? '',
+      objType: firstString(json, ['obj_type']) ?? 'file',
+      path: firstString(json, ['path']) ?? firstString(first, ['path']) ?? '/',
+      name: firstString(json, ['name']) ?? firstString(first, ['name']) ?? baseName(firstString(json, ['path']) ?? '/'),
+      authorName: firstString(json, ['author_name', 'name']),
+      time: firstDate(json, ['time', 'ctime']),
+      count: firstInt(json, ['count']) ?? 1,
+    );
+  }
+}
+
+class DeletedLibrary {
+  const DeletedLibrary({required this.id, required this.name, this.deletedAt, this.size = 0});
+
+  final String id;
+  final String name;
+  final DateTime? deletedAt;
+  final int size;
+
+  factory DeletedLibrary.fromJson(Map<String, dynamic> json) {
+    return DeletedLibrary(
+      id: firstString(json, ['repo_id', 'id']) ?? '',
+      name: firstString(json, ['repo_name', 'name']) ?? '',
+      deletedAt: firstDate(json, ['del_time', 'deleted_time', 'delete_time', 'mtime', 'last_modified']),
+      size: firstInt(json, ['size']) ?? 0,
+    );
+  }
 }

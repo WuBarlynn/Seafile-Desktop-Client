@@ -647,6 +647,24 @@ class SeafileApi {
     await _delete('api/v2.1/share-links/$token/');
   }
 
+  Future<List<ActivityEvent>> activities({int page = 1}) async {
+    final data = await _get('api/v2.1/activities/', query: {'page': '$page'});
+    return asMapList(asMap(data)['events']).map(ActivityEvent.fromJson).toList();
+  }
+
+  Future<List<DeletedLibrary>> deletedLibraries() async {
+    final data = await _get('api/v2.1/deleted-repos/');
+    return asMapList(data).map(DeletedLibrary.fromJson).where((repo) => repo.id.isNotEmpty).toList();
+  }
+
+  Future<void> restoreDeletedLibrary(String repoId) async {
+    await _postForm('api/v2.1/deleted-repos/', {'repo_id': repoId});
+  }
+
+  Future<void> cleanDeletedLibraries() async {
+    await _delete('api/v2.1/deleted-repos/');
+  }
+
   // -------------------------------------------------------------------------
   // Search
 

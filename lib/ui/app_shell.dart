@@ -11,9 +11,12 @@ import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
+import 'activities_page.dart';
 import 'browser_view.dart';
 import 'dialogs.dart';
 import 'library_home.dart';
+import 'share_admin_page.dart';
+import 'starred_page.dart';
 import 'repo_actions.dart';
 import 'preview_page.dart';
 import 'search_dialog.dart';
@@ -175,26 +178,14 @@ class _AppShellState extends State<AppShell> {
                                   filter: _filter,
                                   onOpenLibraries: _openLibraries,
                                 ),
-                              ShellSection.favorites => _FeaturePlaceholder(
-                                  title: l10n.favorites,
-                                  description: l10n.featureNotAvailable,
-                                  icon: 'starred',
-                                ),
-                              ShellSection.activities => _FeaturePlaceholder(
-                                  title: l10n.activities,
-                                  description: l10n.featureNotAvailable,
-                                  icon: 'activities',
-                                ),
+                              ShellSection.favorites => const StarredPage(),
+                              ShellSection.activities => const ActivitiesPage(),
                               ShellSection.wikis => _FeaturePlaceholder(
                                   title: l10n.wikis,
                                   description: l10n.featureNotAvailable,
                                   icon: 'wiki',
                                 ),
-                              ShellSection.shareAdmin => _FeaturePlaceholder(
-                                  title: l10n.shareAdmin,
-                                  description: l10n.featureNotAvailable,
-                                  icon: 'share-admin',
-                                ),
+                              ShellSection.shareAdmin => const ShareAdminPage(),
                             },
                     ),
                   ],
@@ -258,8 +249,6 @@ class _GlobalHeader extends StatelessWidget {
                   const Spacer(),
                   _SearchButton(onTap: onSearch, hint: '${l10n.searchFiles} ($shortcut)'),
                   const SizedBox(width: 12),
-                  IconAction(icon: 'dark-mode', tooltip: l10n.featureNotAvailable, onPressed: null, size: 19),
-                  const SizedBox(width: 10),
                   PopupMenuButton<String>(
                     tooltip: '',
                     offset: const Offset(0, 40),
