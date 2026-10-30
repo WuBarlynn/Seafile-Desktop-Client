@@ -287,6 +287,20 @@ class SeafileApi {
     throw ApiException(ApiErrorKind.server, serverMessage: 'SeaDoc server unavailable');
   }
 
+  Future<Uint8List> loadSdocImage(String repoId, String path, String src) async {
+    final (_, fileUuid, _) = await _seadocSession(repoId, path);
+    final name = src.split('/').last;
+    try {
+      final response = await _api.get<List<int>>(
+        'api/v2.1/seadoc/download-image/$fileUuid/${Uri.encodeComponent(name)}',
+        options: Options(responseType: ResponseType.bytes, headers: _authHeaders),
+      );
+      return Uint8List.fromList(response.data ?? const []);
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<Map<String, dynamic>> loadSdocDocument(String repoId, String path) async {
     final (token, fileUuid, serverUrl) = await _seadocSession(repoId, path);
     try {

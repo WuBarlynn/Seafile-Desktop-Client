@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -35,6 +37,7 @@ class SdocEditorState extends State<SdocEditor> {
   final _scroll = ScrollController();
   final List<_SdocBlock> _blocks = [];
   final Map<String, TextEditingController> _tableControllers = {};
+  final Map<String, Future<Uint8List>> _imageCache = {};
   Map<String, dynamic>? _document;
   bool _loading = true;
   bool _saving = false;
@@ -592,7 +595,7 @@ class SdocEditorState extends State<SdocEditor> {
       'quote' => _quoteView(block, index),
       'callout' => _calloutView(block, index),
       'table' => _tableView(block),
-      'image_block' => _mediaPlaceholder('图片', 'Image'),
+      'image_block' => _imageView(block),
       'video' => _mediaPlaceholder('视频', 'Video'),
       'embed_link' => _mediaPlaceholder('嵌入链接', 'Embedded link'),
       'formula' => _mediaPlaceholder('公式', 'Formula'),
@@ -802,6 +805,46 @@ class SdocEditorState extends State<SdocEditor> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _imageView(_SdocBlock block) {
+    String? src;
+    void find(dynamic node) {
+      if (src != null || node is! Map) return;
+      if (node['type'] == 'image' && node['data'] is Map) {
+        final value = (node['data'] as Map)['src'];
+        if (value is String && value.isNotEmpty) src = value;
+      }
+      for (final child in (node['children'] as List?) ?? const []) {
+        find(child);
+      }
+    }
+
+    find(block.element);
+    final value = src;
+    if (value == null) return _mediaPlaceholder('图片', 'Image');
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(5),
+        child: Image.network(value, fit: BoxFit.contain, height: 280, errorBuilder: (_, __, ___) => _mediaPlaceholder('图片加载失败', 'Image unavailable')),
+      );
+    }
+    final future = _imageCache.putIfAbsent(value, () => context.read<AppSession>().api!.loadSdocImage(widget.repo.id, widget.entry.path, value));
+    return FutureBuilder<Uint8List>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox(height: 120, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _mediaPlaceholder('图片加载失败', 'Image unavailable');
+        }
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: Image.memory(snapshot.data!, fit: BoxFit.contain, height: 280),
+        );
+      },
     );
   }
 
