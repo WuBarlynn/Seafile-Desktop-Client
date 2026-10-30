@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 
 import '../api/models.dart';
@@ -43,6 +47,7 @@ class SdocEditorState extends State<SdocEditor> {
   final List<_SdocBlock> _blocks = [];
   final Map<String, TextEditingController> _tableControllers = {};
   final Map<String, Future<Uint8List>> _imageCache = {};
+  final Set<String> _openingVideos = {};
   final Map<TextEditingController, String> _lastTexts = {};
   Map<String, dynamic>? _document;
   bool _loading = true;
@@ -659,8 +664,8 @@ class SdocEditorState extends State<SdocEditor> {
       'callout' => _calloutView(block, index),
       'table' => _tableView(block),
       'image_block' => _imageView(block),
-      'video' => _mediaPlaceholder('视频', 'Video'),
-      'embed_link' => _mediaPlaceholder('嵌入链接', 'Embedded link'),
+      'video' => _videoView(block),
+      'embed_link' => _embedView(block),
       'formula' => _formulaView(block),
       'toggle_header' => _toggleView(block),
       _ => _textField(block, 15, FontWeight.w400, onTap: () => _setActive(index)),
@@ -906,6 +911,118 @@ class SdocEditorState extends State<SdocEditor> {
         ],
       ),
     );
+  }
+
+  Widget _videoView(_SdocBlock block) {
+    final data = block.element['data'];
+    final name = data is Map ? (data['name'] as String? ?? '') : '';
+    final src = data is Map ? (data['src'] as String? ?? '') : '';
+    final embeddable = data is Map && data['is_embeddable_link'] == true;
+    final size = data is Map ? (data['size'] as num?)?.toInt() : null;
+    final opening = _openingVideos.contains(src);
+    final l10n = L10n.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
+      child: Row(
+        children: [
+          const WebIcon('play-filled', size: 28, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(name.isEmpty ? (l10n.zh ? '视频' : 'Video') : name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500)),
+                if (size != null) ...[
+                  const SizedBox(height: 3),
+                  Text(_formatSize(size), style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          if (opening)
+            const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+          else
+            OutlinedButton.icon(
+              onPressed: () => embeddable ? _openLink(src) : _openVideo(block, src, name),
+              icon: Icon(embeddable ? Icons.open_in_new : Icons.play_arrow, size: 15),
+              label: Text(embeddable ? (l10n.zh ? '打开链接' : 'Open link') : (l10n.zh ? '播放' : 'Play')),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _embedView(_SdocBlock block) {
+    final link = block.element['link'] as String? ?? '';
+    final type = block.element['link_type'] as String? ?? '';
+    final l10n = L10n.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
+      child: Row(
+        children: [
+          const WebIcon('link', size: 20, color: AppColors.textSecondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (type.isNotEmpty) Text(type.toUpperCase(), style: const TextStyle(fontSize: 10.5, color: AppColors.muted, letterSpacing: .4)),
+                const SizedBox(height: 2),
+                Text(link, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: AppColors.text)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          OutlinedButton.icon(
+            onPressed: link.isEmpty ? null : () => _openLink(link),
+            icon: const Icon(Icons.open_in_new, size: 15),
+            label: Text(l10n.zh ? '打开' : 'Open'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openLink(String link) async {
+    if (link.isEmpty) return;
+    final uri = Uri.tryParse(link.startsWith('http') ? link : 'https://$link');
+    if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openVideo(_SdocBlock block, String src, String name) async {
+    if (src.isEmpty) return;
+    setState(() => _openingVideos.add(src));
+    try {
+      final bytes = await context.read<AppSession>().api!.loadSdocVideo(widget.repo.id, widget.entry.path, src);
+      final temp = await getTemporaryDirectory();
+      final dir = Directory(p.join(temp.path, 'seafile-sdoc-video'));
+      await dir.create(recursive: true);
+      final safeName = name.isEmpty ? src.split('/').last : name;
+      final file = File(p.join(dir.path, safeName));
+      await file.writeAsBytes(bytes, flush: true);
+      if (Platform.isMacOS) {
+        await Process.run('open', [file.path]);
+      } else if (Platform.isWindows) {
+        await Process.start('cmd', ['/c', 'start', '', file.path], runInShell: true);
+      } else {
+        await Process.run('xdg-open', [file.path]);
+      }
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    } finally {
+      if (mounted) setState(() => _openingVideos.remove(src));
+    }
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes >= 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '$bytes B';
   }
 
   Widget _formulaView(_SdocBlock block) {

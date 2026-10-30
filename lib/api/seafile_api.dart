@@ -331,6 +331,20 @@ class SeafileApi {
     }
   }
 
+  Future<Uint8List> loadSdocVideo(String repoId, String path, String src) async {
+    final (_, fileUuid, _) = await _seadocSession(repoId, path);
+    final name = src.split('/').last;
+    try {
+      final response = await _api.get<List<int>>(
+        'api/v2.1/seadoc/download-video/$fileUuid/${Uri.encodeComponent(name)}',
+        options: Options(responseType: ResponseType.bytes, headers: _authHeaders, receiveTimeout: const Duration(minutes: 10)),
+      );
+      return Uint8List.fromList(response.data ?? const []);
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<Map<String, dynamic>> loadSdocDocument(String repoId, String path) async {
     final (token, fileUuid, serverUrl) = await _seadocSession(repoId, path);
     try {
