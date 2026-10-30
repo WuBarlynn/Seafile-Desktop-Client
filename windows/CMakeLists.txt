@@ -35,6 +35,7 @@ add_definitions(-DUNICODE -D_UNICODE)
 # flutter_inappwebview_windows uses C++/WinRT's experimental coroutine header,
 # which newer MSVC toolchains reject unless this compatibility macro is set.
 add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+add_compile_options("/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")
 
 # Compilation settings that should be applied to most targets.
 #
