@@ -92,6 +92,9 @@ class _LibraryHomeState extends State<LibraryHome> {
         if (repo.isOwner) const PopupMenuDivider(),
         if (repo.isOwner) PopupMenuItem(value: 'delete', child: _menuRow('delete', l10n.delete, danger: true)),
       ],
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 12,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     );
     if (!mounted || selected == null) return;
@@ -270,6 +273,7 @@ class _LibraryHomeState extends State<LibraryHome> {
           PopupMenuButton<String>(
             tooltip: l10n.sortBy,
             offset: const Offset(0, 34),
+            color: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             itemBuilder: (context) => [
               _sortItem(context, 'name', l10n.sortName, _LibrarySort.name),
@@ -281,12 +285,22 @@ class _LibraryHomeState extends State<LibraryHome> {
               'modified' => _LibrarySort.modified,
               _ => _LibrarySort.name,
             }),
-            child: const Padding(padding: EdgeInsets.all(6), child: WebIcon('sort-ascending', size: 18)),
+            child: HoverBuilder(
+              builder: (context, hovered) => Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: hovered ? AppColors.hover : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const WebIcon('sort-ascending', size: 18),
+              ),
+            ),
           ),
           const SizedBox(width: 4),
           PopupMenuButton<String>(
             tooltip: l10n.more,
             offset: const Offset(0, 34),
+            color: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             itemBuilder: (context) => [
               PopupMenuItem(value: 'refresh', child: _menuRow('refresh', l10n.refresh)),
@@ -296,7 +310,16 @@ class _LibraryHomeState extends State<LibraryHome> {
               if (value == 'refresh') session.refreshLibraries();
               if (value == 'create') _createLibrary();
             },
-            child: const Padding(padding: EdgeInsets.all(6), child: WebIcon('more-vertical', size: 18)),
+            child: HoverBuilder(
+              builder: (context, hovered) => Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: hovered ? AppColors.hover : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const WebIcon('more-vertical', size: 18),
+              ),
+            ),
           ),
         ],
       ),

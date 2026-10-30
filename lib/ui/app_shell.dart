@@ -263,6 +263,7 @@ class _GlobalHeader extends StatelessWidget {
                   PopupMenuButton<String>(
                     tooltip: '',
                     offset: const Offset(0, 40),
+                    color: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     itemBuilder: (context) => [
                       PopupMenuItem<String>(
@@ -313,7 +314,16 @@ class _GlobalHeader extends StatelessWidget {
                       if (value == 'about') onAbout();
                       if (value == 'logout') onLogout();
                     },
-                    child: AvatarCircle(name: session.displayName, size: 32),
+                    child: HoverBuilder(
+                      builder: (context, hovered) => Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: hovered ? AppColors.hover : Colors.transparent,
+                        ),
+                        child: AvatarCircle(name: session.displayName, size: 32),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -333,20 +343,21 @@ class _SearchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      hoverColor: AppColors.hover,
-      mouseCursor: SystemMouseCursors.click,
-      child: Container(
-        width: 320,
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.borderStrong),
-          borderRadius: BorderRadius.circular(4),
-          color: Colors.white,
-        ),
+    return HoverBuilder(
+      builder: (context, hovered) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        hoverColor: Colors.transparent,
+        mouseCursor: SystemMouseCursors.click,
+        child: Container(
+          width: 320,
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: hovered ? AppColors.primary : AppColors.borderStrong),
+            borderRadius: BorderRadius.circular(4),
+            color: hovered ? AppColors.hover : Colors.white,
+          ),
         child: Row(
           children: [
             const WebIcon('search', size: 16),
@@ -359,7 +370,8 @@ class _SearchButton extends StatelessWidget {
                 style: const TextStyle(fontSize: 13, color: AppColors.muted),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -184,7 +184,7 @@ class _HoverBuilderState extends State<HoverBuilder> {
   }
 }
 
-class IconAction extends StatelessWidget {
+class IconAction extends StatefulWidget {
   const IconAction({
     super.key,
     required this.icon,
@@ -203,17 +203,33 @@ class IconAction extends StatelessWidget {
   final EdgeInsets padding;
 
   @override
+  State<IconAction> createState() => _IconActionState();
+}
+
+class _IconActionState extends State<IconAction> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
     return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(4),
-        hoverColor: AppColors.hover,
-        mouseCursor: SystemMouseCursors.click,
-        child: Padding(
-          padding: padding,
-          child: WebIcon(icon, size: size, color: onPressed == null ? AppColors.muted : color),
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => enabled ? setState(() => _hovered = true) : null,
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: widget.padding,
+            decoration: BoxDecoration(
+              color: enabled && _hovered ? AppColors.hover : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: WebIcon(widget.icon, size: widget.size, color: enabled ? widget.color : AppColors.muted),
+          ),
         ),
       ),
     );

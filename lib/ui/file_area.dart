@@ -91,6 +91,9 @@ class _FileAreaState extends State<FileArea> {
       context: context,
       position: RelativeRect.fromRect(position & const Size(1, 1), Offset.zero & overlay.size),
       items: items,
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 12,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     );
     if (!mounted || selectedValue == null) return;
@@ -281,16 +284,19 @@ class _FileAreaState extends State<FileArea> {
                   ),
                   SizedBox(
                     width: 110,
-                    child: _SortHeader(
-                      label: l10n.size,
-                      active: workspace.sortField == SortField.size,
-                      ascending: workspace.ascending,
-                      onTap: () => workspace.setSortField(SortField.size),
-                      alignEnd: true,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 24),
+                      child: _SortHeader(
+                        label: l10n.size,
+                        active: workspace.sortField == SortField.size,
+                        ascending: workspace.ascending,
+                        onTap: () => workspace.setSortField(SortField.size),
+                        alignEnd: true,
+                      ),
                     ),
                   ),
                   SizedBox(
-                    width: 150,
+                    width: 160,
                     child: _SortHeader(
                       label: l10n.modified,
                       active: workspace.sortField == SortField.modified,
@@ -385,29 +391,39 @@ class _SortHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      hoverColor: AppColors.hover,
-      mouseCursor: SystemMouseCursors.click,
-      child: Row(
-        mainAxisAlignment: alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: active ? AppColors.text : AppColors.textSecondary,
-              fontWeight: active ? FontWeight.w500 : FontWeight.w400,
-            ),
+    return HoverBuilder(
+      builder: (context, hovered) => InkWell(
+        onTap: onTap,
+        hoverColor: Colors.transparent,
+        mouseCursor: SystemMouseCursors.click,
+        borderRadius: BorderRadius.circular(3),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          decoration: BoxDecoration(
+            color: hovered ? const Color(0xFFF0F1F3) : Colors.transparent,
+            borderRadius: BorderRadius.circular(3),
           ),
-          if (active) ...[
-            const SizedBox(width: 3),
-            Transform.rotate(
-              angle: ascending ? 0 : 3.14159,
-              child: const Icon(Icons.keyboard_arrow_up_rounded, size: 14, color: AppColors.textSecondary),
-            ),
-          ],
-        ],
+          child: Row(
+            mainAxisAlignment: alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: active ? AppColors.text : AppColors.textSecondary,
+                  fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                ),
+              ),
+              if (active) ...[
+                const SizedBox(width: 3),
+                Transform.rotate(
+                  angle: ascending ? 0 : 3.14159,
+                  child: const Icon(Icons.keyboard_arrow_up_rounded, size: 14, color: AppColors.textSecondary),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -513,13 +529,19 @@ class _FileRowState extends State<_FileRow> {
               ),
               SizedBox(
                 width: 110,
-                child: Text(
-                  entry.isDir ? '—' : formatBytes(entry.size),
-                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 24),
+                    child: Text(
+                      entry.isDir ? '—' : formatBytes(entry.size),
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
                 ),
               ),
               SizedBox(
-                width: 150,
+                width: 160,
                 child: Text(
                   formatRelative(entry.mtime, zh: l10n.zh),
                   style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),

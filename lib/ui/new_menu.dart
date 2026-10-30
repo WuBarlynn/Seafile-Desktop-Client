@@ -110,27 +110,40 @@ class NewMenuButton extends StatelessWidget {
         ],
       ],
       builder: (context, controller, anchorChild) {
-        return InkWell(
-          onTap: () => controller.isOpen ? controller.close() : controller.open(),
-          borderRadius: BorderRadius.circular(4),
-          hoverColor: AppColors.hover,
-          mouseCursor: SystemMouseCursors.click,
-          child: child ??
-              Container(
-                height: 32,
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.borderStrong),
-                  borderRadius: BorderRadius.circular(4),
+        return HoverBuilder(
+          builder: (context, hovered) => InkWell(
+            onTap: () => controller.isOpen ? controller.close() : controller.open(),
+            borderRadius: BorderRadius.circular(4),
+            hoverColor: Colors.transparent,
+            mouseCursor: SystemMouseCursors.click,
+            child: child != null
+                ? AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: hovered ? AppColors.hover : Colors.transparent,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: child,
+                  )
+                : AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: hovered ? AppColors.hover : Colors.transparent,
+                    border: Border.all(color: hovered ? AppColors.primary : AppColors.borderStrong),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const WebIcon('plus-sign', size: 15, color: AppColors.textSecondary),
+                      const SizedBox(width: 6),
+                      Text(l10n.newButton, style: const TextStyle(fontSize: 14, color: AppColors.text)),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const WebIcon('plus-sign', size: 15, color: AppColors.textSecondary),
-                    const SizedBox(width: 6),
-                    Text(l10n.newButton, style: const TextStyle(fontSize: 14, color: AppColors.text)),
-                  ],
-                ),
-              ),
+          ),
         );
       },
     );

@@ -172,7 +172,17 @@ class _ChatViewState extends State<ChatView> {
                 ),
             ],
             onSelected: (session) => chat.selectSession(session),
-            child: const Padding(padding: EdgeInsets.all(5), child: WebIcon('history', size: 16)),
+            color: Colors.white,
+            child: HoverBuilder(
+              builder: (context, hovered) => Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: hovered ? AppColors.hover : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const WebIcon('history', size: 16),
+              ),
+            ),
           ),
         ],
       ),
@@ -216,6 +226,8 @@ class _ChatViewState extends State<ChatView> {
                   InkWell(
                     onTap: () => _send(suggestion),
                     borderRadius: BorderRadius.circular(18),
+                    hoverColor: AppColors.hover,
+                    mouseCursor: SystemMouseCursors.click,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(

@@ -343,7 +343,17 @@ class _BrowserViewState extends State<BrowserView> {
                   _ => SortField.name,
                 },
               ),
-              child: const Padding(padding: EdgeInsets.all(6), child: WebIcon('sort-ascending', size: 18)),
+              color: Colors.white,
+              child: HoverBuilder(
+                builder: (context, hovered) => Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: hovered ? AppColors.hover : Colors.transparent,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const WebIcon('sort-ascending', size: 18),
+                ),
+              ),
             ),
             IconAction(icon: 'info', tooltip: l10n.showDetails, size: 18, onPressed: _showDetails),
           ],
@@ -447,19 +457,27 @@ class _BrowserViewState extends State<BrowserView> {
 
 
   Widget _crumb(String label, VoidCallback onTap, {bool last = false}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(3),
-      hoverColor: AppColors.hover,
-      mouseCursor: SystemMouseCursors.click,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: last ? AppColors.text : AppColors.textSecondary,
-            fontWeight: last ? FontWeight.w500 : FontWeight.w400,
+    return HoverBuilder(
+      builder: (context, hovered) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(3),
+        hoverColor: Colors.transparent,
+        mouseCursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          margin: const EdgeInsets.symmetric(horizontal: 1),
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+          decoration: BoxDecoration(
+            color: hovered ? AppColors.hover : Colors.transparent,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: last ? AppColors.text : AppColors.textSecondary,
+              fontWeight: last ? FontWeight.w500 : FontWeight.w400,
+            ),
           ),
         ),
       ),
