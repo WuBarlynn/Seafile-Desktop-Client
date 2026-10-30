@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.1.4 — tabbed workspace and in-place editors. Every iteration is published to this repository.
+> **Status:** 1.1.5 — tabbed workspace and in-place editors. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -91,14 +91,14 @@ lib/
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
 
-## Release 1.1.4
+## Release 1.1.5
 
-Tagged `v1.1.4`. Adds native admin pages for groups (list/create) and all share links, alongside the native SeaDoc image, formula and toggle support from 1.1.3. Builds on 1.1.2 and 1.1.0. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
+Tagged `v1.1.5`. Adds SeaDoc video cards with authenticated download/system playback, embed-link cards, and a native admin operation-log page. Builds on 1.1.4/1.1.3. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
 
 ## Known limitations
 
 - Office, Excalidraw, audio/video and some web pages render with an inline WebView (WKWebView on macOS, WebView2 on Windows) because their editors depend on the server's web front-end. Text, Markdown and SeaDoc are native.
-- The native SeaDoc editor covers common text blocks, tables, toggle sections, images and formulas; video and embed blocks remain read-only placeholders.
+- The native SeaDoc editor covers common text blocks, tables, toggle sections, images, formulas, video cards and embed-link cards.
 - Embedded pages require the WebView2 Runtime on Windows 10 (included in Windows 11); if it is missing the client falls back to the system browser.
 - Inline emphasis is shown rendered when a Markdown block is not focused and shows its source while editing; block structure is always rendered.
 - The 13-specific layout and feature differences are detected, but finer 13/14 parity work is ongoing.

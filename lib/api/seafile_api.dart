@@ -233,6 +233,13 @@ class SeafileApi {
     }));
   }
 
+  Future<Map<String, dynamic>> adminLogs({int page = 1, int perPage = 50}) async {
+    return asMap(await _get('api/v2.1/admin/admin-logs/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
   Future<Map<String, dynamic>> adminGroups({int page = 1, int perPage = 50, String name = ''}) async {
     return asMap(await _get('api/v2.1/admin/groups/', query: {
       'page': '$page',

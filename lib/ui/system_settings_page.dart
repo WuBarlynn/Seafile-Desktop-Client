@@ -26,12 +26,14 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   List<Map<String, dynamic>> _libraries = const [];
   List<Map<String, dynamic>> _groups = const [];
   List<Map<String, dynamic>> _shareLinks = const [];
+  List<Map<String, dynamic>> _logs = const [];
   Map<String, dynamic> _webSettings = const {};
   final _userQuery = TextEditingController();
   bool _loadingUsers = false;
   bool _loadingLibraries = false;
   bool _loadingGroups = false;
   bool _loadingShareLinks = false;
+  bool _loadingLogs = false;
   bool _loadingSettings = false;
   bool _savingSettings = false;
 
@@ -116,6 +118,22 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
+  Future<void> _loadLogs() async {
+    setState(() => _loadingLogs = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminLogs();
+      if (!mounted) return;
+      setState(() {
+        _logs = (data['data'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
+        _loadingLogs = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingLogs = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   Future<void> _loadShareLinks() async {
     setState(() => _loadingShareLinks = true);
     try {
@@ -171,7 +189,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     if (tab == 2 && _groups.isEmpty) _loadGroups();
     if (tab == 3 && _libraries.isEmpty) _loadLibraries();
     if (tab == 4 && _shareLinks.isEmpty) _loadShareLinks();
-    if (tab == 5 && _webSettings.isEmpty) _loadWebSettings();
+    if (tab == 5 && _logs.isEmpty) _loadLogs();
+    if (tab == 6 && _webSettings.isEmpty) _loadWebSettings();
   }
 
   @override
@@ -200,7 +219,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                 if (_tab == 2) _loadGroups();
                 if (_tab == 3) _loadLibraries();
                 if (_tab == 4) _loadShareLinks();
-                if (_tab == 5) _loadWebSettings();
+                if (_tab == 5) _loadLogs();
+                if (_tab == 6) _loadWebSettings();
               }),
             ],
           ),
@@ -216,7 +236,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               _tabButton(2, l10n.zh ? '群组' : 'Groups', Icons.groups_outlined),
               _tabButton(3, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
               _tabButton(4, l10n.zh ? '分享链接' : 'Share links', Icons.link),
-              _tabButton(5, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
+              _tabButton(5, l10n.zh ? '日志' : 'Logs', Icons.history),
+              _tabButton(6, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
             ],
           ),
         ),
@@ -242,6 +263,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                         2 => _groupsView(l10n),
                         3 => _librariesView(l10n),
                         4 => _shareLinksView(l10n),
+                        5 => _logsView(l10n),
                         _ => _settingsView(l10n),
                       },
           ),
@@ -462,6 +484,41 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                       '${link['creator_name'] ?? link['creator_email'] ?? ''}',
                       '${link['view_cnt'] ?? 0}',
                       '${(link['expire_date'] as String?)?.isNotEmpty == true ? link['expire_date'] : (l10n.zh ? '永久' : 'Never')}',
+                    ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _logsView(L10n l10n) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Text(l10n.zh ? '管理员操作日志' : 'Admin operation logs', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  const Spacer(),
+                  if (_loadingLogs) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _table(
+                headers: [l10n.zh ? '时间' : 'Time', l10n.zh ? '管理员' : 'Admin', l10n.zh ? '操作' : 'Operation', l10n.zh ? '详情' : 'Detail'],
+                rows: [
+                  for (final log in _logs)
+                    [
+                      '${log['datetime'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
+                      '${log['name'] ?? log['email'] ?? ''}',
+                      '${log['operation'] ?? ''}',
+                      '${log['detail'] ?? ''}',
                     ],
                 ],
               ),
