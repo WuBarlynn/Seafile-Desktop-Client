@@ -51,6 +51,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
   final List<_MdBlock> _blocks = [];
   late String _original;
   int _active = 0;
+  int? _editing;
 
   String get text => _serialize();
   bool get isDirty => text != _original;
@@ -79,6 +80,20 @@ class MarkdownEditorState extends State<MarkdownEditor> {
 
   void _listen(_MdBlock block) {
     block.controller.addListener(_onChange);
+    block.focus.addListener(() {
+      if (!mounted) return;
+      final index = _blocks.indexOf(block);
+      if (block.focus.hasFocus) {
+        if (_active != index || _editing != index) {
+          setState(() {
+            _active = index;
+            _editing = index;
+          });
+        }
+      } else if (_editing == index) {
+        setState(() => _editing = null);
+      }
+    });
   }
 
   void _onChange() {
@@ -207,6 +222,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     setState(() {
       _blocks.insert(index, block);
       _active = index;
+      _editing = index;
     });
     widget.onChanged?.call(isDirty);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -229,7 +245,9 @@ class MarkdownEditorState extends State<MarkdownEditor> {
 
   void _wrapSelection(String before, String after) {
     if (widget.readOnly || _blocks.isEmpty) return;
-    final controller = _blocks[_active.clamp(0, _blocks.length - 1)].controller;
+    final index = _active.clamp(0, _blocks.length - 1);
+    setState(() => _editing = index);
+    final controller = _blocks[index].controller;
     final selection = controller.selection;
     final value = controller.text;
     final start = selection.isValid ? selection.start : value.length;
@@ -382,19 +400,39 @@ class MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   Widget _textField(_MdBlock block, int index, double size, FontWeight weight, {bool monospace = false, Color? color}) {
+    final style = TextStyle(
+      fontSize: size,
+      fontWeight: weight,
+      height: monospace ? 1.6 : 1.55,
+      fontFamily: monospace ? 'Menlo' : null,
+      color: color ?? AppColors.text,
+    );
+    if (!widget.readOnly && _editing != index) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.text,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            setState(() {
+              _active = index;
+              _editing = index;
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: _richText(block.controller.text, style, monospace: monospace),
+          ),
+        ),
+      );
+    }
     return TextField(
       controller: block.controller,
       focusNode: block.focus,
+      autofocus: _editing == index,
       enabled: !widget.readOnly,
       onTap: () => _setActive(index),
       maxLines: null,
-      style: TextStyle(
-        fontSize: size,
-        fontWeight: weight,
-        height: monospace ? 1.6 : 1.55,
-        fontFamily: monospace ? 'Menlo' : null,
-        color: color ?? AppColors.text,
-      ),
+      style: style,
       decoration: const InputDecoration(
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
@@ -404,6 +442,48 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       ),
     );
   }
+
+  Widget _richText(String text, TextStyle base, {bool monospace = false}) {
+    if (monospace) {
+      return Text(text.isEmpty ? ' ' : text, style: base);
+    }
+    final spans = <TextSpan>[];
+    var start = 0;
+    for (final match in _inline.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start), style: base));
+      }
+      final token = match.group(0)!;
+      TextStyle? style;
+      String visible = token;
+      if (token.startsWith('**') || token.startsWith('__')) {
+        visible = token.substring(2, token.length - 2);
+        style = base.copyWith(fontWeight: FontWeight.w700);
+      } else if (token.startsWith('~~')) {
+        visible = token.substring(2, token.length - 2);
+        style = base.copyWith(decoration: TextDecoration.lineThrough);
+      } else if (token.startsWith('`')) {
+        visible = token.substring(1, token.length - 1);
+        style = base.copyWith(fontFamily: 'Menlo', backgroundColor: const Color(0xFFF1F3F5), color: const Color(0xFFC7254E));
+      } else if (token.startsWith('[')) {
+        final close = token.indexOf(']');
+        visible = token.substring(1, close);
+        style = base.copyWith(color: const Color(0xFF2F6FEB), decoration: TextDecoration.underline);
+      } else if (token.startsWith('*') || token.startsWith('_')) {
+        visible = token.substring(1, token.length - 1);
+        style = base.copyWith(fontStyle: FontStyle.italic);
+      }
+      spans.add(TextSpan(text: visible, style: style ?? base));
+      start = match.end;
+    }
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start), style: base));
+    }
+    if (spans.isEmpty) spans.add(TextSpan(text: ' ', style: base));
+    return Text.rich(TextSpan(style: base, children: spans), style: base);
+  }
+
+  static final _inline = RegExp(r'(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\]\([^)]+\))');
 
   Widget _button(IconData icon, String tooltip, VoidCallback onTap) {
     return Tooltip(
