@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 
-enum _MdType { paragraph, heading, quote, bullet, numbered, check, code }
+enum _MdType { paragraph, heading, quote, bullet, numbered, check, code, image, divider }
 
 class _MdBlock {
   _MdBlock({
@@ -15,6 +15,7 @@ class _MdBlock {
     String text = '',
     this.checked = false,
     this.codeLanguage = '',
+    this.alt = '',
   })  : controller = TextEditingController(text: text),
         focus = FocusNode();
 
@@ -22,6 +23,7 @@ class _MdBlock {
   int headingLevel;
   bool checked;
   String codeLanguage;
+  String alt;
   final TextEditingController controller;
   final FocusNode focus;
 
@@ -224,6 +226,15 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         continue;
       }
       if (line.trim().isEmpty) continue;
+      final image = RegExp(r'^!\[(.*?)\]\((.*?)\)$').firstMatch(line.trim());
+      if (image != null) {
+        _add(_MdBlock(type: _MdType.image, text: image.group(2)!, alt: image.group(1)!));
+        continue;
+      }
+      if (RegExp(r'^(?:-{3,}|\*{3,}|_{3,})$').hasMatch(line.trim())) {
+        _add(_MdBlock(type: _MdType.divider));
+        continue;
+      }
       final heading = RegExp(r'^(#{1,6})\s+(.*)$').firstMatch(line);
       if (heading != null) {
         _add(_MdBlock(
@@ -289,6 +300,10 @@ class MarkdownEditorState extends State<MarkdownEditor> {
           buffer.write('- [${block.checked ? 'x' : ' '}] $content');
         case _MdType.code:
           buffer.write('```${block.codeLanguage}\n$content\n```');
+        case _MdType.image:
+          buffer.write('![${block.alt}]($content)');
+        case _MdType.divider:
+          buffer.write('---');
         case _MdType.paragraph:
           buffer.write(content);
       }
@@ -386,8 +401,20 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         return KeyEventResult.handled;
       }
       if (index == 0) return KeyEventResult.ignored;
-      _pushUndo();
       final previous = _blocks[index - 1];
+      if (previous.type == _MdType.image || previous.type == _MdType.divider) {
+        _pushUndo();
+        setState(() {
+          _blocks.removeAt(index - 1).dispose();
+          _active = index - 1;
+          _editing = index - 1;
+        });
+        _settleHistory();
+        widget.onChanged?.call(isDirty);
+        _focusBlock(block, 0);
+        return KeyEventResult.handled;
+      }
+      _pushUndo();
       final offset = previous.controller.text.length;
       final separator = previous.type == _MdType.code || block.type == _MdType.code ? '\n' : '';
       previous.controller.text = '${previous.controller.text}$separator$text';
@@ -405,8 +432,21 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     if (key == LogicalKeyboardKey.delete) {
       if (!selection.isCollapsed || selection.start != text.length) return KeyEventResult.ignored;
       if (index >= _blocks.length - 1) return KeyEventResult.ignored;
-      _pushUndo();
       final next = _blocks[index + 1];
+      if (next.type == _MdType.image || next.type == _MdType.divider) {
+        final offset = text.length;
+        _pushUndo();
+        setState(() {
+          _blocks.removeAt(index + 1).dispose();
+          _active = index;
+          _editing = index;
+        });
+        _settleHistory();
+        widget.onChanged?.call(isDirty);
+        _focusBlock(block, offset);
+        return KeyEventResult.handled;
+      }
+      _pushUndo();
       final offset = text.length;
       final separator = block.type == _MdType.code || next.type == _MdType.code ? '\n' : '';
       block.controller.text = '$text$separator${next.controller.text}';
@@ -470,6 +510,73 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     _focusBlock(newBlock, 0);
   }
 
+  void _insertBlock(_MdBlock block) {
+    _pushUndo();
+    final index = (_active + 1).clamp(0, _blocks.length);
+    setState(() {
+      _blocks.insert(index, block);
+      _active = index;
+      _editing = null;
+    });
+    _settleHistory();
+    widget.onChanged?.call(isDirty);
+  }
+
+  Future<void> _insertImage() async {
+    final input = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final l10n = L10n.of(context);
+        return AlertDialog(
+          title: Text(l10n.zh ? '插入图片' : 'Insert image'),
+          content: TextField(
+            controller: input,
+            autofocus: true,
+            decoration: InputDecoration(hintText: l10n.zh ? '图片地址' : 'Image address'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, input.text.trim()), child: Text(l10n.confirm)),
+          ],
+        );
+      },
+    );
+    input.dispose();
+    if (!mounted || url == null || url.isEmpty) return;
+    _insertBlock(_MdBlock(type: _MdType.image, text: url, alt: 'image'));
+  }
+
+  void _insertDivider() {
+    _insertBlock(_MdBlock(type: _MdType.divider));
+  }
+
+  Widget _imageBlockView(_MdBlock block, int index) {
+    final url = block.controller.text.trim();
+    return GestureDetector(
+      onTap: () => setState(() => _active = index),
+      child: url.isEmpty
+          ? const SizedBox(height: 60)
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                height: 280,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 80,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: AppColors.hover, borderRadius: BorderRadius.circular(5)),
+                  child: Text(
+                    L10n.of(context).zh ? '图片加载失败' : 'Image unavailable',
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
   void _wrapSelection(String before, String after) {
     if (widget.readOnly || _blocks.isEmpty) return;
     _wrapBlock(_blocks[_active.clamp(0, _blocks.length - 1)], before, after);
@@ -513,6 +620,37 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                   children: [
                     _button(Icons.undo, l10n.zh ? '撤销' : 'Undo', canUndo ? _undo : null),
                   _button(Icons.redo, l10n.zh ? '重做' : 'Redo', canRedo ? _redo : null),
+                  _divider(),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '插入' : 'Insert',
+                    offset: const Offset(0, 34),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: (value) {
+                      if (value == 'image') {
+                        unawaited(_insertImage());
+                      } else if (value == 'divider') {
+                        _insertDivider();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '图片' : 'Image', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
+                    ],
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.add_circle_outline, size: 15),
+                          const SizedBox(width: 4),
+                          Text(l10n.zh ? '插入' : 'Insert', style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
                   _divider(),
                   _button(Icons.notes, l10n.zh ? '正文' : 'Paragraph', () => _changeType(_MdType.paragraph)),
                   _button(Icons.title, l10n.zh ? '一级标题' : 'Heading 1', () => _changeType(_MdType.heading, level: 1)),
@@ -604,6 +742,14 @@ class MarkdownEditorState extends State<MarkdownEditor> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
           child: _textField(block, index, 13, FontWeight.w400, monospace: true),
+        ),
+      _MdType.image => _imageBlockView(block, index),
+      _MdType.divider => GestureDetector(
+          onTap: () => setState(() => _active = index),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1, thickness: 1, color: AppColors.border),
+          ),
         ),
       _MdType.paragraph => _textField(block, index, 15, FontWeight.w400),
     };

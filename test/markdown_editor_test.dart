@@ -45,6 +45,24 @@ void main() {
     expect(key.currentState!.text, 'alphabeta');
   });
 
+  testWidgets('Delete removes a following divider block', (tester) async {
+    final key = GlobalKey<MarkdownEditorState>();
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [L10nDelegate()],
+      supportedLocales: const [Locale('en')],
+      home: Scaffold(
+        body: MarkdownEditor(key: key, initialText: 'alpha\n\n---', readOnly: false),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byWidgetPredicate((widget) => widget is RichText && widget.text.toPlainText().contains('alpha')));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.end);
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+    await tester.pump();
+    expect(key.currentState!.text, 'alpha');
+  });
+
   testWidgets('Undo and redo restore block edits from the toolbar', (tester) async {
     final key = GlobalKey<MarkdownEditorState>();
     await tester.pumpWidget(MaterialApp(
