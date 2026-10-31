@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 
 import '../core/l10n.dart';
 import '../core/theme.dart';
 
-enum _MdType { paragraph, heading, quote, bullet, numbered, check, code, image, divider, table }
+enum _MdType { paragraph, heading, quote, bullet, numbered, check, code, image, divider, table, formula }
 
 class _MdBlock {
   _MdBlock({
@@ -253,6 +254,11 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         _add(_MdBlock(type: _MdType.divider));
         continue;
       }
+      final formula = RegExp(r'^\$\$(.*)\$\$$').firstMatch(line.trim());
+      if (formula != null) {
+        _add(_MdBlock(type: _MdType.formula, text: formula.group(1)!));
+        continue;
+      }
       final heading = RegExp(r'^(#{1,6})\s+(.*)$').firstMatch(line);
       if (heading != null) {
         _add(_MdBlock(
@@ -365,6 +371,8 @@ class MarkdownEditorState extends State<MarkdownEditor> {
           buffer.write('---');
         case _MdType.table:
           buffer.write(_tableSource(block));
+        case _MdType.formula:
+          buffer.write('\$\$$content\$\$');
         case _MdType.paragraph:
           buffer.write(content);
       }
@@ -376,6 +384,43 @@ class MarkdownEditorState extends State<MarkdownEditor> {
 
   void _setActive(int index) {
     if (_active != index) setState(() => _active = index);
+  }
+
+  String _blockTypeLabel(L10n l10n) {
+    final block = _blocks.isEmpty ? null : _blocks[_active.clamp(0, _blocks.length - 1)];
+    return switch (block?.type) {
+      _MdType.heading => switch (block!.headingLevel) {
+          1 => l10n.zh ? '一级标题' : 'Heading 1',
+          2 => l10n.zh ? '二级标题' : 'Heading 2',
+          3 => l10n.zh ? '三级标题' : 'Heading 3',
+          4 => l10n.zh ? '四级标题' : 'Heading 4',
+          5 => l10n.zh ? '五级标题' : 'Heading 5',
+          _ => l10n.zh ? '六级标题' : 'Heading 6',
+        },
+      _MdType.quote => l10n.zh ? '引用' : 'Quote',
+      _MdType.bullet => l10n.zh ? '无序列表' : 'Unordered list',
+      _MdType.numbered => l10n.zh ? '有序列表' : 'Ordered list',
+      _MdType.check => l10n.zh ? '任务列表' : 'Check list',
+      _MdType.code => l10n.zh ? '代码块' : 'Code block',
+      _ => l10n.zh ? '段落' : 'Paragraph',
+    };
+  }
+
+  void _selectBlockType(String value) {
+    if (value.startsWith('heading')) {
+      final level = int.tryParse(value.substring('heading'.length)) ?? 1;
+      _changeType(_MdType.heading, level: level);
+      return;
+    }
+    final type = switch (value) {
+      'quote' => _MdType.quote,
+      'bullet' => _MdType.bullet,
+      'numbered' => _MdType.numbered,
+      'check' => _MdType.check,
+      'code' => _MdType.code,
+      _ => _MdType.paragraph,
+    };
+    _changeType(type);
   }
 
   void _changeType(_MdType type, {int level = 0}) {
@@ -463,7 +508,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       }
       if (index == 0) return KeyEventResult.ignored;
       final previous = _blocks[index - 1];
-      if (previous.type == _MdType.image || previous.type == _MdType.divider || previous.type == _MdType.table) {
+      if (previous.type == _MdType.image || previous.type == _MdType.divider || previous.type == _MdType.table || previous.type == _MdType.formula) {
         _pushUndo();
         setState(() {
           _blocks.removeAt(index - 1).dispose();
@@ -494,7 +539,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       if (!selection.isCollapsed || selection.start != text.length) return KeyEventResult.ignored;
       if (index >= _blocks.length - 1) return KeyEventResult.ignored;
       final next = _blocks[index + 1];
-      if (next.type == _MdType.image || next.type == _MdType.divider || next.type == _MdType.table) {
+      if (next.type == _MdType.image || next.type == _MdType.divider || next.type == _MdType.table || next.type == _MdType.formula) {
         final offset = text.length;
         _pushUndo();
         setState(() {
@@ -638,6 +683,56 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     );
   }
 
+  void _insertCodeBlock() {
+    _insertBlock(_MdBlock(type: _MdType.code));
+  }
+
+  Future<void> _insertFormula() async {
+    final input = TextEditingController();
+    final formula = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final l10n = L10n.of(context);
+        return AlertDialog(
+          title: Text(l10n.zh ? '插入公式' : 'Insert formula'),
+          content: TextField(
+            controller: input,
+            autofocus: true,
+            maxLines: 3,
+            decoration: InputDecoration(hintText: l10n.zh ? '输入 LaTeX 公式' : 'Enter a LaTeX formula'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, input.text.trim()), child: Text(l10n.confirm)),
+          ],
+        );
+      },
+    );
+    input.dispose();
+    if (!mounted || formula == null || formula.isEmpty) return;
+    _insertBlock(_MdBlock(type: _MdType.formula, text: formula));
+  }
+
+  Widget _formulaBlockView(_MdBlock block, int index) {
+    return GestureDetector(
+      onTap: () => setState(() => _active = index),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Math.tex(
+            block.controller.text,
+            mathStyle: MathStyle.display,
+            textStyle: const TextStyle(fontSize: 18),
+            onErrorFallback: (error) => Text(block.controller.text, style: const TextStyle(fontFamily: 'Menlo', fontSize: 13)),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _insertTable() {
     final block = _MdBlock(type: _MdType.table);
     block.tableCells = [
@@ -745,18 +840,25 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                     color: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     onSelected: (value) {
-                      if (value == 'image') {
-                        unawaited(_insertImage());
-                      } else if (value == 'divider') {
-                        _insertDivider();
-                      } else if (value == 'table') {
-                        _insertTable();
+                      switch (value) {
+                        case 'image':
+                          unawaited(_insertImage());
+                        case 'table':
+                          _insertTable();
+                        case 'code_block':
+                          _insertCodeBlock();
+                        case 'divider':
+                          _insertDivider();
+                        case 'formula':
+                          unawaited(_insertFormula());
                       }
                     },
                     itemBuilder: (context) => [
-                      PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '图片' : 'Image', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'code_block', child: Row(children: [const Icon(Icons.data_object, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '代码块' : 'Code block', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'formula', child: Row(children: [const Icon(Icons.functions, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '公式' : 'Formula', style: const TextStyle(fontSize: 13))])),
                     ],
                     child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -773,10 +875,47 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                     ),
                   ),
                   _divider(),
-                  _button(Icons.notes, l10n.zh ? '正文' : 'Paragraph', () => _changeType(_MdType.paragraph)),
-                  _button(Icons.title, l10n.zh ? '一级标题' : 'Heading 1', () => _changeType(_MdType.heading, level: 1)),
-                  _button(Icons.text_fields, l10n.zh ? '二级标题' : 'Heading 2', () => _changeType(_MdType.heading, level: 2)),
-                  _button(Icons.format_size, l10n.zh ? '三级标题' : 'Heading 3', () => _changeType(_MdType.heading, level: 3)),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '段落样式' : 'Block type',
+                    offset: const Offset(0, 34),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: _selectBlockType,
+                    itemBuilder: (context) {
+                      final options = <String, String>{
+                        'paragraph': l10n.zh ? '段落' : 'Paragraph',
+                        'heading1': l10n.zh ? '一级标题' : 'Heading 1',
+                        'heading2': l10n.zh ? '二级标题' : 'Heading 2',
+                        'heading3': l10n.zh ? '三级标题' : 'Heading 3',
+                        'heading4': l10n.zh ? '四级标题' : 'Heading 4',
+                        'heading5': l10n.zh ? '五级标题' : 'Heading 5',
+                        'heading6': l10n.zh ? '六级标题' : 'Heading 6',
+                        'quote': l10n.zh ? '引用' : 'Quote',
+                        'bullet': l10n.zh ? '无序列表' : 'Unordered list',
+                        'numbered': l10n.zh ? '有序列表' : 'Ordered list',
+                        'check': l10n.zh ? '任务列表' : 'Check list',
+                        'code': l10n.zh ? '代码块' : 'Code block',
+                      };
+                      return [
+                        for (final entry in options.entries)
+                          PopupMenuItem(value: entry.key, child: Text(entry.value, style: const TextStyle(fontSize: 13))),
+                      ];
+                    },
+                    child: Container(
+                      height: 30,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_blockTypeLabel(l10n), style: const TextStyle(fontSize: 12.5)),
+                          const SizedBox(width: 3),
+                          const Icon(Icons.arrow_drop_down, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
                   _divider(),
                   _button(Icons.format_bold, l10n.zh ? '粗体' : 'Bold', () => _wrapSelection('**', '**')),
                   _button(Icons.format_italic, l10n.zh ? '斜体' : 'Italic', () => _wrapSelection('*', '*')),
@@ -866,6 +1005,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         ),
       _MdType.image => _imageBlockView(block, index),
       _MdType.table => _tableBlockView(block, index),
+      _MdType.formula => _formulaBlockView(block, index),
       _MdType.divider => GestureDetector(
           onTap: () => setState(() => _active = index),
           child: const Padding(
@@ -881,7 +1021,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     );
   }
 
-  double _headingSize(int level) => switch (level) { 1 => 28, 2 => 23, 3 => 19, _ => 16 };
+  double _headingSize(int level) => switch (level) { 1 => 28, 2 => 23, 3 => 19, 4 => 17, 5 => 15.5, _ => 14 };
 
   Widget _listRow(_MdBlock block, int index, String marker) {
     return Row(
