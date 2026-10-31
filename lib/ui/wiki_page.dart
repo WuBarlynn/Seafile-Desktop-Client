@@ -6,6 +6,7 @@ import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
+import 'dialogs.dart';
 import 'web_handoff.dart';
 import 'widgets.dart';
 
@@ -64,6 +65,32 @@ class _WikiPageState extends State<WikiPage> {
     }
   }
 
+  Future<void> _createWiki() async {
+    final l10n = L10n.of(context);
+    final name = await showTextPrompt(
+      context,
+      title: l10n.zh ? '添加知识库' : 'New wiki',
+      label: l10n.name,
+      validator: (value) => value.trim().isEmpty ? l10n.name : null,
+    );
+    if (name == null || !mounted) return;
+    try {
+      final created = await context.read<AppSession>().api!.createWiki(name: name.trim());
+      await _load();
+      if (!mounted) return;
+      final id = '${created['id'] ?? ''}';
+      final path = id.isEmpty ? '/published/' : '/wikis/$id/';
+      final open = widget.onOpenWeb;
+      if (open != null) {
+        open(path, name.trim());
+      } else {
+        await openAuthenticatedWeb(context, path, title: name.trim());
+      }
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   List<MapEntry<String, List<WikiInfo>>> _sections(L10n l10n) {
     final mine = _wikis.where((wiki) => !wiki.legacy && wiki.type == 'mine').toList();
     final shared = _wikis.where((wiki) => !wiki.legacy && wiki.type == 'shared').toList();
@@ -98,6 +125,12 @@ class _WikiPageState extends State<WikiPage> {
               const SizedBox(width: 8),
               Text(l10n.wikis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
               const Spacer(),
+              FilledButton.icon(
+                onPressed: _createWiki,
+                icon: const Icon(Icons.add, size: 15),
+                label: Text(l10n.zh ? '添加知识库' : 'New wiki', style: const TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
               IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: _load),
             ],
           ),

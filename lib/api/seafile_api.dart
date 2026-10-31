@@ -1146,6 +1146,19 @@ class SeafileApi {
     }
   }
 
+  Future<Map<String, dynamic>> createWiki({required String name, String icon = 'book-bookmark-fill', String color = '#FF8000', String? owner}) async {
+    return asMap(await _postForm('api/v2.1/wikis2/', {
+      'name': name,
+      'icon': icon,
+      'color': color,
+      if (owner != null && owner.isNotEmpty) 'owner': owner,
+    }));
+  }
+
+  Future<void> deleteWiki2(String id) async {
+    await _delete('api/v2.1/wiki2/$id/');
+  }
+
   Future<List<WikiInfo>> wikis() async {
     final result = <WikiInfo>[];
     ApiException? lastError;
