@@ -30,7 +30,10 @@ class NewMenuButton extends StatelessWidget {
         elevation: const WidgetStatePropertyAll(12),
         shadowColor: const WidgetStatePropertyAll(Color(0x29000000)),
         padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 5)),
-        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+        shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: AppColors.border),
+        )),
         minimumSize: const WidgetStatePropertyAll(Size(238, 0)),
       );
 

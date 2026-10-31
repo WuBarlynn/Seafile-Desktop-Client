@@ -175,10 +175,13 @@ ThemeData buildAppTheme() {
       surfaceTintColor: Colors.transparent,
       elevation: 12,
       shadowColor: Colors.black.withValues(alpha: 0.16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      textStyle: const TextStyle(fontSize: 14, color: AppColors.text),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      textStyle: const TextStyle(fontSize: 13, color: AppColors.text),
       menuPadding: const EdgeInsets.symmetric(vertical: 5),
-      labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 14)),
+      labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 13)),
     ),
     tooltipTheme: TooltipThemeData(
       waitDuration: const Duration(milliseconds: 500),

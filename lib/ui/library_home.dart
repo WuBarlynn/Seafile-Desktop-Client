@@ -104,7 +104,10 @@ class _LibraryHomeState extends State<LibraryHome> {
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
       elevation: 12,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
     );
     if (!mounted || selected == null) return;
     switch (selected) {
@@ -290,7 +293,10 @@ class _LibraryHomeState extends State<LibraryHome> {
             tooltip: l10n.sortBy,
             offset: const Offset(0, 34),
             color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
             itemBuilder: (context) => [
               _sortItem(context, 'name', l10n.sortName, _LibrarySort.name),
               _sortItem(context, 'size', l10n.sortSize, _LibrarySort.size),
@@ -317,7 +323,10 @@ class _LibraryHomeState extends State<LibraryHome> {
             tooltip: l10n.more,
             offset: const Offset(0, 34),
             color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
             itemBuilder: (context) => [
               PopupMenuItem(value: 'refresh', child: _menuRow('refresh', l10n.refresh)),
               PopupMenuItem(value: 'create', child: _menuRow('new-folder', l10n.newLibrary)),

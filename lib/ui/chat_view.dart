@@ -153,7 +153,10 @@ class _ChatViewState extends State<ChatView> {
           PopupMenuButton<AiChatSession>(
             tooltip: l10n.chatHistory,
             offset: const Offset(0, 34),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
             itemBuilder: (context) => [
               if (chat.sessions.isEmpty)
                 PopupMenuItem(enabled: false, child: Text(l10n.noChats, style: const TextStyle(fontSize: 13))),

@@ -113,7 +113,10 @@ class _FileAreaState extends State<FileArea> {
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
       elevation: 12,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
     );
     if (!mounted || selectedValue == null) return;
     switch (selectedValue) {

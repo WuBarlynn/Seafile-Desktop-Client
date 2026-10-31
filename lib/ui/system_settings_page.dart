@@ -667,7 +667,10 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                 tooltip: '',
                 color: Colors.white,
                 surfaceTintColor: Colors.transparent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
                 itemBuilder: (context) => [
                   PopupMenuItem(value: 'toggle', child: Text(active ? (l10n.zh ? '禁用账号' : 'Disable account') : (l10n.zh ? '启用账号' : 'Enable account'), style: const TextStyle(fontSize: 13, color: AppColors.text))),
                   PopupMenuItem(value: 'password', child: Text(l10n.zh ? '重置密码' : 'Reset password', style: const TextStyle(fontSize: 13, color: AppColors.text))),

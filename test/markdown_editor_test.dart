@@ -45,6 +45,30 @@ void main() {
     expect(key.currentState!.text, 'alphabeta');
   });
 
+  testWidgets('Editor menus share the compact app menu style', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [L10nDelegate()],
+      supportedLocales: const [Locale('en')],
+      home: Scaffold(
+        body: MarkdownEditor(initialText: 'alpha', readOnly: false),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Insert'));
+    await tester.pumpAndSettle();
+    expect(find.text('Table'), findsWidgets);
+    final insertItems = tester.widgetList<PopupMenuItem<String>>(find.byType(PopupMenuItem<String>));
+    expect(insertItems, isNotEmpty);
+    expect(insertItems.every((item) => item.height == 36), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Block type'));
+    await tester.pumpAndSettle();
+    expect(find.text('Heading 6'), findsWidgets);
+    final blockItems = tester.widgetList<PopupMenuItem<String>>(find.byType(PopupMenuItem<String>));
+    expect(blockItems.every((item) => item.height == 36), isTrue);
+  });
+
   testWidgets('Parses and edits Markdown tables as cells', (tester) async {
     final key = GlobalKey<MarkdownEditorState>();
     await tester.pumpWidget(MaterialApp(

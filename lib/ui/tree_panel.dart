@@ -470,7 +470,10 @@ class _MoreRow extends StatelessWidget {
       tooltip: '',
       offset: const Offset(0, 32),
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
       itemBuilder: (context) => [
         PopupMenuItem(value: 'refresh', child: _row('refresh', l10n.refresh)),
         PopupMenuItem(value: 'info', child: _row('info', l10n.libraryInfo)),

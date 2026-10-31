@@ -338,7 +338,10 @@ class _BrowserViewState extends State<BrowserView> {
             PopupMenuButton<String>(
               tooltip: l10n.sortBy,
               offset: const Offset(0, 34),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: AppColors.border),
+      ),
               itemBuilder: (context) => [
                 _sortItem(context, l10n.sortName, SortField.name, workspace),
                 _sortItem(context, l10n.sortSize, SortField.size, workspace),
