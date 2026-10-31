@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.1.7 — tabbed workspace and in-place editors. Every iteration is published to this repository.
+> **Status:** 1.1.8 — keyboard-first native editors. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -21,8 +21,8 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Downloads: single file, folder ZIP, progress and cancellation
 - **Tabbed workspace** with a pinned Home tab; single-clicking a library or file opens a new tab, and sidebar sections switch inside Home without spawning tabs
 - **In-place editors** — opening a file never pushes a new page. Images/PDF, text, Markdown, SeaDoc, Office, Excalidraw and media all render inside the file tab
-- Native text editor and **block-based Markdown editor**: headings, lists, checklists, quotes and code blocks render as content (no `#`/`-` markers), with a formatting toolbar, full-width canvas and unsaved-change protection
-- Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab
+- Native text editor and **block-based Markdown editor**: headings, lists, checklists, quotes and code blocks render as content (no `#`/`-` markers), with a formatting toolbar, full-width canvas and unsaved-change protection. Enter splits at the caret and continues lists/quotes, Backspace merges blocks or removes an empty one, Delete merges the next block, arrow keys cross block boundaries, Cmd/Ctrl+B/I apply emphasis, and IME composition is never intercepted
+- Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab. Enter creates the next paragraph, list item, check item, callout paragraph or toggle content with web-style behavior, Backspace merges into the previous block or exits an empty list, Delete merges forward, and IME composition remains untouched
 - Inline web editors for OnlyOffice documents, Excalidraw drawings, audio/video and the full web app; the embedded page is auto-fitted to the tab
 - Native **account settings** (profile, contact details, password) and **system settings** (overview, users with enable/reset/delete, libraries, server switches) for administrators; the complete admin console also opens in a tab
 - Native account/system pages replace the previous web hop that failed permission checks
@@ -91,6 +91,10 @@ lib/
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
 
+## Release 1.1.8
+
+Tagged `v1.1.8`. Makes the native Markdown and SeaDoc editors behave like the web editors for everyday keyboard editing. Enter now splits a block and continues its type, Backspace merges with the previous block or removes an empty one, Delete merges forward, arrow keys move between blocks, empty list items exit the list, and IME composition is never intercepted by block shortcuts. Markdown also accepts Cmd/Ctrl+B and Cmd/Ctrl+I. The SeaDoc toolbar add action now inserts a visible, focused paragraph after the active block. Verified with a macOS integration test against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, including save and reload of edited list content. Earlier 1.1.x releases remain available.
+
 ## Release 1.1.7
 
 Tagged `v1.1.7`. Adds native avatar upload/display to account settings and keeps the native SeaDoc comments panel and block coverage from 1.1.6. Builds on 1.1.5. Introduces the tabbed workspace, in-place native Markdown/SeaDoc editors, inline editors for Office/Excalidraw/media/web pages, native account and system settings, corrected tree chevrons and a restyled avatar menu. Verified against a local Seafile Pro 14.0.9 deployment with SeaDoc 3.0.6, OnlyOffice, SeaSearch and AI enabled. Earlier 1.0.x releases remain available.
@@ -98,7 +102,7 @@ Tagged `v1.1.7`. Adds native avatar upload/display to account settings and keeps
 ## Known limitations
 
 - Office, Excalidraw, audio/video and some web pages render with an inline WebView (WKWebView on macOS, WebView2 on Windows) because their editors depend on the server's web front-end. Text, Markdown and SeaDoc are native.
-- The native SeaDoc editor covers common text blocks, tables, toggle sections, images, formulas, video cards and embed-link cards.
+- The native SeaDoc editor covers common text blocks, tables, toggle sections, images, formulas, video cards and embed-link cards. Keyboard block editing now matches the web editor, but per-run inline styling inside a SeaDoc block is not yet editable in the native field.
 - Embedded pages require the WebView2 Runtime on Windows 10 (included in Windows 11); if it is missing the client falls back to the system browser.
 - Inline emphasis is shown rendered when a Markdown block is not focused and shows its source while editing; block structure is always rendered.
 - The 13-specific layout and feature differences are detected, but finer 13/14 parity work is ongoing.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/l10n.dart';
 import '../core/theme.dart';
@@ -243,11 +244,151 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     widget.onChanged?.call(isDirty);
   }
 
+  void _focusBlock(_MdBlock block, int offset) {
+    final index = _blocks.indexOf(block);
+    if (index < 0) return;
+    setState(() {
+      _active = index;
+      _editing = index;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      block.focus.requestFocus();
+      block.controller.selection = TextSelection.collapsed(
+        offset: offset.clamp(0, block.controller.text.length),
+      );
+    });
+  }
+
+  KeyEventResult _onKey(_MdBlock block, int index, KeyEvent event) {
+    if (widget.readOnly) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final value = block.controller.value;
+    if (value.composing.isValid) return KeyEventResult.ignored;
+    final selection = value.selection;
+    if (!selection.isValid) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final text = value.text;
+    final command = HardwareKeyboard.instance.isMetaPressed || HardwareKeyboard.instance.isControlPressed;
+
+    if (command && key == LogicalKeyboardKey.keyB) {
+      _wrapBlock(block, '**', '**');
+      return KeyEventResult.handled;
+    }
+    if (command && key == LogicalKeyboardKey.keyI) {
+      _wrapBlock(block, '*', '*');
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+      if (HardwareKeyboard.instance.isShiftPressed) return KeyEventResult.ignored;
+      if (block.type == _MdType.code) return KeyEventResult.ignored;
+      _splitBlock(block, index);
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.backspace) {
+      if (!selection.isCollapsed || selection.start != 0) return KeyEventResult.ignored;
+      if (text.isEmpty) {
+        if (_blocks.length <= 1) return KeyEventResult.handled;
+        setState(() {
+          _blocks.removeAt(index).dispose();
+          _active = (index - 1).clamp(0, _blocks.length - 1);
+          _editing = _active;
+        });
+        widget.onChanged?.call(isDirty);
+        _focusBlock(_blocks[_active], _blocks[_active].controller.text.length);
+        return KeyEventResult.handled;
+      }
+      if (index == 0) return KeyEventResult.ignored;
+      final previous = _blocks[index - 1];
+      final offset = previous.controller.text.length;
+      final separator = previous.type == _MdType.code || block.type == _MdType.code ? '\n' : '';
+      previous.controller.text = '${previous.controller.text}$separator$text';
+      setState(() {
+        _blocks.removeAt(index).dispose();
+        _active = index - 1;
+        _editing = index - 1;
+      });
+      widget.onChanged?.call(isDirty);
+      _focusBlock(previous, offset);
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.delete) {
+      if (!selection.isCollapsed || selection.start != text.length) return KeyEventResult.ignored;
+      if (index >= _blocks.length - 1) return KeyEventResult.ignored;
+      final next = _blocks[index + 1];
+      final offset = text.length;
+      final separator = block.type == _MdType.code || next.type == _MdType.code ? '\n' : '';
+      block.controller.text = '$text$separator${next.controller.text}';
+      setState(() {
+        _blocks.removeAt(index + 1).dispose();
+        _active = index;
+        _editing = index;
+      });
+      widget.onChanged?.call(isDirty);
+      _focusBlock(block, offset);
+      return KeyEventResult.handled;
+    }
+
+    if (key == LogicalKeyboardKey.arrowUp && selection.isCollapsed && selection.start == 0 && index > 0) {
+      final previous = _blocks[index - 1];
+      _focusBlock(previous, previous.controller.text.length);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown && selection.isCollapsed && selection.start == text.length && index < _blocks.length - 1) {
+      _focusBlock(_blocks[index + 1], 0);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _splitBlock(_MdBlock block, int index) {
+    final value = block.controller.value;
+    final text = value.text;
+    final caret = value.selection.start.clamp(0, text.length);
+    final before = text.substring(0, caret);
+    final after = text.substring(caret);
+    final exitsBlock = before.isEmpty && after.isEmpty && (block.type == _MdType.bullet || block.type == _MdType.numbered || block.type == _MdType.check || block.type == _MdType.quote);
+    if (exitsBlock) {
+      setState(() {
+        block.type = _MdType.paragraph;
+        block.checked = false;
+      });
+      widget.onChanged?.call(isDirty);
+      return;
+    }
+    block.controller.text = before;
+    final newType = switch (block.type) {
+      _MdType.bullet => _MdType.bullet,
+      _MdType.numbered => _MdType.numbered,
+      _MdType.check => _MdType.check,
+      _MdType.quote => _MdType.quote,
+      _ => _MdType.paragraph,
+    };
+    final newBlock = _MdBlock(type: newType, text: after);
+    _listen(newBlock);
+    setState(() {
+      _blocks.insert(index + 1, newBlock);
+      _active = index + 1;
+      _editing = index + 1;
+    });
+    widget.onChanged?.call(isDirty);
+    _focusBlock(newBlock, 0);
+  }
+
   void _wrapSelection(String before, String after) {
     if (widget.readOnly || _blocks.isEmpty) return;
-    final index = _active.clamp(0, _blocks.length - 1);
+    _wrapBlock(_blocks[_active.clamp(0, _blocks.length - 1)], before, after);
+  }
+
+  void _wrapBlock(_MdBlock block, String before, String after) {
+    if (widget.readOnly) return;
+    final index = _blocks.indexOf(block);
+    if (index < 0) return;
     setState(() => _editing = index);
-    final controller = _blocks[index].controller;
+    final controller = block.controller;
     final selection = controller.selection;
     final value = controller.text;
     final start = selection.isValid ? selection.start : value.length;
@@ -425,20 +566,25 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         ),
       );
     }
-    return TextField(
-      controller: block.controller,
-      focusNode: block.focus,
-      autofocus: _editing == index,
-      enabled: !widget.readOnly,
-      onTap: () => _setActive(index),
-      maxLines: null,
-      style: style,
-      decoration: const InputDecoration(
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        isDense: true,
-        contentPadding: EdgeInsets.symmetric(vertical: 3),
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (node, event) => _onKey(block, index, event),
+      child: TextField(
+        controller: block.controller,
+        focusNode: block.focus,
+        autofocus: _editing == index,
+        enabled: !widget.readOnly,
+        onTap: () => _setActive(index),
+        maxLines: null,
+        style: style,
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 3),
+        ),
       ),
     );
   }

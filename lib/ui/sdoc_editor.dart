@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -32,15 +33,39 @@ class _SdocBlock {
 
   final Map<String, dynamic> element;
   TextEditingController? text;
+  FocusNode? textFocus;
   List<TextEditingController> children = const [];
+  List<FocusNode> childFocus = const [];
   List<Map<String, dynamic>> childElements = const [];
   TextEditingController? toggleTitle;
+  FocusNode? toggleTitleFocus;
   List<TextEditingController> toggleChildren = const [];
+  List<FocusNode> toggleChildFocus = const [];
   List<Map<String, dynamic>> toggleChildElements = const [];
   bool toggleCollapsed = false;
   bool deleted = false;
 
   String get type => element['type'] as String? ?? 'paragraph';
+}
+
+enum _SdocFieldKind { simple, code, listItem, calloutChild, toggleTitle, toggleChild }
+
+class _SdocField {
+  const _SdocField({
+    required this.block,
+    required this.blockIndex,
+    required this.kind,
+    required this.controller,
+    required this.focus,
+    this.item = 0,
+  });
+
+  final _SdocBlock block;
+  final int blockIndex;
+  final _SdocFieldKind kind;
+  final TextEditingController controller;
+  final FocusNode focus;
+  final int item;
 }
 
 class SdocEditorState extends State<SdocEditor> {
@@ -71,14 +96,7 @@ class SdocEditorState extends State<SdocEditor> {
   @override
   void dispose() {
     for (final block in _blocks) {
-      block.text?.dispose();
-      for (final controller in block.children) {
-        controller.dispose();
-      }
-      block.toggleTitle?.dispose();
-      for (final controller in block.toggleChildren) {
-        controller.dispose();
-      }
+      _disposeBlock(block);
     }
     for (final controller in _tableControllers.values) {
       controller.dispose();
@@ -86,6 +104,31 @@ class SdocEditorState extends State<SdocEditor> {
     _lastTexts.clear();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _disposeBlock(_SdocBlock block) {
+    final text = block.text;
+    if (text != null) {
+      _lastTexts.remove(text);
+      text.dispose();
+    }
+    for (final controller in block.children) {
+      _lastTexts.remove(controller);
+      controller.dispose();
+    }
+    block.toggleTitle?.dispose();
+    for (final controller in block.toggleChildren) {
+      _lastTexts.remove(controller);
+      controller.dispose();
+    }
+    block.textFocus?.dispose();
+    for (final focus in block.childFocus) {
+      focus.dispose();
+    }
+    block.toggleTitleFocus?.dispose();
+    for (final focus in block.toggleChildFocus) {
+      focus.dispose();
+    }
   }
 
   Future<void> _load() async {
@@ -110,14 +153,7 @@ class SdocEditorState extends State<SdocEditor> {
 
   void _buildBlocks(Map<String, dynamic> document) {
     for (final block in _blocks) {
-      block.text?.dispose();
-      for (final controller in block.children) {
-        controller.dispose();
-      }
-      block.toggleTitle?.dispose();
-      for (final controller in block.toggleChildren) {
-        controller.dispose();
-      }
+      _disposeBlock(block);
     }
     _blocks.clear();
     for (final controller in _tableControllers.values) {
@@ -135,6 +171,7 @@ class SdocEditorState extends State<SdocEditor> {
         block.children = [
           for (final child in children) TextEditingController(text: _textOf(child)),
         ];
+        block.childFocus = [for (final _ in children) FocusNode()];
         for (final controller in block.children) {
           _watch(controller);
         }
@@ -144,6 +181,7 @@ class SdocEditorState extends State<SdocEditor> {
         block.children = [
           for (final child in children) TextEditingController(text: _textOf(child)),
         ];
+        block.childFocus = [for (final _ in children) FocusNode()];
         for (final controller in block.children) {
           _watch(controller);
         }
@@ -153,33 +191,36 @@ class SdocEditorState extends State<SdocEditor> {
         final contentElement = children.length > 1 ? children[1] : null;
         block.toggleCollapsed = element['collapsed'] == true;
         block.toggleTitle = TextEditingController(text: titleElement == null ? '' : _textOf(titleElement));
+        block.toggleTitleFocus = FocusNode();
         _watch(block.toggleTitle!);
         final contentChildren = (contentElement?['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
         block.toggleChildElements = contentChildren;
         block.toggleChildren = [
           for (final child in contentChildren) TextEditingController(text: _textOf(child)),
         ];
+        block.toggleChildFocus = [for (final _ in contentChildren) FocusNode()];
         for (final controller in block.toggleChildren) {
           _watch(controller);
         }
       } else if (_isSimpleEditable(type)) {
         block.text = TextEditingController(text: _textOf(element));
+        block.textFocus = FocusNode();
         _watch(block.text!);
       }
       _blocks.add(block);
     }
     if (_blocks.isEmpty && !_readOnly) {
-      _blocks.add(_SdocBlock(_paragraphElement('')));
-      _bindBlock(_blocks.length - 1);
+      _blocks.add(_newParagraphBlock(''));
     }
     _active = _blocks.isEmpty ? null : 0;
   }
 
-  void _bindBlock(int index) {
-    final block = _blocks[index];
-    if (block.text != null) {
-      _watch(block.text!);
-    }
+  _SdocBlock _newParagraphBlock(String text) {
+    final block = _SdocBlock(_paragraphElement(text));
+    block.text = TextEditingController(text: text);
+    block.textFocus = FocusNode();
+    _watch(block.text!);
+    return block;
   }
 
   bool _isSimpleEditable(String type) {
@@ -294,6 +335,504 @@ class SdocEditorState extends State<SdocEditor> {
 
   void _setActive(int index) {
     if (_active != index) setState(() => _active = index);
+  }
+
+  List<_SdocField> _fields() {
+    final fields = <_SdocField>[];
+    for (var i = 0; i < _blocks.length; i++) {
+      final block = _blocks[i];
+      if (block.deleted) continue;
+      final type = block.type;
+      if (type == 'unordered_list' || type == 'ordered_list') {
+        for (var j = 0; j < block.children.length && j < block.childFocus.length; j++) {
+          fields.add(_SdocField(block: block, blockIndex: i, kind: _SdocFieldKind.listItem, controller: block.children[j], focus: block.childFocus[j], item: j));
+        }
+      } else if (type == 'callout') {
+        for (var j = 0; j < block.children.length && j < block.childFocus.length; j++) {
+          fields.add(_SdocField(block: block, blockIndex: i, kind: _SdocFieldKind.calloutChild, controller: block.children[j], focus: block.childFocus[j], item: j));
+        }
+      } else if (type == 'toggle_header') {
+        if (block.toggleTitle != null && block.toggleTitleFocus != null) {
+          fields.add(_SdocField(block: block, blockIndex: i, kind: _SdocFieldKind.toggleTitle, controller: block.toggleTitle!, focus: block.toggleTitleFocus!));
+        }
+        if (!block.toggleCollapsed) {
+          for (var j = 0; j < block.toggleChildren.length && j < block.toggleChildFocus.length; j++) {
+            fields.add(_SdocField(block: block, blockIndex: i, kind: _SdocFieldKind.toggleChild, controller: block.toggleChildren[j], focus: block.toggleChildFocus[j], item: j));
+          }
+        }
+      } else if (_isSimpleEditable(type) && block.text != null && block.textFocus != null) {
+        fields.add(_SdocField(
+          block: block,
+          blockIndex: i,
+          kind: type == 'code_block' ? _SdocFieldKind.code : _SdocFieldKind.simple,
+          controller: block.text!,
+          focus: block.textFocus!,
+        ));
+      }
+    }
+    return fields;
+  }
+
+  int _fieldPosition(List<_SdocField> fields, _SdocField field) {
+    for (var i = 0; i < fields.length; i++) {
+      if (identical(fields[i].focus, field.focus) && identical(fields[i].controller, field.controller)) return i;
+    }
+    return -1;
+  }
+
+  _SdocField? _previousField(_SdocField field) {
+    final fields = _fields();
+    final position = _fieldPosition(fields, field);
+    if (position <= 0) return null;
+    final previous = fields[position - 1];
+    if (previous.blockIndex != field.blockIndex && previous.blockIndex != field.blockIndex - 1) return null;
+    return previous;
+  }
+
+  _SdocField? _nextField(_SdocField field) {
+    final fields = _fields();
+    final position = _fieldPosition(fields, field);
+    if (position < 0 || position >= fields.length - 1) return null;
+    final next = fields[position + 1];
+    if (next.blockIndex != field.blockIndex && next.blockIndex != field.blockIndex + 1) return null;
+    return next;
+  }
+
+  _SdocField? _firstFieldOfBlock(_SdocBlock block, int index) {
+    final type = block.type;
+    if (_isSimpleEditable(type) && block.text != null && block.textFocus != null) {
+      return _SdocField(block: block, blockIndex: index, kind: type == 'code_block' ? _SdocFieldKind.code : _SdocFieldKind.simple, controller: block.text!, focus: block.textFocus!);
+    }
+    if ((type == 'unordered_list' || type == 'ordered_list' || type == 'callout') && block.children.isNotEmpty && block.childFocus.isNotEmpty) {
+      return _SdocField(block: block, blockIndex: index, kind: type == 'callout' ? _SdocFieldKind.calloutChild : _SdocFieldKind.listItem, controller: block.children.first, focus: block.childFocus.first);
+    }
+    if (type == 'toggle_header' && block.toggleTitle != null && block.toggleTitleFocus != null) {
+      return _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.toggleTitle, controller: block.toggleTitle!, focus: block.toggleTitleFocus!);
+    }
+    return null;
+  }
+
+  void _focusField(_SdocField field, int offset) {
+    setState(() => _active = field.blockIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      field.focus.requestFocus();
+      field.controller.selection = TextSelection.collapsed(offset: offset.clamp(0, field.controller.text.length));
+    });
+  }
+
+  void _focusBlock(_SdocBlock block, int index, int offset) {
+    final field = _firstFieldOfBlock(block, index);
+    if (field != null) _focusField(field, offset);
+  }
+
+  KeyEventResult _onKey(_SdocField field, KeyEvent event) {
+    if (_readOnly) return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final value = field.controller.value;
+    if (value.composing.isValid) return KeyEventResult.ignored;
+    final selection = value.selection;
+    if (!selection.isValid) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final text = value.text;
+
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+      if (HardwareKeyboard.instance.isShiftPressed) return KeyEventResult.ignored;
+      if (field.kind == _SdocFieldKind.code) return KeyEventResult.ignored;
+      _handleEnter(field);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.backspace) {
+      if (!selection.isCollapsed || selection.start != 0) return KeyEventResult.ignored;
+      if (field.kind == _SdocFieldKind.toggleTitle) return KeyEventResult.ignored;
+      _handleBackspace(field);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.delete) {
+      if (!selection.isCollapsed || selection.start != text.length) return KeyEventResult.ignored;
+      _handleDelete(field);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp && selection.isCollapsed && selection.start == 0) {
+      final previous = _previousField(field);
+      if (previous != null) {
+        _focusField(previous, previous.controller.text.length);
+        return KeyEventResult.handled;
+      }
+    }
+    if (key == LogicalKeyboardKey.arrowDown && selection.isCollapsed && selection.start == text.length) {
+      final next = _nextField(field);
+      if (next != null) {
+        _focusField(next, 0);
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _handleEnter(_SdocField field) {
+    switch (field.kind) {
+      case _SdocFieldKind.simple:
+        _splitSimple(field);
+      case _SdocFieldKind.listItem:
+        _splitListItem(field);
+      case _SdocFieldKind.calloutChild:
+        _splitCalloutChild(field);
+      case _SdocFieldKind.toggleTitle:
+        _splitToggleTitle(field);
+      case _SdocFieldKind.toggleChild:
+        _splitToggleChild(field);
+      case _SdocFieldKind.code:
+        break;
+    }
+  }
+
+  void _handleBackspace(_SdocField field) {
+    final controller = field.controller;
+    if (controller.text.isEmpty) {
+      final fields = _fields();
+      if (fields.length <= 1) {
+        final block = field.block;
+        if (field.kind == _SdocFieldKind.simple && block.type != 'paragraph' && block.type != 'title') {
+          setState(() {
+            block.element['type'] = 'paragraph';
+            _dirty = true;
+          });
+        }
+        return;
+      }
+      final previous = _previousField(field);
+      final next = _nextField(field);
+      setState(() {
+        _removeField(field);
+        _dirty = true;
+      });
+      final target = previous ?? next;
+      if (target != null) {
+        _focusField(target, previous != null ? target.controller.text.length : 0);
+      }
+      return;
+    }
+    final previous = _previousField(field);
+    if (previous == null) return;
+    final offset = previous.controller.text.length;
+    final newline = previous.kind == _SdocFieldKind.code || field.kind == _SdocFieldKind.code;
+    previous.controller.text = '${previous.controller.text}${newline && previous.controller.text.isNotEmpty ? '\n' : ''}${controller.text}';
+    setState(() {
+      _removeField(field);
+      _dirty = true;
+    });
+    _focusField(previous, offset);
+  }
+
+  void _handleDelete(_SdocField field) {
+    final next = _nextField(field);
+    if (next == null || next.kind == _SdocFieldKind.toggleTitle) return;
+    final offset = field.controller.text.length;
+    final newline = next.kind == _SdocFieldKind.code || field.kind == _SdocFieldKind.code;
+    field.controller.text = '${field.controller.text}${newline && field.controller.text.isNotEmpty ? '\n' : ''}${next.controller.text}';
+    setState(() {
+      _removeField(next);
+      _dirty = true;
+    });
+    _focusField(field, offset);
+  }
+
+  void _splitSimple(_SdocField field) {
+    final block = field.block;
+    final controller = field.controller;
+    final text = controller.text;
+    final caret = controller.selection.start.clamp(0, text.length);
+    final before = text.substring(0, caret);
+    final after = text.substring(caret);
+    final index = field.blockIndex;
+    if (before.isEmpty && after.isEmpty) {
+      if (block.type == 'quote' || block.type == 'check_list_item') {
+        setState(() {
+          block.element['type'] = 'paragraph';
+          _dirty = true;
+        });
+        return;
+      }
+      _insertParagraphAfter(index, '');
+      return;
+    }
+    controller.text = before;
+    final newType = switch (block.type) {
+      'quote' => 'quote',
+      'check_list_item' => 'check_list_item',
+      _ => 'paragraph',
+    };
+    final newBlock = _newTextBlock(newType, after);
+    setState(() {
+      _blocks.insert(index + 1, newBlock);
+      _active = index + 1;
+      _dirty = true;
+    });
+    _focusBlock(newBlock, index + 1, 0);
+  }
+
+  _SdocBlock _newTextBlock(String type, String text) {
+    final id = 'p-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    final element = <String, dynamic>{
+      'id': id,
+      'type': type,
+      'children': [
+        {'id': '$id-t', 'text': text},
+      ],
+      if (type == 'check_list_item') 'checked': false,
+    };
+    final block = _SdocBlock(element);
+    block.text = TextEditingController(text: text);
+    block.textFocus = FocusNode();
+    _watch(block.text!);
+    return block;
+  }
+
+  void _insertParagraphAfter(int index, String text) {
+    final block = _newParagraphBlock(text);
+    setState(() {
+      _blocks.insert(index + 1, block);
+      _active = index + 1;
+      _dirty = true;
+    });
+    _focusBlock(block, index + 1, 0);
+  }
+
+  void _splitListItem(_SdocField field) {
+    final block = field.block;
+    final controller = field.controller;
+    final text = controller.text;
+    final caret = controller.selection.start.clamp(0, text.length);
+    final before = text.substring(0, caret);
+    final after = text.substring(caret);
+    if (before.isEmpty && after.isEmpty) {
+      if (block.children.length <= 1) {
+        final replacement = _newParagraphBlock('');
+        setState(() {
+          _blocks[field.blockIndex] = replacement;
+          _disposeBlock(block);
+          _active = field.blockIndex;
+          _dirty = true;
+        });
+        _focusBlock(replacement, field.blockIndex, 0);
+      } else {
+        final index = field.blockIndex;
+        setState(() {
+          _removeListItem(block, field.item);
+          _dirty = true;
+        });
+        _insertParagraphAfter(index, '');
+      }
+      return;
+    }
+    controller.text = before;
+    final item = field.item;
+    final id = 'l-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    final element = <String, dynamic>{
+      'id': id,
+      'type': 'list_item',
+      'children': [_paragraphElement(after)..['id'] = '$id-p'],
+    };
+    final list = block.element['children'];
+    if (list is List) list.insert(item + 1, element);
+    final newController = TextEditingController(text: after);
+    final newFocus = FocusNode();
+    block.childElements.insert(item + 1, element);
+    block.children.insert(item + 1, newController);
+    block.childFocus.insert(item + 1, newFocus);
+    _watch(newController);
+    setState(() => _dirty = true);
+    _focusField(_SdocField(block: block, blockIndex: field.blockIndex, kind: _SdocFieldKind.listItem, controller: newController, focus: newFocus, item: item + 1), 0);
+  }
+
+  void _splitCalloutChild(_SdocField field) {
+    final block = field.block;
+    final controller = field.controller;
+    final text = controller.text;
+    final caret = controller.selection.start.clamp(0, text.length);
+    final before = text.substring(0, caret);
+    final after = text.substring(caret);
+    if (before.isEmpty && after.isEmpty && block.children.length <= 1) {
+      _insertParagraphAfter(field.blockIndex, '');
+      return;
+    }
+    controller.text = before;
+    final item = field.item;
+    final element = _paragraphElement(after);
+    final list = block.element['children'];
+    if (list is List) list.insert(item + 1, element);
+    final newController = TextEditingController(text: after);
+    final newFocus = FocusNode();
+    block.childElements.insert(item + 1, element);
+    block.children.insert(item + 1, newController);
+    block.childFocus.insert(item + 1, newFocus);
+    _watch(newController);
+    setState(() => _dirty = true);
+    _focusField(_SdocField(block: block, blockIndex: field.blockIndex, kind: _SdocFieldKind.calloutChild, controller: newController, focus: newFocus, item: item + 1), 0);
+  }
+
+  void _splitToggleTitle(_SdocField field) {
+    final block = field.block;
+    final controller = field.controller;
+    final text = controller.text;
+    final caret = controller.selection.start.clamp(0, text.length);
+    final before = text.substring(0, caret);
+    final after = text.substring(caret);
+    controller.text = before;
+    if (after.isEmpty && block.toggleChildren.isNotEmpty) {
+      if (block.toggleCollapsed) {
+        setState(() {
+          block.toggleCollapsed = false;
+          _dirty = true;
+        });
+      }
+      _focusField(
+        _SdocField(block: block, blockIndex: field.blockIndex, kind: _SdocFieldKind.toggleChild, controller: block.toggleChildren.first, focus: block.toggleChildFocus.first),
+        0,
+      );
+      return;
+    }
+    _insertParagraphAfter(field.blockIndex, after);
+  }
+
+  void _splitToggleChild(_SdocField field) {
+    final block = field.block;
+    final controller = field.controller;
+    final text = controller.text;
+    final caret = controller.selection.start.clamp(0, text.length);
+    final before = text.substring(0, caret);
+    final after = text.substring(caret);
+    final content = (block.element['children'] as List?) != null && (block.element['children'] as List).length > 1
+        ? (block.element['children'] as List)[1]
+        : null;
+    final contentChildren = content is Map ? content['children'] : null;
+    if (contentChildren is! List) {
+      controller.text = before;
+      _insertParagraphAfter(field.blockIndex, after);
+      return;
+    }
+    controller.text = before;
+    final element = _paragraphElement(after);
+    final item = field.item;
+    contentChildren.insert(item + 1, element);
+    final newController = TextEditingController(text: after);
+    final newFocus = FocusNode();
+    block.toggleChildElements.insert(item + 1, element);
+    block.toggleChildren.insert(item + 1, newController);
+    block.toggleChildFocus.insert(item + 1, newFocus);
+    _watch(newController);
+    setState(() => _dirty = true);
+    _focusField(_SdocField(block: block, blockIndex: field.blockIndex, kind: _SdocFieldKind.toggleChild, controller: newController, focus: newFocus, item: item + 1), 0);
+  }
+
+  void _removeField(_SdocField field) {
+    final block = field.block;
+    switch (field.kind) {
+      case _SdocFieldKind.simple:
+      case _SdocFieldKind.code:
+        final index = _blocks.indexOf(block);
+        if (index >= 0) {
+          _blocks.removeAt(index);
+          _disposeBlock(block);
+        }
+      case _SdocFieldKind.listItem:
+        _removeListItem(block, field.item);
+        if (block.children.isEmpty) {
+          final index = _blocks.indexOf(block);
+          if (index >= 0) {
+            _blocks.removeAt(index);
+            _disposeBlock(block);
+          }
+        }
+      case _SdocFieldKind.calloutChild:
+        _removeCalloutChild(block, field.item);
+        if (block.children.isEmpty) {
+          final index = _blocks.indexOf(block);
+          if (index >= 0) {
+            _blocks.removeAt(index);
+            _disposeBlock(block);
+          }
+        }
+      case _SdocFieldKind.toggleChild:
+        _removeToggleChild(block, field.item);
+      case _SdocFieldKind.toggleTitle:
+        break;
+    }
+  }
+
+  void _removeListItem(_SdocBlock block, int item) {
+    if (item < 0 || item >= block.children.length) return;
+    final controller = block.children.removeAt(item);
+    final focus = block.childFocus.removeAt(item);
+    _lastTexts.remove(controller);
+    controller.dispose();
+    focus.dispose();
+    if (item < block.childElements.length) block.childElements.removeAt(item);
+    final list = block.element['children'];
+    if (list is List && item < list.length) list.removeAt(item);
+  }
+
+  void _removeCalloutChild(_SdocBlock block, int item) {
+    if (item < 0 || item >= block.children.length) return;
+    final controller = block.children.removeAt(item);
+    final focus = block.childFocus.removeAt(item);
+    _lastTexts.remove(controller);
+    controller.dispose();
+    focus.dispose();
+    if (item < block.childElements.length) block.childElements.removeAt(item);
+    final list = block.element['children'];
+    if (list is List && item < list.length) list.removeAt(item);
+  }
+
+  void _removeToggleChild(_SdocBlock block, int item) {
+    if (item < 0 || item >= block.toggleChildren.length) return;
+    final controller = block.toggleChildren.removeAt(item);
+    final focus = block.toggleChildFocus.removeAt(item);
+    _lastTexts.remove(controller);
+    controller.dispose();
+    focus.dispose();
+    if (item < block.toggleChildElements.length) block.toggleChildElements.removeAt(item);
+    final parent = (block.element['children'] as List?) != null && (block.element['children'] as List).length > 1
+        ? (block.element['children'] as List)[1]
+        : null;
+    final contentChildren = parent is Map ? parent['children'] : null;
+    if (contentChildren is List && item < contentChildren.length) contentChildren.removeAt(item);
+  }
+
+  void _resetBlockFields(_SdocBlock block) {
+    final text = block.text;
+    if (text != null) {
+      _lastTexts.remove(text);
+      text.dispose();
+    }
+    for (final controller in block.children) {
+      _lastTexts.remove(controller);
+      controller.dispose();
+    }
+    block.toggleTitle?.dispose();
+    for (final controller in block.toggleChildren) {
+      _lastTexts.remove(controller);
+      controller.dispose();
+    }
+    block.textFocus?.dispose();
+    for (final focus in block.childFocus) {
+      focus.dispose();
+    }
+    block.toggleTitleFocus?.dispose();
+    for (final focus in block.toggleChildFocus) {
+      focus.dispose();
+    }
+    block.text = null;
+    block.textFocus = null;
+    block.children = const [];
+    block.childFocus = const [];
+    block.childElements = const [];
+    block.toggleTitle = null;
+    block.toggleTitleFocus = null;
+    block.toggleChildren = const [];
+    block.toggleChildFocus = const [];
+    block.toggleChildElements = const [];
   }
 
   void _saveTableText(dynamic node) {
@@ -417,16 +956,18 @@ class SdocEditorState extends State<SdocEditor> {
     final index = _active;
     if (index == null || index >= _blocks.length || _readOnly) return;
     final block = _blocks[index];
-    final controller = block.text ?? (block.children.isNotEmpty ? block.children.first : null);
-    final text = controller?.text ?? _textOf(block.element);
+    if (block.deleted) return;
     final previous = block.type;
     final wasList = previous == 'unordered_list' || previous == 'ordered_list';
-    final wasCode = previous == 'code_block';
-    final wasCallout = previous == 'callout';
+    if (!_isSimpleEditable(previous) && !wasList) return;
+    final text = block.text?.text ?? (block.children.isNotEmpty ? block.children.first.text : _textOf(block.element));
 
     if (type == 'unordered_list' || type == 'ordered_list') {
       if (wasList) {
-        block.element['type'] = type;
+        setState(() {
+          block.element['type'] = type;
+          _dirty = true;
+        });
       } else {
         final id = 'l-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
         final item = <String, dynamic>{
@@ -434,86 +975,95 @@ class SdocEditorState extends State<SdocEditor> {
           'type': 'list_item',
           'children': [_paragraphElement(text)..['id'] = '$id-p'],
         };
+        _resetBlockFields(block);
         block.element
           ..['type'] = type
           ..['children'] = [item];
-        block.text?.dispose();
-        block.text = null;
-        for (final child in block.children) {
-          child.dispose();
-        }
+        final controller = TextEditingController(text: text);
         block.childElements = [item];
-        block.children = [TextEditingController(text: text)];
-        _watch(block.children.first);
+        block.children = [controller];
+        block.childFocus = [FocusNode()];
+        _watch(controller);
+        setState(() => _dirty = true);
+        _focusBlock(block, index, text.length);
       }
     } else if (type == 'code_block') {
-      if (!wasCode) {
+      if (previous != 'code_block') {
+        final id = '${block.element['id']}';
         final lines = text.split('\n');
+        _resetBlockFields(block);
         block.element['children'] = [
           for (var i = 0; i < lines.length; i++)
             {
-              'id': '${block.element['id']}-$i',
+              'id': '$id-$i',
               'type': 'code_line',
               'children': [
-                {'id': '${block.element['id']}-$i-t', 'text': lines[i]},
+                {'id': '$id-$i-t', 'text': lines[i]},
               ],
             },
         ];
         block.element['type'] = 'code_block';
         block.element['language'] = block.element['language'] ?? 'plaintext';
-        block.text?.dispose();
         block.text = TextEditingController(text: text);
+        block.textFocus = FocusNode();
         _watch(block.text!);
-        for (final child in block.children) {
-          child.dispose();
-        }
-        block.children = const [];
-        block.childElements = const [];
+        setState(() => _dirty = true);
+        _focusBlock(block, index, text.length);
       }
     } else {
-      if (wasList || wasCode || wasCallout) {
-        for (final child in block.children) {
-          child.dispose();
-        }
-        block.children = const [];
-        block.childElements = const [];
-        block.element['children'] = [
-          {'id': _textLeafId(block.element), 'text': text},
-        ];
-        block.text?.dispose();
-        block.text = TextEditingController(text: text);
-        _watch(block.text!);
-      }
+      _resetBlockFields(block);
+      final leafId = _textLeafId(block.element);
+      block.element['children'] = [
+        {'id': leafId, 'text': text},
+      ];
       block.element['type'] = type;
-      if (block.text == null) {
-        block.text = TextEditingController(text: text);
-        _watch(block.text!);
+      if (type == 'check_list_item' && block.element['checked'] is! bool) {
+        block.element['checked'] = false;
       }
+      block.text = TextEditingController(text: text);
+      block.textFocus = FocusNode();
+      _watch(block.text!);
+      setState(() => _dirty = true);
+      _focusBlock(block, index, text.length);
     }
-    setState(() => _dirty = true);
   }
 
   void _addBlock() {
     if (_readOnly) return;
-    final block = _SdocBlock(_paragraphElement(''));
-    _blocks.add(block);
-    _bindBlock(_blocks.length - 1);
+    final block = _newParagraphBlock('');
+    final index = _active == null ? _blocks.length : (_active! + 1).clamp(0, _blocks.length);
     setState(() {
-      _active = _blocks.length - 1;
+      _blocks.insert(index, block);
+      _active = index;
       _dirty = true;
     });
+    _focusBlock(block, index, 0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
     });
   }
 
   void _deleteBlock(int index) {
     if (_readOnly || _blocks.length <= 1) return;
+    final removed = _blocks[index];
+    final fields = _fields();
+    _SdocField? before;
+    _SdocField? after;
+    for (final field in fields) {
+      if (identical(field.block, removed)) continue;
+      if (field.blockIndex < index) {
+        before = field;
+      } else if (after == null) {
+        after = field;
+      }
+    }
     setState(() {
-      _blocks[index].deleted = true;
+      removed.deleted = true;
       if (_active == index) _active = index > 0 ? index - 1 : 0;
       _dirty = true;
     });
+    final target = before ?? after;
+    if (target != null) _focusField(target, before != null ? target.controller.text.length : 0);
   }
 
   @override
@@ -551,7 +1101,7 @@ class SdocEditorState extends State<SdocEditor> {
             child: Row(
               children: [
                 const SizedBox(width: 12),
-                const WebIcon('sdoc', size: 22, color: AppColors.primary),
+                FileTypeIcon(name: widget.entry.name, size: 22, permission: widget.entry.permission),
                 const SizedBox(width: 9),
                 Flexible(
                   child: Row(
@@ -672,12 +1222,12 @@ class SdocEditorState extends State<SdocEditor> {
     final block = _blocks[index];
     final active = _active == index;
     final child = switch (block.type) {
-      'title' => _textField(block, 28, FontWeight.w700, onTap: () => _setActive(index)),
-      'paragraph' => _textField(block, 15, FontWeight.w400, onTap: () => _setActive(index)),
-      'header1' => _textField(block, 26, FontWeight.w700, onTap: () => _setActive(index)),
-      'header2' => _textField(block, 22, FontWeight.w600, onTap: () => _setActive(index)),
-      'header3' => _textField(block, 18, FontWeight.w600, onTap: () => _setActive(index)),
-      'header4' || 'header5' || 'header6' => _textField(block, 16, FontWeight.w600, onTap: () => _setActive(index)),
+      'title' => _textField(block, index, 28, FontWeight.w700, onTap: () => _setActive(index)),
+      'paragraph' => _textField(block, index, 15, FontWeight.w400, onTap: () => _setActive(index)),
+      'header1' => _textField(block, index, 26, FontWeight.w700, onTap: () => _setActive(index)),
+      'header2' => _textField(block, index, 22, FontWeight.w600, onTap: () => _setActive(index)),
+      'header3' => _textField(block, index, 18, FontWeight.w600, onTap: () => _setActive(index)),
+      'header4' || 'header5' || 'header6' => _textField(block, index, 16, FontWeight.w600, onTap: () => _setActive(index)),
       'code_block' => _codeView(block, index),
       'unordered_list' || 'ordered_list' => _listView(block, index),
       'check_list_item' => _checkView(block, index),
@@ -688,7 +1238,7 @@ class SdocEditorState extends State<SdocEditor> {
       'video' => _videoView(block),
       'embed_link' => _embedView(block),
       'formula' => _formulaView(block),
-      'toggle_header' => _toggleView(block),
+      'toggle_header' => _toggleView(block, index),
       'multi_column' => _multiColumnView(block),
       _ => _unknownView(block),
     };
@@ -714,37 +1264,68 @@ class SdocEditorState extends State<SdocEditor> {
     );
   }
 
-  Widget _textField(_SdocBlock block, double size, FontWeight weight, {required VoidCallback onTap}) {
+  Widget _keyboard(_SdocField field, Widget child) {
+    if (_readOnly) return child;
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (node, event) => _onKey(field, event),
+      child: child,
+    );
+  }
+
+  Widget _textField(_SdocBlock block, int index, double size, FontWeight weight, {required VoidCallback onTap}) {
     final controller = block.text;
-    if (controller == null) return const SizedBox.shrink();
-    return TextField(
+    final focus = block.textFocus;
+    if (controller == null || focus == null) return const SizedBox.shrink();
+    final field = _SdocField(
+      block: block,
+      blockIndex: index,
+      kind: block.type == 'code_block' ? _SdocFieldKind.code : _SdocFieldKind.simple,
       controller: controller,
-      onTap: onTap,
-      enabled: !_readOnly,
-      maxLines: null,
-      style: TextStyle(fontSize: size, fontWeight: weight, height: 1.5, color: AppColors.text),
-      decoration: const InputDecoration(
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        contentPadding: EdgeInsets.symmetric(vertical: 4),
-        isDense: true,
+      focus: focus,
+    );
+    return _keyboard(
+      field,
+      TextField(
+        controller: controller,
+        focusNode: focus,
+        onTap: onTap,
+        enabled: !_readOnly,
+        maxLines: null,
+        style: TextStyle(fontSize: size, fontWeight: weight, height: 1.5, color: AppColors.text),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(vertical: 4),
+          isDense: true,
+        ),
       ),
     );
   }
 
   Widget _codeView(_SdocBlock block, int index) {
+    final controller = block.text;
+    final focus = block.textFocus;
+    if (controller == null || focus == null) return const SizedBox.shrink();
+    final field = _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.code, controller: controller, focus: focus);
     return GestureDetector(
       onTap: () => _setActive(index),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
-        child: TextField(
-          controller: block.text,
-          enabled: !_readOnly,
-          maxLines: null,
-          style: const TextStyle(fontFamily: 'Menlo', fontSize: 13, height: 1.6),
-          decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+        child: _keyboard(
+          field,
+          TextField(
+            controller: controller,
+            focusNode: focus,
+            onTap: () => _setActive(index),
+            enabled: !_readOnly,
+            maxLines: null,
+            style: const TextStyle(fontFamily: 'Menlo', fontSize: 13, height: 1.6),
+            decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+          ),
         ),
       ),
     );
@@ -772,13 +1353,20 @@ class SdocEditorState extends State<SdocEditor> {
                     ),
                   ),
                   Expanded(
-                    child: TextField(
-                      controller: block.children[i],
-                      enabled: !_readOnly,
-                      maxLines: null,
-                      style: const TextStyle(fontSize: 15, height: 1.6),
-                      decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 3)),
-                    ),
+                    child: i < block.childFocus.length
+                        ? _keyboard(
+                            _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.listItem, controller: block.children[i], focus: block.childFocus[i], item: i),
+                            TextField(
+                              controller: block.children[i],
+                              focusNode: block.childFocus[i],
+                              onTap: () => _setActive(index),
+                              enabled: !_readOnly,
+                              maxLines: null,
+                              style: const TextStyle(fontSize: 15, height: 1.6),
+                              decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 3)),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ],
               ),
@@ -810,7 +1398,7 @@ class SdocEditorState extends State<SdocEditor> {
           ),
         ),
         const SizedBox(width: 4),
-        Expanded(child: _textField(block, 15, FontWeight.w400, onTap: () => _setActive(index))),
+        Expanded(child: _textField(block, index, 15, FontWeight.w400, onTap: () => _setActive(index))),
       ],
     );
   }
@@ -819,7 +1407,7 @@ class SdocEditorState extends State<SdocEditor> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: const BoxDecoration(border: Border(left: BorderSide(color: AppColors.primary, width: 3))),
-      child: _textField(block, 15, FontWeight.w400, onTap: () => _setActive(index)),
+      child: _textField(block, index, 15, FontWeight.w400, onTap: () => _setActive(index)),
     );
   }
 
@@ -830,20 +1418,27 @@ class SdocEditorState extends State<SdocEditor> {
       child: Column(
         children: [
           for (var i = 0; i < block.children.length; i++)
-            TextField(
-              controller: block.children[i],
-              enabled: !_readOnly,
-              maxLines: null,
-              style: const TextStyle(fontSize: 14.5, height: 1.6),
-              decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 3)),
-            ),
+            if (i < block.childFocus.length)
+              _keyboard(
+                _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.calloutChild, controller: block.children[i], focus: block.childFocus[i], item: i),
+                TextField(
+                  controller: block.children[i],
+                  focusNode: block.childFocus[i],
+                  onTap: () => _setActive(index),
+                  enabled: !_readOnly,
+                  maxLines: null,
+                  style: const TextStyle(fontSize: 14.5, height: 1.6),
+                  decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 3)),
+                ),
+              ),
         ],
       ),
     );
   }
 
-  Widget _toggleView(_SdocBlock block) {
+  Widget _toggleView(_SdocBlock block, int index) {
     final title = block.toggleTitle;
+    final titleFocus = block.toggleTitleFocus;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: AppColors.hover, borderRadius: BorderRadius.circular(5)),
@@ -863,13 +1458,20 @@ class SdocEditorState extends State<SdocEditor> {
               ),
               const SizedBox(width: 4),
               Expanded(
-                child: TextField(
-                  controller: title,
-                  enabled: !_readOnly,
-                  maxLines: null,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 4)),
-                ),
+                child: title != null && titleFocus != null
+                    ? _keyboard(
+                        _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.toggleTitle, controller: title, focus: titleFocus),
+                        TextField(
+                          controller: title,
+                          focusNode: titleFocus,
+                          onTap: () => _setActive(index),
+                          enabled: !_readOnly,
+                          maxLines: null,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                          decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 4)),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ),
             ],
           ),
@@ -878,14 +1480,20 @@ class SdocEditorState extends State<SdocEditor> {
               padding: const EdgeInsets.only(left: 32, top: 4),
               child: Column(
                 children: [
-                  for (final controller in block.toggleChildren)
-                    TextField(
-                      controller: controller,
-                      enabled: !_readOnly,
-                      maxLines: null,
-                      style: const TextStyle(fontSize: 14.5, height: 1.55),
-                      decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 3)),
-                    ),
+                  for (var i = 0; i < block.toggleChildren.length; i++)
+                    if (i < block.toggleChildFocus.length)
+                      _keyboard(
+                        _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.toggleChild, controller: block.toggleChildren[i], focus: block.toggleChildFocus[i], item: i),
+                        TextField(
+                          controller: block.toggleChildren[i],
+                          focusNode: block.toggleChildFocus[i],
+                          onTap: () => _setActive(index),
+                          enabled: !_readOnly,
+                          maxLines: null,
+                          style: const TextStyle(fontSize: 14.5, height: 1.55),
+                          decoration: const InputDecoration(border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 3)),
+                        ),
+                      ),
                 ],
               ),
             ),
