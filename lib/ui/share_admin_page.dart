@@ -219,6 +219,17 @@ class _ShareAdminPageState extends State<ShareAdminPage> {
     }
   }
 
+  Future<void> _cleanInvalidLinks() async {
+    final l10n = L10n.of(context);
+    try {
+      await context.read<AppSession>().api!.cleanInvalidShareLinks();
+      await _load();
+      if (mounted) showToast(context, l10n.savedSuccessfully);
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   Widget _uploadLinksView(L10n l10n, AppSession session) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
@@ -335,6 +346,10 @@ class _ShareAdminPageState extends State<ShareAdminPage> {
                     ),
                   ),
                 ),
+              if (_tab == 2) ...[
+                const Spacer(),
+                TextButton(onPressed: _cleanInvalidLinks, child: Text(l10n.zh ? '清理无效链接' : 'Clean invalid links', style: const TextStyle(fontSize: 12))),
+              ],
             ],
           ),
         ),

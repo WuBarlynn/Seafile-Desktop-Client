@@ -1572,6 +1572,10 @@ class SeafileApi {
     });
   }
 
+  Future<void> cleanInvalidShareLinks() async {
+    await _delete('api/v2.1/share-links/clean-invalid/');
+  }
+
   Future<void> deleteUploadLink(String token) async {
     await _delete('api/v2.1/upload-links/${Uri.encodeComponent(token)}/');
   }
