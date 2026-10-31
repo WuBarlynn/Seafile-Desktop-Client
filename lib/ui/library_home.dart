@@ -9,7 +9,6 @@ import '../state/session.dart';
 import 'deleted_libraries_dialog.dart';
 import 'dialogs.dart';
 import 'repo_actions.dart';
-import 'web_handoff.dart';
 import 'sidebar.dart';
 import 'widgets.dart';
 
@@ -48,6 +47,24 @@ class _LibraryHomeState extends State<LibraryHome> {
     final l10n = L10n.of(context);
     final created = await showCreateLibraryDialog(context);
     if (created != null && mounted) showToast(context, l10n.libraryCreated);
+  }
+
+  Future<void> _createGroup() async {
+    final l10n = L10n.of(context);
+    final name = await showTextPrompt(
+      context,
+      title: l10n.newGroup,
+      label: l10n.name,
+      validator: (value) => value.trim().isEmpty ? l10n.name : null,
+    );
+    if (name == null || !mounted) return;
+    try {
+      await context.read<AppSession>().api!.createUserGroup(name.trim());
+      await context.read<AppSession>().refreshLibraries();
+      if (mounted) showToast(context, l10n.zh ? '群组已创建' : 'Group created');
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Future<void> _renameLibrary(Repository repo) async {
@@ -97,6 +114,7 @@ class _LibraryHomeState extends State<LibraryHome> {
       position: RelativeRect.fromRect(position & const Size(1, 1), Offset.zero & overlay.size),
       items: [
         PopupMenuItem(value: 'open', child: _menuRow('folder-open', l10n.open)),
+        PopupMenuItem(value: 'star', child: _menuRow('starred', repo.starred ? (l10n.zh ? '取消星标' : 'Remove star') : (l10n.zh ? '添加星标' : 'Add star'))),
         if (repo.isOwner) PopupMenuItem(value: 'rename', child: _menuRow('rename', l10n.rename)),
         if (repo.isOwner) const PopupMenuDivider(),
         if (repo.isOwner) PopupMenuItem(value: 'delete', child: _menuRow('delete', l10n.delete, danger: true)),
@@ -113,6 +131,13 @@ class _LibraryHomeState extends State<LibraryHome> {
     switch (selected) {
       case 'open':
         await _openRepo(repo);
+      case 'star':
+        try {
+          await context.read<AppSession>().api!.setStarred(repoId: repo.id, path: '/', starred: !repo.starred);
+          await context.read<AppSession>().refreshLibraries();
+        } catch (error) {
+          if (mounted) showToast(context, friendlyError(context, error), error: true);
+        }
       case 'rename':
         await _renameLibrary(repo);
       case 'delete':
@@ -249,14 +274,7 @@ class _LibraryHomeState extends State<LibraryHome> {
                             Align(
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton.icon(
-                                onPressed: () {
-                                  final open = widget.onOpenWeb;
-                                  if (open != null) {
-                                    open('/groups/', L10n.of(context).zh ? '群组' : 'Groups');
-                                  } else {
-                                    openAuthenticatedWeb(context, '/groups/');
-                                  }
-                                },
+                                onPressed: _createGroup,
                                 icon: const WebIcon('plus-sign', size: 14),
                                 label: Text(l10n.newGroup),
                               ),

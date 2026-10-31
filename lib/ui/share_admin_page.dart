@@ -181,11 +181,42 @@ class _ShareAdminPageState extends State<ShareAdminPage> {
                   decoration: BoxDecoration(color: AppColors.hover, borderRadius: BorderRadius.circular(4)),
                   child: Text(permission, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
                 ),
+              const SizedBox(width: 4),
+              IconAction(icon: 'delete', tooltip: l10n.zh ? '取消共享' : 'Unshare', size: 15, color: AppColors.danger, onPressed: () => _unshareShared(item)),
             ],
           ),
         );
       },
     );
+  }
+
+  Future<void> _unshareShared(Map<String, dynamic> item) async {
+    final l10n = L10n.of(context);
+    final repoId = '${item['repo_id'] ?? item['id'] ?? ''}';
+    final shareType = '${item['share_type'] ?? 'personal'}';
+    if (repoId.isEmpty) return;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.zh ? '取消共享' : 'Unshare',
+      message: l10n.zh ? '确定取消共享 ${item['repo_name'] ?? item['name'] ?? ''}？' : 'Unshare ${item['repo_name'] ?? item['name'] ?? ''}?',
+      danger: true,
+      confirmLabel: l10n.zh ? '取消共享' : 'Unshare',
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      await context.read<AppSession>().api!.unshareSharedRepo(
+        repoId,
+        shareType: shareType,
+        user: '${item['user_email'] ?? item['user'] ?? ''}',
+        groupId: (item['group_id'] as num?)?.toInt(),
+        path: '${item['path'] ?? '/'}',
+      );
+      if (!mounted) return;
+      setState(() => _sharedRepos = _sharedRepos.where((entry) => '${entry['repo_id'] ?? entry['id'] ?? ''}' != repoId || '${entry['share_type'] ?? 'personal'}' != shareType).toList());
+      showToast(context, l10n.zh ? '已取消共享' : 'Unshared');
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Widget _uploadLinksView(L10n l10n, AppSession session) {

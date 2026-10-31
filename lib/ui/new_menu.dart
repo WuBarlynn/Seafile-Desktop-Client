@@ -163,6 +163,13 @@ class NewMenuButton extends StatelessWidget {
         _fileItem(context, l10n.newExcalidrawFile, '.exdraw', l10n),
       ],
       _fileItem(context, l10n.newMarkdownFile, '.md', l10n),
+      if (canSeaDoc)
+        MenuItemButton(
+          style: _itemStyle,
+          leadingIcon: const WebIcon('import-sdoc', size: 16, color: AppColors.textSecondary),
+          onPressed: () => _importSdoc(context),
+          child: Text(l10n.importSdoc, style: const TextStyle(fontSize: 14, color: AppColors.text)),
+        ),
       _fileItem(context, l10n.newExcelFile, '.xlsx', l10n),
       _fileItem(context, l10n.newPowerPointFile, '.pptx', l10n),
       _fileItem(context, l10n.newWordFile, '.docx', l10n),

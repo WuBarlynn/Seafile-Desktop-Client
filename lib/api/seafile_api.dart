@@ -331,6 +331,10 @@ class SeafileApi {
     return asMapList(data).map((item) => item).toList();
   }
 
+  Future<Map<String, dynamic>> createUserGroup(String name) async {
+    return asMap(await _postForm('api/v2.1/groups/', {'name': name}));
+  }
+
   Future<Map<String, dynamic>> adminGroups({int page = 1, int perPage = 50, String name = ''}) async {
     return asMap(await _get('api/v2.1/admin/groups/', query: {
       'page': '$page',
@@ -1437,6 +1441,15 @@ class SeafileApi {
 
   Future<List<Map<String, dynamic>>> sharedRepos() async {
     return asMapList(await _get('api/v2.1/shared-repos/'));
+  }
+
+  Future<void> unshareSharedRepo(String repoId, {required String shareType, String? user, int? groupId, String? path}) async {
+    await _delete('api/v2.1/shared-repos/$repoId/', query: {
+      'share_type': shareType,
+      if (user != null && user.isNotEmpty) 'user': user,
+      if (groupId != null) 'group_id': '$groupId',
+      if (path != null && path.isNotEmpty && path != '/') 'path': path,
+    });
   }
 
   Future<void> deleteUploadLink(String token) async {
