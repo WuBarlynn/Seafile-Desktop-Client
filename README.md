@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.2.6 — complete 14-style administration console with group member management. Every iteration is published to this repository.
+> **Status:** 1.2.7 — complete 14-style administration console with group and department library management. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -90,6 +90,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.2.7
+
+Tagged `v1.2.7`. Completes membership and library management for admin groups and departments: groups expose member and library dialogs, departments can create and manage group-owned libraries, and member/library changes round-trip through the Seafile 14 APIs. All 1.2.6 console, tab, context-menu and embedded-editor behavior remains.
 
 ## Release 1.2.6
 

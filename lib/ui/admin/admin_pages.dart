@@ -923,6 +923,16 @@ class _AdminDepartmentsPanelState extends State<AdminDepartmentsPanel> {
     }
   }
 
+  Future<void> _manageLibraries(Map<String, dynamic> department) async {
+    final id = (department['id'] as num?)?.toInt();
+    if (id == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AdminGroupLibrariesDialog(groupId: id, groupName: department['name']?.toString() ?? ''),
+    );
+    if (mounted) _load();
+  }
+
   Future<void> _manageMembers(Map<String, dynamic> department) async {
     final id = (department['id'] as num?)?.toInt();
     if (id == null) return;
@@ -1041,6 +1051,7 @@ class _AdminDepartmentsPanelState extends State<AdminDepartmentsPanel> {
                                     ),
                                     const SizedBox(width: 12),
                                     TextButton(onPressed: () => _create(parentId: (department['id'] as num?)?.toInt()), child: Text(zh ? '子部门' : 'Sub', style: const TextStyle(fontSize: 12))),
+                                    TextButton(onPressed: () => _manageLibraries(department), child: Text(zh ? '资料库' : 'Libraries', style: const TextStyle(fontSize: 12))),
                                     TextButton(onPressed: () => _manageMembers(department), child: Text(zh ? '成员' : 'Members', style: const TextStyle(fontSize: 12))),
                                     TextButton(onPressed: () => _editQuota(department), child: Text(zh ? '配额' : 'Quota', style: const TextStyle(fontSize: 12))),
                                     TextButton(onPressed: () => _rename(department), child: Text(zh ? '重命名' : 'Rename', style: const TextStyle(fontSize: 12))),
@@ -1199,6 +1210,138 @@ class _AdminMembersDialogState extends State<AdminMembersDialog> {
                                     tooltip: l10n.delete,
                                   ),
                                 ],
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(zh ? '关闭' : 'Close')),
+      ],
+    );
+  }
+}
+
+class AdminGroupLibrariesDialog extends StatefulWidget {
+  const AdminGroupLibrariesDialog({super.key, required this.groupId, required this.groupName});
+
+  final int groupId;
+  final String groupName;
+
+  @override
+  State<AdminGroupLibrariesDialog> createState() => _AdminGroupLibrariesDialogState();
+}
+
+class _AdminGroupLibrariesDialogState extends State<AdminGroupLibrariesDialog> {
+  final _name = TextEditingController();
+  bool _loading = true;
+  bool _saving = false;
+  List<Map<String, dynamic>> _libraries = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminGroupLibraries(widget.groupId);
+      if (!mounted) return;
+      setState(() {
+        _libraries = data;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _add() async {
+    final name = _name.text.trim();
+    if (name.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await context.read<AppSession>().api!.addAdminGroupLibrary(widget.groupId, name);
+      _name.clear();
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _remove(Map<String, dynamic> library) async {
+    final id = adminMapText(library, ['id', 'repo_id']);
+    if (id.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.removeAdminGroupLibrary(widget.groupId, id);
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = L10n.of(context);
+    final zh = l10n.zh;
+    return AlertDialog(
+      title: Text('${zh ? '群组资料库' : 'Group libraries'} · ${widget.groupName}'),
+      content: SizedBox(
+        width: 560,
+        height: 380,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _name,
+                    onSubmitted: (_) => _add(),
+                    decoration: InputDecoration(labelText: zh ? '资料库名称' : 'Library name', isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FilledButton(onPressed: _saving ? null : _add, child: Text(zh ? '新建并添加' : 'Create and add', style: const TextStyle(fontSize: 12))),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _libraries.isEmpty
+                      ? Center(child: Text(zh ? '暂无群组资料库' : 'No group libraries', style: const TextStyle(fontSize: 12.5, color: AppColors.muted)))
+                      : ListView.separated(
+                          itemCount: _libraries.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                          itemBuilder: (context, index) {
+                            final library = _libraries[index];
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(adminMapText(library, ['name', 'repo_name']), style: const TextStyle(fontSize: 13)),
+                              subtitle: Text(
+                                '${adminMapText(library, ['owner_name', 'owner_email'])} · ${formatBytes((library['size'] as num?)?.toInt() ?? 0)}',
+                                style: const TextStyle(fontSize: 11.5),
+                              ),
+                              trailing: IconButton(
+                                onPressed: () => _remove(library),
+                                icon: const Icon(Icons.remove_circle_outline, size: 17, color: AppColors.danger),
+                                tooltip: l10n.delete,
                               ),
                             );
                           },

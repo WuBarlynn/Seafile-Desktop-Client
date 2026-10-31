@@ -562,6 +562,10 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                     children: [
                       for (final group in _groups) ...[
                         OutlinedButton(
+                          onPressed: () => _manageGroupLibraries(group),
+                          child: Text('${l10n.zh ? '资料库' : 'Libraries'} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
+                        ),
+                        OutlinedButton(
                           onPressed: () => _manageGroupMembers(group),
                           child: Text('${l10n.zh ? '成员' : 'Members'} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
                         ),
@@ -579,6 +583,16 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _manageGroupLibraries(Map<String, dynamic> group) async {
+    final id = (group['id'] as num?)?.toInt();
+    if (id == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AdminGroupLibrariesDialog(groupId: id, groupName: group['name']?.toString() ?? ''),
+    );
+    if (mounted) _loadGroups();
   }
 
   Future<void> _manageGroupMembers(Map<String, dynamic> group) async {

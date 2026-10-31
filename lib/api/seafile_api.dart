@@ -291,6 +291,19 @@ class SeafileApi {
     return asMap(await _get('api/v2.1/admin/groups/$id/members/'));
   }
 
+  Future<List<Map<String, dynamic>>> adminGroupLibraries(int id) async {
+    final data = asMap(await _get('api/v2.1/admin/groups/$id/libraries/'));
+    return asMapList(data['libraries']);
+  }
+
+  Future<void> addAdminGroupLibrary(int id, String name) async {
+    await _postForm('api/v2.1/admin/groups/$id/group-owned-libraries/', {'repo_name': name});
+  }
+
+  Future<void> removeAdminGroupLibrary(int id, String repoId) async {
+    await _delete('api/v2.1/admin/groups/$id/group-owned-libraries/$repoId/');
+  }
+
   Future<Map<String, dynamic>> adminShareLinks({int page = 1, int perPage = 50}) async {
     return asMap(await _get('api/v2.1/admin/share-links/', query: {
       'page': '$page',
