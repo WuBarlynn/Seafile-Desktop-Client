@@ -928,7 +928,7 @@ class _AdminDepartmentsPanelState extends State<AdminDepartmentsPanel> {
     if (id == null) return;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => _DepartmentMembersDialog(
+      builder: (dialogContext) => AdminMembersDialog(
         departmentId: id,
         departmentName: department['name']?.toString() ?? '',
       ),
@@ -1060,17 +1060,18 @@ class _AdminDepartmentsPanelState extends State<AdminDepartmentsPanel> {
   }
 }
 
-class _DepartmentMembersDialog extends StatefulWidget {
-  const _DepartmentMembersDialog({required this.departmentId, required this.departmentName});
+class AdminMembersDialog extends StatefulWidget {
+  const AdminMembersDialog({required this.departmentId, required this.departmentName, this.addressBook = true});
 
   final int departmentId;
   final String departmentName;
+  final bool addressBook;
 
   @override
-  State<_DepartmentMembersDialog> createState() => _DepartmentMembersDialogState();
+  State<AdminMembersDialog> createState() => _AdminMembersDialogState();
 }
 
-class _DepartmentMembersDialogState extends State<_DepartmentMembersDialog> {
+class _AdminMembersDialogState extends State<AdminMembersDialog> {
   final _email = TextEditingController();
   bool _loading = true;
   bool _saving = false;
@@ -1092,7 +1093,8 @@ class _DepartmentMembersDialogState extends State<_DepartmentMembersDialog> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final data = await context.read<AppSession>().api!.adminDepartment(widget.departmentId);
+      final api = context.read<AppSession>().api!;
+      final data = widget.addressBook ? await api.adminDepartment(widget.departmentId) : await api.adminGroupMembers(widget.departmentId);
       if (!mounted) return;
       setState(() {
         _members = asMapList(data['members']);

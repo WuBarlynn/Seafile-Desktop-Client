@@ -287,6 +287,10 @@ class SeafileApi {
     await _delete('api/v2.1/admin/groups/$id/');
   }
 
+  Future<Map<String, dynamic>> adminGroupMembers(int id) async {
+    return asMap(await _get('api/v2.1/admin/groups/$id/members/'));
+  }
+
   Future<Map<String, dynamic>> adminShareLinks({int page = 1, int perPage = 50}) async {
     return asMap(await _get('api/v2.1/admin/share-links/', query: {
       'page': '$page',

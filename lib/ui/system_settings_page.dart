@@ -560,11 +560,16 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      for (final group in _groups)
+                      for (final group in _groups) ...[
+                        OutlinedButton(
+                          onPressed: () => _manageGroupMembers(group),
+                          child: Text('${l10n.zh ? '成员' : 'Members'} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
+                        ),
                         OutlinedButton(
                           onPressed: () => _deleteGroup(group),
                           child: Text('${l10n.delete} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -574,6 +579,20 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _manageGroupMembers(Map<String, dynamic> group) async {
+    final id = (group['id'] as num?)?.toInt();
+    if (id == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AdminMembersDialog(
+        departmentId: id,
+        departmentName: group['name']?.toString() ?? '',
+        addressBook: false,
+      ),
+    );
+    if (mounted) _loadGroups();
   }
 
   Future<void> _deleteGroup(Map<String, dynamic> group) async {
