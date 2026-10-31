@@ -342,6 +342,28 @@ class SeafileApi {
     throw ApiException(ApiErrorKind.server, serverMessage: 'SeaDoc server unavailable');
   }
 
+  Future<String> uploadSdocImage(String repoId, String path, String filePath) async {
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    final extension = filePath.contains('.') ? filePath.substring(filePath.lastIndexOf('.')) : '';
+    final name = 'image-${DateTime.now().microsecondsSinceEpoch}$extension';
+    try {
+      final response = await _api.post<dynamic>(
+        'api/v2.1/seadoc/upload-image/$fileUuid/',
+        data: FormData.fromMap({
+          'file': await MultipartFile.fromFile(filePath, filename: name),
+        }),
+        options: Options(headers: {'Authorization': 'Token $token', 'Accept': 'application/json'}),
+      );
+      final data = asMap(response.data);
+      final raw = data['relative_path'];
+      if (raw is String) return raw;
+      if (raw is List && raw.isNotEmpty) return raw.first.toString();
+      throw ApiException(ApiErrorKind.decoding);
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<Uint8List> loadSdocImage(String repoId, String path, String src) async {
     final (_, fileUuid, _) = await _seadocSession(repoId, path);
     final name = src.split('/').last;

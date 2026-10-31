@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
@@ -1715,6 +1716,8 @@ class SdocEditorState extends State<SdocEditor> {
                           _insertTable();
                         case 'image':
                           unawaited(_insertImage());
+                        case 'image_local':
+                          unawaited(_insertLocalImage());
                         case 'code_block':
                           _insertCodeBlock();
                         case 'formula':
@@ -1727,7 +1730,8 @@ class SdocEditorState extends State<SdocEditor> {
                     },
                     itemBuilder: (context) => [
                       PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
-                      PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '图片' : 'Image', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '网络图片' : 'Image URL', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'image_local', child: Row(children: [const Icon(Icons.upload_file, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '本地图片' : 'Local image', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'code_block', child: Row(children: [const Icon(Icons.data_object, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '代码块' : 'Code block', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'formula', child: Row(children: [const Icon(Icons.functions, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '公式' : 'Formula', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
@@ -2221,6 +2225,28 @@ class SdocEditorState extends State<SdocEditor> {
         {'id': '$id-t', 'text': ''},
       ],
     }));
+  }
+
+  Future<void> _insertLocalImage() async {
+    final file = await openFile(acceptedTypeGroups: [
+      const XTypeGroup(label: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg']),
+    ]);
+    if (file == null || !mounted) return;
+    try {
+      final relative = await context.read<AppSession>().api!.uploadSdocImage(widget.repo.id, widget.entry.path, file.path);
+      if (!mounted) return;
+      final id = 'image-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+      _insertNode(_SdocBlock({
+        'id': id,
+        'type': 'image',
+        'data': {'src': relative},
+        'children': [
+          {'id': '$id-t', 'text': ''},
+        ],
+      }));
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Future<void> _insertFormula() async {
