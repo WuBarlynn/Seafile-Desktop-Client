@@ -27,6 +27,12 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   List<Map<String, dynamic>> _groups = const [];
   List<Map<String, dynamic>> _shareLinks = const [];
   List<Map<String, dynamic>> _logs = const [];
+  List<Map<String, dynamic>> _loginLogs = const [];
+  List<Map<String, dynamic>> _fileUpdateLogs = const [];
+  DateTimeRange _logRange = DateTimeRange(
+    start: DateTime(DateTime.now().year, DateTime.now().month, 1),
+    end: DateTime.now(),
+  );
   Map<String, dynamic> _webSettings = const {};
   final _userQuery = TextEditingController();
   bool _loadingUsers = false;
@@ -34,6 +40,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   bool _loadingGroups = false;
   bool _loadingShareLinks = false;
   bool _loadingLogs = false;
+  bool _loadingLoginLogs = false;
+  bool _loadingFileUpdateLogs = false;
   bool _loadingSettings = false;
   bool _savingSettings = false;
 
@@ -134,6 +142,55 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
+  String get _logStart => '${_logRange.start.year.toString().padLeft(4, '0')}-${_logRange.start.month.toString().padLeft(2, '0')}-${_logRange.start.day.toString().padLeft(2, '0')}';
+
+  String get _logEnd => '${_logRange.end.year.toString().padLeft(4, '0')}-${_logRange.end.month.toString().padLeft(2, '0')}-${_logRange.end.day.toString().padLeft(2, '0')}';
+
+  Future<void> _pickLogRange() async {
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      initialDateRange: _logRange,
+    );
+    if (range == null || !mounted) return;
+    setState(() => _logRange = range);
+    if (_tab == 7) _loadLoginLogs();
+    if (_tab == 8) _loadFileUpdateLogs();
+  }
+
+  Future<void> _loadLoginLogs() async {
+    setState(() => _loadingLoginLogs = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminLoginLogs(start: _logStart, end: _logEnd);
+      if (!mounted) return;
+      setState(() {
+        _loginLogs = data;
+        _loadingLoginLogs = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingLoginLogs = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _loadFileUpdateLogs() async {
+    setState(() => _loadingFileUpdateLogs = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminFileUpdateLogs(start: _logStart, end: _logEnd);
+      if (!mounted) return;
+      setState(() {
+        _fileUpdateLogs = data;
+        _loadingFileUpdateLogs = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingFileUpdateLogs = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   Future<void> _loadShareLinks() async {
     setState(() => _loadingShareLinks = true);
     try {
@@ -191,6 +248,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     if (tab == 4 && _shareLinks.isEmpty) _loadShareLinks();
     if (tab == 5 && _logs.isEmpty) _loadLogs();
     if (tab == 6 && _webSettings.isEmpty) _loadWebSettings();
+    if (tab == 7 && _loginLogs.isEmpty) _loadLoginLogs();
+    if (tab == 8 && _fileUpdateLogs.isEmpty) _loadFileUpdateLogs();
   }
 
   @override
@@ -221,6 +280,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                 if (_tab == 4) _loadShareLinks();
                 if (_tab == 5) _loadLogs();
                 if (_tab == 6) _loadWebSettings();
+                if (_tab == 7) _loadLoginLogs();
+                if (_tab == 8) _loadFileUpdateLogs();
               }),
             ],
           ),
@@ -244,7 +305,9 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                     _navItem(2, l10n.zh ? '群组' : 'Groups', Icons.groups_outlined),
                     _navItem(3, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
                     _navItem(4, l10n.zh ? '分享链接' : 'Share links', Icons.link),
-                    _navItem(5, l10n.zh ? '日志' : 'Logs', Icons.history),
+                    _navItem(5, l10n.zh ? '管理员日志' : 'Admin logs', Icons.history),
+                    _navItem(7, l10n.zh ? '登录日志' : 'Login logs', Icons.login_outlined),
+                    _navItem(8, l10n.zh ? '文件更新日志' : 'File update logs', Icons.update_outlined),
                     _navItem(6, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
                   ],
                 ),
@@ -272,6 +335,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                               3 => _librariesView(l10n),
                               4 => _shareLinksView(l10n),
                               5 => _logsView(l10n),
+                              7 => _loginLogsView(l10n),
+                              8 => _fileUpdateLogsView(l10n),
                               _ => _settingsView(l10n),
                             },
                 ),
@@ -549,6 +614,78 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                     ],
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _loginLogsView(L10n l10n) {
+    return _auditLogView(
+      l10n,
+      title: l10n.zh ? '登录日志' : 'Login logs',
+      loading: _loadingLoginLogs,
+      headers: [l10n.zh ? '时间' : 'Time', l10n.zh ? '用户' : 'User', l10n.zh ? '邮箱' : 'Email', 'IP'],
+      rows: [
+        for (final log in _loginLogs)
+          [
+            '${log['login_time'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
+            '${log['name'] ?? ''}',
+            '${log['email'] ?? ''}',
+            '${log['login_ip'] ?? ''}',
+          ],
+      ],
+    );
+  }
+
+  Widget _fileUpdateLogsView(L10n l10n) {
+    return _auditLogView(
+      l10n,
+      title: l10n.zh ? '文件更新日志' : 'File update logs',
+      loading: _loadingFileUpdateLogs,
+      headers: [l10n.zh ? '时间' : 'Time', l10n.zh ? '用户' : 'User', l10n.zh ? '资料库' : 'Library', l10n.zh ? '操作' : 'Operation'],
+      rows: [
+        for (final log in _fileUpdateLogs)
+          [
+            '${log['time'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
+            '${log['user_name'] ?? log['user_email'] ?? ''}',
+            '${log['repo_name'] ?? ''}',
+            '${log['file_operation'] ?? ''}',
+          ],
+      ],
+    );
+  }
+
+  Widget _auditLogView(
+    L10n l10n, {
+    required String title,
+    required bool loading,
+    required List<String> headers,
+    required List<List<String>> rows,
+  }) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1180),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: _pickLogRange,
+                    icon: const Icon(Icons.date_range_outlined, size: 15),
+                    label: Text('$_logStart ~ $_logEnd', style: const TextStyle(fontSize: 12)),
+                  ),
+                  const Spacer(),
+                  if (loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _table(headers: headers, rows: rows),
             ],
           ),
         ),

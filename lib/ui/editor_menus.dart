@@ -164,6 +164,7 @@ Future<void> showEditorContextMenu({
   required Offset position,
   required TextEditingController controller,
   VoidCallback? onInsertLink,
+  VoidCallback? onCopyDocumentLink,
 }) async {
   final l10n = L10n.of(context);
   final overlay = Overlay.of(context).context.findRenderObject();
@@ -197,6 +198,9 @@ Future<void> showEditorContextMenu({
         editorMenuDivider(),
         editorMenuItem('link', label: l10n.zh ? '添加链接' : 'Add link', icon: Icons.link),
       ],
+      if (onCopyDocumentLink != null)
+        editorMenuItem('copy_link', label: l10n.zh ? '复制文档链接' : 'Copy document link', icon: Icons.link),
+
     ],
   );
   if (action == null) return;
@@ -249,5 +253,7 @@ Future<void> showEditorContextMenu({
       controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
     case 'link':
       onInsertLink?.call();
+    case 'copy_link':
+      onCopyDocumentLink?.call();
   }
 }

@@ -258,6 +258,16 @@ class SeafileApi {
     }));
   }
 
+  Future<List<Map<String, dynamic>>> adminLoginLogs({required String start, required String end}) async {
+    final data = await _get('api/v2.1/admin/logs/login/', query: {'start': start, 'end': end});
+    return asMapList(data).map((item) => item).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> adminFileUpdateLogs({required String start, required String end}) async {
+    final data = await _get('api/v2.1/admin/logs/file-update/', query: {'start': start, 'end': end});
+    return asMapList(data).map((item) => item).toList();
+  }
+
   Future<Map<String, dynamic>> adminGroups({int page = 1, int perPage = 50, String name = ''}) async {
     return asMap(await _get('api/v2.1/admin/groups/', query: {
       'page': '$page',

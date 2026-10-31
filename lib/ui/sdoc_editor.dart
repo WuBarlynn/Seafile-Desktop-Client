@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 
 import '../api/models.dart';
+import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
@@ -3417,6 +3418,12 @@ class SdocEditorState extends State<SdocEditor> {
       position: position,
       controller: field.controller,
       onInsertLink: field.kind == _SdocFieldKind.code ? null : () => unawaited(_setLink()),
+      onCopyDocumentLink: () {
+        final base = context.read<AppSession>().serverBase;
+        final url = '$base/lib/${widget.repo.id}/file${encodeRepoPath(widget.entry.path)}';
+        unawaited(Clipboard.setData(ClipboardData(text: url)));
+        showToast(context, L10n.of(context).zh ? '文档链接已复制' : 'Document link copied');
+      },
     ));
   }
 
