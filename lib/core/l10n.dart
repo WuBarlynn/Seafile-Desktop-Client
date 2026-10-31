@@ -81,6 +81,7 @@ class L10n {
   String get allTags => zh ? '全部标签' : 'All tags';
   String get other => zh ? '其他' : 'Other';
   String get watchFileChanges => zh ? '关注文件改动' : 'Watch file changes';
+  String get unwatchFileChanges => zh ? '取消关注文件改动' : 'Unwatch file changes';
   String get settings => zh ? '设置' : 'Settings';
   String get addTag => zh ? '添加标签' : 'Add tag';
   String get newTag => zh ? '新建标签' : 'New tag';

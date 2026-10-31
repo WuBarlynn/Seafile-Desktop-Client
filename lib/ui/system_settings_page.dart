@@ -570,6 +570,14 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                           child: Text('${l10n.zh ? '成员' : 'Members'} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
                         ),
                         OutlinedButton(
+                          onPressed: () => _renameGroup(group),
+                          child: Text(l10n.zh ? '重命名' : 'Rename', style: const TextStyle(fontSize: 11.5)),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => _transferGroup(group),
+                          child: Text(l10n.zh ? '转让' : 'Transfer', style: const TextStyle(fontSize: 11.5)),
+                        ),
+                        OutlinedButton(
                           onPressed: () => _deleteGroup(group),
                           child: Text('${l10n.delete} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
                         ),
@@ -583,6 +591,61 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _renameGroup(Map<String, dynamic> group) async {
+    final l10n = L10n.of(context);
+    final id = (group['id'] as num?)?.toInt();
+    if (id == null) return;
+    final controller = TextEditingController(text: group['name']?.toString() ?? '');
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '重命名群组' : 'Rename group'),
+        content: SizedBox(width: 360, child: TextField(controller: controller, autofocus: true)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: Text(l10n.save)),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.renameAdminGroup(id, name);
+      await _loadGroups();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _transferGroup(Map<String, dynamic> group) async {
+    final l10n = L10n.of(context);
+    final id = (group['id'] as num?)?.toInt();
+    if (id == null) return;
+    final controller = TextEditingController();
+    final owner = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '转让群组' : 'Transfer group'),
+        content: SizedBox(
+          width: 380,
+          child: TextField(controller: controller, autofocus: true, decoration: InputDecoration(labelText: l10n.zh ? '新所有者邮箱' : 'New owner email')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: Text(l10n.zh ? '转让' : 'Transfer')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (owner == null || owner.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.transferAdminGroup(id, owner);
+      await _loadGroups();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Future<void> _manageGroupLibraries(Map<String, dynamic> group) async {

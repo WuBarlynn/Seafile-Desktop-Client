@@ -1234,11 +1234,18 @@ class _AdminMembersDialogState extends State<AdminMembersDialog> {
   }
 
   Future<void> _add() async {
-    final email = _email.text.trim();
-    if (email.isEmpty) return;
+    final emails = _email.text.split(RegExp(r'[,;\s]+')).map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
+    if (emails.isEmpty) return;
     setState(() => _saving = true);
     try {
-      await context.read<AppSession>().api!.addAdminDepartmentMember(widget.departmentId, email, isAdmin: _isAdmin);
+      final api = context.read<AppSession>().api!;
+      if (widget.addressBook) {
+        for (final email in emails) {
+          await api.addAdminDepartmentMember(widget.departmentId, email, isAdmin: _isAdmin);
+        }
+      } else {
+        await api.addAdminGroupMembers(widget.departmentId, emails);
+      }
       _email.clear();
       await _load();
     } catch (error) {

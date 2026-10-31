@@ -25,6 +25,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
+  bool _mine = false;
   String? _error;
 
   @override
@@ -48,7 +49,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       setState(() {});
     }
     try {
-      final events = await api.activities(page: _page);
+      final events = await api.activities(page: _page, opUser: _mine ? context.read<AppSession>().username : null);
       if (!mounted) return;
       setState(() {
         _events.addAll(events);
@@ -109,6 +110,32 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               const WebIcon('activities', size: 18, color: AppColors.textSecondary),
               const SizedBox(width: 8),
               Text(l10n.activities, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              const SizedBox(width: 18),
+              for (final entry in [(false, l10n.zh ? '所有活动' : 'All activities'), (true, l10n.zh ? '我的活动' : 'My activities')])
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: InkWell(
+                    onTap: () {
+                      if (_mine == entry.$1) return;
+                      setState(() => _mine = entry.$1);
+                      _load(reset: true);
+                    },
+                    borderRadius: BorderRadius.circular(5),
+                    child: Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _mine == entry.$1 ? AppColors.primarySoft : Colors.transparent,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        entry.$2,
+                        style: TextStyle(fontSize: 12.5, color: _mine == entry.$1 ? AppColors.primaryDark : AppColors.textSecondary, fontWeight: _mine == entry.$1 ? FontWeight.w500 : FontWeight.w400),
+                      ),
+                    ),
+                  ),
+                ),
               const Spacer(),
               IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: () => _load(reset: true)),
             ],

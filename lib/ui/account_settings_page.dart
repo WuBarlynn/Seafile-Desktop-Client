@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../api/json_utils.dart';
 import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
@@ -9,9 +10,10 @@ import '../state/session.dart';
 import 'widgets.dart';
 
 class AccountSettingsPage extends StatefulWidget {
-  const AccountSettingsPage({super.key, this.onOpenSystemSettings});
+  const AccountSettingsPage({super.key, this.onOpenSystemSettings, this.onOpenWeb});
 
   final VoidCallback? onOpenSystemSettings;
+  final void Function(String path, String title)? onOpenWeb;
 
   @override
   State<AccountSettingsPage> createState() => _AccountSettingsPageState();
@@ -27,7 +29,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   bool _loading = true;
   bool _savingProfile = false;
   bool _savingPassword = false;
+  bool _savingNotifications = false;
   bool _uploadingAvatar = false;
+  int _fileInterval = 0;
+  int _collabInterval = 0;
+  String? _webdavSecret;
+  List<Map<String, dynamic>> _devices = const [];
   String? _error;
 
   @override
@@ -54,13 +61,27 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     });
     try {
       final api = context.read<AppSession>().api!;
-      final profile = await api.userProfile();
+      final core = await Future.wait([api.userProfile(), api.accountInfoRaw()]);
+      String? webdavSecret;
+      List<Map<String, dynamic>> devices = const [];
+      try {
+        webdavSecret = await api.webdavSecret();
+      } catch (_) {}
+      try {
+        devices = await api.linkedDevices();
+      } catch (_) {}
       if (!mounted) return;
+      final profile = asMap(core[0]);
+      final info = asMap(core[1]);
       final loadedName = (profile['name'] as String?) ?? '';
       final session = context.read<AppSession>();
       _name.text = loadedName.isNotEmpty ? loadedName : session.displayName;
       _contactEmail.text = (profile['contact_email'] as String?) ?? '';
       _telephone.text = (profile['telephone'] as String?) ?? '';
+      _fileInterval = (info['file_updates_email_interval'] as num?)?.toInt() ?? 0;
+      _collabInterval = (info['collaborate_email_interval'] as num?)?.toInt() ?? 0;
+      _webdavSecret = webdavSecret;
+      _devices = devices;
       setState(() => _loading = false);
     } catch (error) {
       if (!mounted) return;
@@ -136,6 +157,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
               const WebIcon('settings', size: 18, color: AppColors.textSecondary),
               const SizedBox(width: 9),
               Text(l10n.accountSettings, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => widget.onOpenWeb?.call('/profile/', l10n.accountSettings),
+                icon: const Icon(Icons.open_in_new, size: 14),
+                label: Text(l10n.zh ? '更多账户选项' : 'More account options', style: const TextStyle(fontSize: 12)),
+              ),
             ],
           ),
         ),
@@ -168,6 +195,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                 _profileForm(l10n),
                                 const SizedBox(height: 18),
                                 _passwordCard(l10n),
+                                const SizedBox(height: 18),
+                                _webdavCard(session, l10n),
+                                const SizedBox(height: 18),
+                                _notificationCard(l10n),
+                                const SizedBox(height: 18),
+                                _devicesCard(l10n),
                                 if (session.accountInfo?.isStaff == true) ...[
                                   const SizedBox(height: 18),
                                   _adminCard(l10n),
@@ -346,6 +379,185 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
         ),
       ],
     );
+  }
+
+  Widget _webdavCard(AppSession session, L10n l10n) {
+    return _card(
+      title: l10n.zh ? 'WebDAV 访问' : 'WebDAV access',
+      subtitle: l10n.zh ? '使用 WebDAV 客户端访问资料库。' : 'Access your libraries with a WebDAV client.',
+      children: [
+        _infoLine('WebDAV URL', '${session.serverBase}/seafdav/'),
+        const SizedBox(height: 8),
+        _infoLine(l10n.zh ? 'WebDAV 用户' : 'WebDAV user', session.emailLabel),
+        const SizedBox(height: 8),
+        _infoLine(l10n.zh ? 'WebDAV 密码' : 'WebDAV password', (_webdavSecret?.isNotEmpty ?? false) ? (l10n.zh ? '已设置' : 'Set') : (l10n.zh ? '未设置' : 'Not set')),
+        const SizedBox(height: 14),
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton.icon(
+            onPressed: _setWebdavSecret,
+            icon: const Icon(Icons.key_outlined, size: 16),
+            label: Text((_webdavSecret?.isNotEmpty ?? false) ? (l10n.zh ? '更新密码' : 'Update password') : (l10n.zh ? '设置密码' : 'Set password'), style: const TextStyle(fontSize: 12)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoLine(String label, String value) {
+    return Row(
+      children: [
+        SizedBox(width: 130, child: Text(label, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary))),
+        Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 13))),
+      ],
+    );
+  }
+
+  Future<void> _setWebdavSecret() async {
+    final l10n = L10n.of(context);
+    final controller = TextEditingController();
+    final secret = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '设置 WebDAV 密码' : 'Set WebDAV password'),
+        content: SizedBox(
+          width: 360,
+          child: TextField(controller: controller, autofocus: true, obscureText: true, decoration: InputDecoration(labelText: l10n.zh ? '新密码' : 'New password')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: Text(l10n.save)),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (secret == null || secret.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.updateWebdavSecret(secret);
+      if (!mounted) return;
+      setState(() => _webdavSecret = secret);
+      showToast(context, l10n.savedSuccessfully);
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Widget _notificationCard(L10n l10n) {
+    return _card(
+      title: l10n.zh ? '邮件通知' : 'Email notifications',
+      subtitle: l10n.zh ? '选择文件改动和协作通知的发送频率。' : 'Choose how often file-change and collaboration emails are sent.',
+      children: [
+        Text(l10n.zh ? '文件改动通知' : 'File update notifications', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final entry in [
+              (0, l10n.zh ? '不发送' : 'Never'),
+              (3600, l10n.zh ? '每小时' : 'Hourly'),
+              (14400, l10n.zh ? '每4小时' : 'Every 4 hours'),
+              (86400, l10n.zh ? '每天' : 'Daily'),
+              (604800, l10n.zh ? '每周' : 'Weekly'),
+            ])
+              ChoiceChip(
+                label: Text(entry.$2, style: const TextStyle(fontSize: 12)),
+                selected: _fileInterval == entry.$1,
+                onSelected: _savingNotifications ? null : (_) => _saveNotificationIntervals(file: entry.$1),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(l10n.zh ? '协作通知' : 'Collaboration notifications', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final entry in [(0, l10n.zh ? '不发送' : 'Never'), (3600, l10n.zh ? '每小时' : 'Hourly')])
+              ChoiceChip(
+                label: Text(entry.$2, style: const TextStyle(fontSize: 12)),
+                selected: _collabInterval == entry.$1,
+                onSelected: _savingNotifications ? null : (_) => _saveNotificationIntervals(collab: entry.$1),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _saveNotificationIntervals({int? file, int? collab}) async {
+    final l10n = L10n.of(context);
+    final previousFile = _fileInterval;
+    final previousCollab = _collabInterval;
+    setState(() {
+      _fileInterval = file ?? _fileInterval;
+      _collabInterval = collab ?? _collabInterval;
+      _savingNotifications = true;
+    });
+    try {
+      await context.read<AppSession>().api!.updateEmailNotificationIntervals(fileUpdates: _fileInterval, collaboration: _collabInterval);
+      if (!mounted) return;
+      setState(() => _savingNotifications = false);
+      showToast(context, l10n.savedSuccessfully);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _fileInterval = previousFile;
+        _collabInterval = previousCollab;
+        _savingNotifications = false;
+      });
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Widget _devicesCard(L10n l10n) {
+    return _card(
+      title: l10n.zh ? '已连接的设备' : 'Linked devices',
+      subtitle: _devices.isEmpty ? (l10n.zh ? '当前没有连接任何客户端。' : 'No clients are connected.') : null,
+      children: [
+        for (final device in _devices)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.devices_outlined, size: 18, color: AppColors.textSecondary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${device['device_name'] ?? device['name'] ?? device['platform'] ?? ''}', style: const TextStyle(fontSize: 13)),
+                      Text(
+                        '${device['platform'] ?? ''} · ${device['last_accessed'] ?? device['last_access'] ?? ''}',
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _unlinkDevice(device),
+                  child: Text(l10n.zh ? '断开' : 'Unlink', style: const TextStyle(fontSize: 12, color: AppColors.danger)),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _unlinkDevice(Map<String, dynamic> device) async {
+    final l10n = L10n.of(context);
+    final platform = '${device['platform'] ?? ''}';
+    final id = '${device['device_id'] ?? device['id'] ?? ''}';
+    if (platform.isEmpty || id.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.unlinkDevice(platform, id);
+      if (!mounted) return;
+      setState(() => _devices = _devices.where((item) => '${item['device_id'] ?? item['id'] ?? ''}' != id).toList());
+      showToast(context, l10n.zh ? '设备已断开' : 'Device unlinked');
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Widget _adminCard(L10n l10n) {

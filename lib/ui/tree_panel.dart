@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/l10n.dart';
 import '../core/theme.dart';
+import '../state/session.dart';
 import '../state/workspace.dart';
 import 'new_menu.dart';
 import 'widgets.dart';
@@ -40,8 +41,37 @@ class _TreePanelState extends State<TreePanel> {
   bool _viewsExpanded = true;
   bool _tagsExpanded = true;
   bool _othersExpanded = true;
+  bool? _watching;
 
   WorkspaceController get ws => widget.workspace;
+
+  @override
+  void didUpdateWidget(covariant TreePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.workspace.repo?.id != widget.workspace.repo?.id) {
+      _watching = null;
+    }
+  }
+
+  Future<void> _toggleWatch() async {
+    final l10n = L10n.of(context);
+    final repo = ws.repo;
+    if (repo == null) return;
+    final watch = !(_watching ?? repo.monitored);
+    try {
+      final api = context.read<AppSession>().api!;
+      if (watch) {
+        await api.monitorRepository(repo.id);
+      } else {
+        await api.unmonitorRepository(repo.id);
+      }
+      if (!mounted) return;
+      setState(() => _watching = watch);
+      showToast(context, watch ? (l10n.zh ? '已关注资料库改动' : 'Now watching library changes') : (l10n.zh ? '已取消关注资料库' : 'Stopped watching library changes'));
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +189,13 @@ class _TreePanelState extends State<TreePanel> {
                     onToggle: () => setState(() => _othersExpanded = !_othersExpanded),
                   ),
                   if (_othersExpanded) ...[
+                    _SimpleRow(
+                      label: (_watching ?? ws.repo?.monitored ?? false) ? l10n.unwatchFileChanges : l10n.watchFileChanges,
+                      icon: 'notification',
+                      depth: 0,
+                      active: false,
+                      onTap: _toggleWatch,
+                    ),
                     _SimpleRow(
                       label: l10n.settings,
                       icon: 'settings',

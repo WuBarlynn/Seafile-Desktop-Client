@@ -18,6 +18,9 @@ class ShareAdminPage extends StatefulWidget {
 
 class _ShareAdminPageState extends State<ShareAdminPage> {
   List<ShareLink> _links = [];
+  List<Map<String, dynamic>> _uploads = [];
+  List<Map<String, dynamic>> _sharedRepos = [];
+  int _tab = 0;
   bool _loading = true;
   String? _error;
 
@@ -35,10 +38,12 @@ class _ShareAdminPageState extends State<ShareAdminPage> {
       _error = null;
     });
     try {
-      final links = await api.shareLinks(perPage: 200);
+      final results = await Future.wait([api.shareLinks(perPage: 200), api.uploadLinks(perPage: 200), api.sharedRepos()]);
       if (!mounted) return;
       setState(() {
-        _links = links;
+        _links = results[0] as List<ShareLink>;
+        _uploads = results[1] as List<Map<String, dynamic>>;
+        _sharedRepos = results[2] as List<Map<String, dynamic>>;
         _loading = false;
       });
     } catch (error) {
@@ -76,6 +81,182 @@ class _ShareAdminPageState extends State<ShareAdminPage> {
     }
   }
 
+  Future<void> _copyUpload(Map<String, dynamic> link, AppSession session) async {
+    final l10n = L10n.of(context);
+    final token = '${link['token'] ?? ''}';
+    final raw = '${link['link'] ?? ''}';
+    final url = raw.isNotEmpty ? raw : '${session.serverBase}/u/d/$token/';
+    await Clipboard.setData(ClipboardData(text: url));
+    if (mounted) showToast(context, l10n.linkCopied);
+  }
+
+  Future<void> _deleteUpload(Map<String, dynamic> link) async {
+    final l10n = L10n.of(context);
+    final token = '${link['token'] ?? ''}';
+    if (token.isEmpty) return;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.deleteLink,
+      message: l10n.deleteLinkConfirm,
+      danger: true,
+      confirmLabel: l10n.delete,
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      await context.read<AppSession>().api!.deleteUploadLink(token);
+      if (!mounted) return;
+      setState(() => _uploads = _uploads.where((item) => '${item['token'] ?? ''}' != token).toList());
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Widget _sharedReposView(L10n l10n) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_error!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 10),
+            OutlinedButton(onPressed: _load, child: Text(l10n.retry)),
+          ],
+        ),
+      );
+    }
+    final items = _sharedRepos.where((item) {
+      final path = '${item['path'] ?? '/'}';
+      return _tab == 0 ? (path.isEmpty || path == '/') : (path.isNotEmpty && path != '/');
+    }).toList();
+    if (items.isEmpty) {
+      return EmptyState(
+        title: _tab == 0 ? (l10n.zh ? '没有共享的资料库' : 'No shared libraries') : (l10n.zh ? '没有共享的目录' : 'No shared folders'),
+        message: _tab == 0
+            ? (l10n.zh ? '你还没共享任何资料库给其他用户。' : 'You have not shared any library with other users.')
+            : (l10n.zh ? '你还没共享任何目录给其他用户。' : 'You have not shared any folder with other users.'),
+        icon: _tab == 0 ? 'libraries' : 'folder',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final name = '${item['repo_name'] ?? item['name'] ?? ''}';
+        final path = '${item['path'] ?? '/'}';
+        final from = '${item['from_user'] ?? item['from_email'] ?? item['share_to'] ?? ''}';
+        final permission = '${item['permission'] ?? ''}';
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(6)),
+                alignment: Alignment.center,
+                child: WebIcon(_tab == 0 ? 'libraries' : 'folder', size: 16, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(path == '/' ? name : baseName(path), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$name · $path${from.isEmpty ? '' : ' · $from'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              if (permission.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(color: AppColors.hover, borderRadius: BorderRadius.circular(4)),
+                  child: Text(permission, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _uploadLinksView(L10n l10n, AppSession session) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_error!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 10),
+            OutlinedButton(onPressed: _load, child: Text(l10n.retry)),
+          ],
+        ),
+      );
+    }
+    if (_uploads.isEmpty) {
+      return EmptyState(
+        title: l10n.zh ? '暂无上传链接' : 'No upload links',
+        message: l10n.zh ? '你创建的所有上传链接会显示在这里。' : 'All upload links you created are listed here.',
+        icon: 'upload-files',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: _uploads.length,
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
+      itemBuilder: (context, index) {
+        final link = _uploads[index];
+        final title = '${link['obj_name'] ?? link['repo_name'] ?? baseName('${link['path'] ?? '/'}')}';
+        final token = '${link['token'] ?? ''}';
+        final url = '${link['link'] ?? '${session.serverBase}/u/d/$token/'}';
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(6)),
+                alignment: Alignment.center,
+                child: const WebIcon('upload-files', size: 16, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${link['repo_name'] ?? ''} · ${link['path'] ?? '/'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 3),
+                    SelectableText(url, maxLines: 1, style: const TextStyle(fontSize: 11, color: AppColors.primary)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              IconAction(icon: 'copy', tooltip: l10n.copyLink, size: 15, onPressed: () => _copyUpload(link, session)),
+              IconAction(icon: 'delete', tooltip: l10n.deleteLink, size: 15, color: AppColors.danger, onPressed: () => _deleteUpload(link)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
@@ -96,8 +277,38 @@ class _ShareAdminPageState extends State<ShareAdminPage> {
             ],
           ),
         ),
+        Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+          child: Row(
+            children: [
+              for (final entry in [(0, l10n.zh ? '资料库' : 'Libraries'), (1, l10n.zh ? '目录' : 'Folders'), (2, l10n.zh ? '链接' : 'Links'), (3, l10n.zh ? '上传链接' : 'Upload links')])
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: InkWell(
+                    onTap: () => setState(() => _tab = entry.$1),
+                    borderRadius: BorderRadius.circular(5),
+                    child: Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _tab == entry.$1 ? AppColors.primarySoft : Colors.transparent,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        entry.$2,
+                        style: TextStyle(fontSize: 12.5, color: _tab == entry.$1 ? AppColors.primaryDark : AppColors.textSecondary, fontWeight: _tab == entry.$1 ? FontWeight.w500 : FontWeight.w400),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
         Expanded(
-          child: _loading
+          child: _tab == 3 ? _uploadLinksView(l10n, session) : _tab <= 1 ? _sharedReposView(l10n) : _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
                   ? Center(

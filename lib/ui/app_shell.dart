@@ -430,7 +430,7 @@ class _AppShellState extends State<AppShell> {
           child: FileStudio(key: tab.editorKey, repo: tab.repo!, entry: tab.entry!),
         );
       case _TabKind.account:
-        return AccountSettingsPage(onOpenSystemSettings: _openSystemSettings);
+        return AccountSettingsPage(onOpenSystemSettings: _openSystemSettings, onOpenWeb: _openWebPage);
       case _TabKind.system:
         return SystemSettingsPage(onOpenWeb: _openWebPage);
       case _TabKind.web:

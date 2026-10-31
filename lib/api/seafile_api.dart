@@ -183,6 +183,42 @@ class SeafileApi {
     return AccountInfo.fromJson(asMap(data));
   }
 
+  Future<Map<String, dynamic>> accountInfoRaw() async {
+    return asMap(await _get('api2/account/info/'));
+  }
+
+  Future<String?> webdavSecret() async {
+    final data = asMap(await _get('api/v2.1/webdav-secret/'));
+    return firstString(data, ['secret']);
+  }
+
+  Future<void> updateWebdavSecret(String secret) async {
+    await _putJson('api/v2.1/webdav-secret/', {'secret': secret});
+  }
+
+  Future<void> updateEmailNotificationIntervals({required int fileUpdates, required int collaboration}) async {
+    await _putJson('api2/account/info/', {
+      'file_updates_email_interval': fileUpdates,
+      'collaborate_email_interval': collaboration,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> linkedDevices() async {
+    return asMapList(await _get('api2/devices/'));
+  }
+
+  Future<void> unlinkDevice(String platform, String deviceId, {bool wipe = false}) async {
+    try {
+      await _api.delete<dynamic>(
+        'api2/devices/',
+        data: {'platform': platform, 'device_id': deviceId, 'wipe_device': wipe ? 'true' : 'false'},
+        options: Options(headers: _authHeaders),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<ServerInfo> serverInfo() async {
     final data = await _get('api2/server-info/');
     final info = ServerInfo.fromJson(asMap(data));
@@ -221,6 +257,14 @@ class SeafileApi {
       'old_password': oldPassword,
       'new_password': newPassword,
     });
+  }
+
+  Future<void> monitorRepository(String repoId) async {
+    await _postForm('api/v2.1/monitored-repos/', {'repo_id': repoId});
+  }
+
+  Future<void> unmonitorRepository(String repoId) async {
+    await _delete('api/v2.1/monitored-repos/$repoId/');
   }
 
   Future<Map<String, dynamic>> adminSysInfo() async {
@@ -308,6 +352,18 @@ class SeafileApi {
 
   Future<Map<String, dynamic>> adminGroupMembers(int id) async {
     return asMap(await _get('api/v2.1/admin/groups/$id/members/'));
+  }
+
+  Future<void> addAdminGroupMembers(int id, List<String> emails) async {
+    await _postForm('api/v2.1/admin/groups/$id/members/', {'email': emails});
+  }
+
+  Future<void> renameAdminGroup(int id, String name) async {
+    await _putForm('api/v2.1/admin/groups/$id/', {'name': name});
+  }
+
+  Future<void> transferAdminGroup(int id, String newOwner) async {
+    await _putForm('api/v2.1/admin/groups/$id/', {'new_owner': newOwner});
   }
 
   Future<List<Map<String, dynamic>>> adminGroupLibraries(int id) async {
@@ -1374,6 +1430,19 @@ class SeafileApi {
     return asMapList(raw).map(ShareLink.fromJson).toList();
   }
 
+  Future<List<Map<String, dynamic>>> uploadLinks({int page = 1, int perPage = 100}) async {
+    final data = await _get('api/v2.1/upload-links/', query: {'page': '$page', 'per_page': '$perPage'});
+    return asMapList(data);
+  }
+
+  Future<List<Map<String, dynamic>>> sharedRepos() async {
+    return asMapList(await _get('api/v2.1/shared-repos/'));
+  }
+
+  Future<void> deleteUploadLink(String token) async {
+    await _delete('api/v2.1/upload-links/${Uri.encodeComponent(token)}/');
+  }
+
   Future<List<SharedAccess>> sharedAccess(String repoId, String path) async {
     final result = <SharedAccess>[];
     for (final type in ['user', 'group']) {
@@ -1484,8 +1553,11 @@ class SeafileApi {
     await _delete('api/v2.1/share-links/$token/');
   }
 
-  Future<List<ActivityEvent>> activities({int page = 1}) async {
-    final data = await _get('api/v2.1/activities/', query: {'page': '$page'});
+  Future<List<ActivityEvent>> activities({int page = 1, String? opUser}) async {
+    final data = await _get('api/v2.1/activities/', query: {
+      'page': '$page',
+      if (opUser != null && opUser.isNotEmpty) 'op_user': opUser,
+    });
     return asMapList(asMap(data)['events']).map(ActivityEvent.fromJson).toList();
   }
 

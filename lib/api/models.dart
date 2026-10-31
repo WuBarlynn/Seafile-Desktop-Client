@@ -137,6 +137,7 @@ class Repository {
     this.starred = false,
     this.fileCount = 0,
     this.enableOnlyOffice = false,
+    this.monitored = false,
   });
 
   final String id;
@@ -160,6 +161,7 @@ class Repository {
   final bool starred;
   final int fileCount;
   final bool enableOnlyOffice;
+  final bool monitored;
 
   factory Repository.fromJson(Map<String, dynamic> json) {
     return Repository(
@@ -184,6 +186,7 @@ class Repository {
       starred: asBool(json['starred']),
       fileCount: firstInt(json, ['file_count']) ?? 0,
       enableOnlyOffice: asBool(json['enable_onlyoffice']),
+      monitored: asBool(json['monitored']),
     );
   }
 
