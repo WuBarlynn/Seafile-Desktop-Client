@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -31,6 +32,7 @@ class _GroupDialogState extends State<_GroupDialog> {
   Map<String, dynamic> _group = const {};
   List<Map<String, dynamic>> _libraries = const [];
   List<Map<String, dynamic>> _members = const [];
+  List<Map<String, dynamic>> _invites = const [];
   final _email = TextEditingController();
   final _libraryName = TextEditingController();
   bool _busy = false;
@@ -57,11 +59,16 @@ class _GroupDialogState extends State<_GroupDialog> {
         api.userGroupLibraries(widget.groupId),
         api.userGroupMembers(widget.groupId),
       ]);
+      List<Map<String, dynamic>> invites = const [];
+      try {
+        invites = await api.userGroupInviteLinks(widget.groupId);
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _group = results[0] as Map<String, dynamic>;
         _libraries = results[1] as List<Map<String, dynamic>>;
         _members = results[2] as List<Map<String, dynamic>>;
+        _invites = invites;
         _loading = false;
       });
     } catch (error) {
@@ -175,7 +182,7 @@ class _GroupDialogState extends State<_GroupDialog> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      for (final entry in [(0, zh ? '资料库' : 'Libraries'), (1, zh ? '成员' : 'Members')])
+                      for (final entry in [(0, zh ? '资料库' : 'Libraries'), (1, zh ? '成员' : 'Members'), (2, zh ? '邀请链接' : 'Invite links')])
                         Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: InkWell(
@@ -196,7 +203,7 @@ class _GroupDialogState extends State<_GroupDialog> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Expanded(child: _tab == 0 ? _librariesView(zh) : _membersView(zh)),
+                  Expanded(child: _tab == 0 ? _librariesView(zh) : _tab == 1 ? _membersView(zh) : _invitesView(zh)),
                 ],
               ),
       ),
@@ -237,6 +244,75 @@ class _GroupDialogState extends State<_GroupDialog> {
                       leading: const WebIcon('libraries', size: 17, color: AppColors.textSecondary),
                       title: Text('${library['name'] ?? library['repo_name'] ?? ''}', style: const TextStyle(fontSize: 13)),
                       subtitle: Text(formatBytes((library['size'] as num?)?.toInt() ?? 0), style: const TextStyle(fontSize: 11.5)),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _createInvite() async {
+    try {
+      await context.read<AppSession>().api!.createUserGroupInviteLink(widget.groupId);
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _deleteInvite(Map<String, dynamic> link) async {
+    final token = '${link['token'] ?? ''}';
+    if (token.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.deleteUserGroupInviteLink(widget.groupId, token);
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Widget _invitesView(bool zh) {
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _busy ? null : _createInvite,
+            icon: const Icon(Icons.add_link, size: 15),
+            label: Text(zh ? '创建邀请链接' : 'Create invite link', style: const TextStyle(fontSize: 12)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: _invites.isEmpty
+              ? Center(child: Text(zh ? '暂无邀请链接' : 'No invite links', style: const TextStyle(fontSize: 12.5, color: AppColors.muted)))
+              : ListView.separated(
+                  itemCount: _invites.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                  itemBuilder: (context, index) {
+                    final link = _invites[index];
+                    final url = '${link['link'] ?? ''}';
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(url, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
+                      subtitle: Text('${link['created_by'] ?? ''} · ${link['created_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: () async {
+                              await Clipboard.setData(ClipboardData(text: url));
+                            },
+                            icon: const Icon(Icons.copy, size: 16),
+                          ),
+                          IconButton(
+                            onPressed: () => _deleteInvite(link),
+                            icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),

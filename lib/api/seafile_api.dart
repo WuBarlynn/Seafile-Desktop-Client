@@ -354,6 +354,19 @@ class SeafileApi {
     await _delete('api/v2.1/groups/$id/members/${Uri.encodeComponent(email)}/');
   }
 
+  Future<List<Map<String, dynamic>>> userGroupInviteLinks(int id) async {
+    final data = asMap(await _get('api/v2.1/groups/$id/invite-links/'));
+    return asMapList(data['group_invite_link_list']);
+  }
+
+  Future<Map<String, dynamic>> createUserGroupInviteLink(int id) async {
+    return asMap(await _postForm('api/v2.1/groups/$id/invite-links/', const {}));
+  }
+
+  Future<void> deleteUserGroupInviteLink(int id, String token) async {
+    await _delete('api/v2.1/groups/$id/invite-links/$token/');
+  }
+
   Future<Map<String, dynamic>> createUserGroupLibrary(int id, String name) async {
     return asMap(await _postForm('api/v2.1/groups/$id/group-owned-libraries/', {'name': name, 'permission': 'rw'}));
   }
