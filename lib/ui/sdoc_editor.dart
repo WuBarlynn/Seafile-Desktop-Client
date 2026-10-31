@@ -63,6 +63,7 @@ class _SdocTextStyle {
     this.highlight,
     this.fontSize,
     this.font,
+    this.link,
   });
 
   static const none = _SdocTextStyle();
@@ -78,8 +79,9 @@ class _SdocTextStyle {
   final String? highlight;
   final double? fontSize;
   final String? font;
+  final String? link;
 
-  bool get isEmpty => !bold && !italic && !underline && !strikethrough && !code && !superscript && !subscript && color == null && highlight == null && fontSize == null && font == null;
+  bool get isEmpty => !bold && !italic && !underline && !strikethrough && !code && !superscript && !subscript && color == null && highlight == null && fontSize == null && font == null && link == null;
 
   _SdocTextStyle copyWith({
     bool? bold,
@@ -93,6 +95,7 @@ class _SdocTextStyle {
     String? highlight,
     double? fontSize,
     String? font,
+    String? link,
   }) {
     return _SdocTextStyle(
       bold: bold ?? this.bold,
@@ -106,6 +109,7 @@ class _SdocTextStyle {
       highlight: highlight ?? this.highlight,
       fontSize: fontSize ?? this.fontSize,
       font: font ?? this.font,
+      link: link ?? this.link,
     );
   }
 
@@ -121,6 +125,7 @@ class _SdocTextStyle {
         highlight: highlight,
         fontSize: fontSize,
         font: value,
+        link: link,
       );
 
   _SdocTextStyle withColor(String? value) => _SdocTextStyle(
@@ -135,6 +140,7 @@ class _SdocTextStyle {
         highlight: highlight,
         fontSize: fontSize,
         font: font,
+        link: link,
       );
 
   _SdocTextStyle withHighlight(String? value) => _SdocTextStyle(
@@ -149,6 +155,22 @@ class _SdocTextStyle {
         highlight: value,
         fontSize: fontSize,
         font: font,
+        link: link,
+      );
+
+  _SdocTextStyle withLink(String? value) => _SdocTextStyle(
+        bold: bold,
+        italic: italic,
+        underline: underline,
+        strikethrough: strikethrough,
+        code: code,
+        superscript: superscript,
+        subscript: subscript,
+        color: color,
+        highlight: highlight,
+        fontSize: fontSize,
+        font: font,
+        link: value,
       );
 
   factory _SdocTextStyle.fromLeaf(Map node) {
@@ -171,6 +193,7 @@ class _SdocTextStyle {
       highlight: node['highlight_color'] is String ? node['highlight_color'] as String : null,
       fontSize: size,
       font: node['font'] is String ? node['font'] as String : null,
+      link: node['link'] is String ? node['link'] as String : null,
     );
   }
 
@@ -186,6 +209,7 @@ class _SdocTextStyle {
         if (highlight != null) 'highlight_color': highlight,
         if (fontSize != null) 'font_size': fontSize,
         if (font != null) 'font': font,
+        if (link != null) 'link': link,
       };
 
   TextStyle apply(TextStyle base) {
@@ -213,6 +237,9 @@ class _SdocTextStyle {
     if (highlight != null) style = style.copyWith(backgroundColor: _parseHexColor(highlight!));
     if (fontSize != null) style = style.copyWith(fontSize: fontSize);
     if (font != null) style = style.copyWith(fontFamily: font);
+    if (link != null) {
+      style = style.copyWith(color: _parseHexColor('#1a73e8'), decoration: TextDecoration.underline);
+    }
     return style;
   }
 
@@ -237,11 +264,12 @@ class _SdocTextStyle {
         other.color == color &&
         other.highlight == highlight &&
         other.fontSize == fontSize &&
-        other.font == font;
+        other.font == font &&
+        other.link == link;
   }
 
   @override
-  int get hashCode => Object.hash(bold, italic, underline, strikethrough, code, superscript, subscript, color, highlight, fontSize, font);
+  int get hashCode => Object.hash(bold, italic, underline, strikethrough, code, superscript, subscript, color, highlight, fontSize, font, link);
 }
 
 class _SdocTextController extends TextEditingController {
@@ -1685,6 +1713,8 @@ class SdocEditorState extends State<SdocEditor> {
                       switch (value) {
                         case 'table':
                           _insertTable();
+                        case 'image':
+                          unawaited(_insertImage());
                         case 'code_block':
                           _insertCodeBlock();
                         case 'formula':
@@ -1697,6 +1727,7 @@ class SdocEditorState extends State<SdocEditor> {
                     },
                     itemBuilder: (context) => [
                       PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '图片' : 'Image', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'code_block', child: Row(children: [const Icon(Icons.data_object, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '代码块' : 'Code block', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'formula', child: Row(children: [const Icon(Icons.functions, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '公式' : 'Formula', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
@@ -1723,6 +1754,7 @@ class SdocEditorState extends State<SdocEditor> {
                   _ToolbarButton(icon: Icons.format_underlined, tooltip: l10n.zh ? '下划线' : 'Underline', onTap: () => _toggleInlineMark((style) => style.copyWith(underline: !style.underline))),
                   _ToolbarButton(icon: Icons.format_strikethrough, tooltip: l10n.zh ? '删除线' : 'Strikethrough', onTap: () => _toggleInlineMark((style) => style.copyWith(strikethrough: !style.strikethrough))),
                   _ToolbarButton(icon: Icons.code, tooltip: l10n.zh ? '行内代码' : 'Inline code', onTap: () => _toggleInlineMark((style) => style.copyWith(code: !style.code))),
+                  _ToolbarButton(icon: Icons.link, tooltip: l10n.zh ? '链接' : 'Link', onTap: () => unawaited(_setLink())),
                   _ToolbarButton(icon: Icons.format_clear, tooltip: l10n.zh ? '清除格式' : 'Clear formatting', onTap: _clearFormatting),
                   _toolDivider(),
                   PopupMenuButton<String>(
@@ -1960,6 +1992,35 @@ class SdocEditorState extends State<SdocEditor> {
     _toggleInlineMark((style) => style.withHighlight(color), allIfCollapsed: true);
   }
 
+  Future<void> _setLink() async {
+    final controller = _activeTextField()?.controller;
+    if (controller is! _SdocTextController || controller._formatRange == null) {
+      showToast(context, L10n.of(context).zh ? '请先选择要添加链接的文字' : 'Select text to add a link', error: true);
+      return;
+    }
+    final input = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(L10n.of(context).zh ? '添加链接' : 'Add link'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: InputDecoration(hintText: L10n.of(context).zh ? '链接地址' : 'Link address'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(L10n.of(context).cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, input.text.trim()), child: Text(L10n.of(context).confirm)),
+        ],
+      ),
+    );
+    input.dispose();
+    if (!mounted || url == null || url.isEmpty) return;
+    final target = url.startsWith('http://') || url.startsWith('https://') ? url : 'https://$url';
+    controller.toggleMark((style) => style.withLink(target));
+    setState(_changed);
+  }
+
   void _clearFormatting() {
     final controller = _activeTextField()?.controller;
     if (controller is! _SdocTextController) return;
@@ -2088,6 +2149,36 @@ class SdocEditorState extends State<SdocEditor> {
     });
   }
 
+  Future<void> _insertImage() async {
+    final input = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(L10n.of(context).zh ? '插入网络图片' : 'Insert network image'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: InputDecoration(hintText: L10n.of(context).zh ? '图片地址' : 'Image address'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(L10n.of(context).cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, input.text.trim()), child: Text(L10n.of(context).confirm)),
+        ],
+      ),
+    );
+    input.dispose();
+    if (!mounted || url == null || url.isEmpty) return;
+    final id = 'image-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    _insertNode(_SdocBlock({
+      'id': id,
+      'type': 'image',
+      'data': {'src': url},
+      'children': [
+        {'id': '$id-t', 'text': ''},
+      ],
+    }));
+  }
+
   Future<void> _insertFormula() async {
     final controller = TextEditingController();
     final formula = await showDialog<String>(
@@ -2212,7 +2303,7 @@ class SdocEditorState extends State<SdocEditor> {
       'quote' => _quoteView(block, index),
       'callout' => _calloutView(block, index),
       'table' => _tableView(block),
-      'image_block' => _imageView(block),
+      'image' || 'image_block' => _imageView(block),
       'video' => _videoView(block),
       'embed_link' => _embedView(block),
       'formula' => _formulaView(block),
