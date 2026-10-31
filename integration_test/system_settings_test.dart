@@ -68,6 +68,19 @@ void main() {
     await waitFor(tester, find.text('Added'));
     expect(find.text('Added'), findsWidgets);
 
+    await tester.tap(find.text('Libraries').first);
+    await waitFor(tester, find.text('New library'));
+    expect(find.text('Wikis'), findsWidgets);
+    expect(find.text('Trash'), findsWidgets);
+
+    await tester.tap(find.text('Users').first);
+    await waitFor(tester, find.text('Import users'));
+    expect(find.text('Export CSV'), findsWidgets);
+
+    await tester.tap(find.text('Groups').first);
+    await waitFor(tester, find.text('New group'));
+    expect(find.text('Export CSV'), findsWidgets);
+
     await tester.tap(find.text('Information').first);
     await waitFor(tester, find.text('Full admin console'));
     await tester.tap(find.text('Full admin console'));
