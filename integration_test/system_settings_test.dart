@@ -25,6 +25,8 @@ void main() {
     final session = AppSession();
     await session.restore();
     expect(session.hasSession, isTrue, reason: 'A stored local test session is required');
+    final settings = await session.api!.adminWebSettings();
+    await session.api!.updateAdminWebSettings(settings);
     String? openedPath;
 
     await tester.pumpWidget(
