@@ -6,7 +6,6 @@ import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
-import 'dialogs.dart';
 import 'web_handoff.dart';
 import 'widgets.dart';
 
