@@ -24,9 +24,10 @@ import 'tree_panel.dart';
 import 'widgets.dart';
 
 class BrowserView extends StatefulWidget {
-  const BrowserView({super.key, this.onOpenFile});
+  const BrowserView({super.key, this.onOpenFile, this.onOpenHome});
 
   final void Function(Repository repo, Dirent entry)? onOpenFile;
+  final VoidCallback? onOpenHome;
 
   @override
   State<BrowserView> createState() => _BrowserViewState();
@@ -425,7 +426,7 @@ class _BrowserViewState extends State<BrowserView> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _crumb(l10n.file, () => workspace.closeRepo()),
+          _crumb(l10n.file, () => widget.onOpenHome?.call()),
           const _crumbSeparator(),
           _crumb(repo.name, () => workspace.enterPath('/')),
           if (modeLabel == null) _buildRepoPlusMenu(context, workspace, l10n) else ...[

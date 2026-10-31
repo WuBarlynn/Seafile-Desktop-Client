@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.1.9 — full-height native editors. Every iteration is published to this repository.
+> **Status:** 1.1.10 — smarter tab ordering. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -19,7 +19,7 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Web-parity **New** menu: new directory, text file, Markdown, Word/Excel/PowerPoint, plus SeaDoc, Excalidraw and “Import sdoc” when the server enables them; upload files/folders, share, copy path
 - File operations: rename, move, copy, delete, star, lock/unlock, drag-and-drop upload, transfer progress panel
 - Downloads: single file, folder ZIP, progress and cancellation
-- **Tabbed workspace** with a pinned Home tab; single-clicking a library or file opens a new tab, and sidebar sections switch inside Home without spawning tabs
+- **Tabbed workspace** with a pinned Home tab; single-clicking a library or file opens a new tab immediately to the right of the active tab, other tabs can be dragged to reorder them, and sidebar sections switch inside Home without spawning tabs. Clicking the `File` breadcrumb returns to Home without clearing or closing the library tab
 - **In-place editors** — opening a file never pushes a new page. Images/PDF, text, Markdown, SeaDoc, Office, Excalidraw and media all render inside the file tab
 - Native text editor and **block-based Markdown editor**: headings, lists, checklists, quotes and code blocks render as content (no `#`/`-` markers), with a formatting toolbar, full-width canvas and unsaved-change protection. Enter splits at the caret and continues lists/quotes, Backspace merges blocks or removes an empty one, Delete merges the next block, arrow keys cross block boundaries, Cmd/Ctrl+B/I apply emphasis, and IME composition is never intercepted
 - Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab. Enter creates the next paragraph, list item, check item, callout paragraph or toggle content with web-style behavior, Backspace merges into the previous block or exits an empty list, Delete merges forward, and IME composition remains untouched
@@ -90,6 +90,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.1.10
+
+Tagged `v1.1.10`. New library, file, settings and web tabs now open directly to the right of the active tab instead of at the far end of the strip, and every tab except the pinned Home tab can be dragged to a new position. Clicking the `File` breadcrumb in a library now switches to Home and leaves the library tab intact instead of collapsing it into a blank page. Verified by a macOS integration test that opens two files, checks insertion order, drags a tab past another, and returns Home from the breadcrumb with the library tab preserved.
 
 ## Release 1.1.9
 

@@ -146,6 +146,24 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _insertTab(_AppTab tab) {
+    final index = (_activeIndex + 1).clamp(1, _tabs.length);
+    _tabs.insert(index, tab);
+    _activeIndex = index;
+  }
+
+  void _reorderTabs(int oldIndex, int newIndex) {
+    if (oldIndex <= 0 || oldIndex >= _tabs.length) return;
+    final activeTab = _tabs[_activeIndex];
+    var target = newIndex.clamp(1, _tabs.length);
+    setState(() {
+      final tab = _tabs.removeAt(oldIndex);
+      if (target > oldIndex) target -= 1;
+      _tabs.insert(target.clamp(1, _tabs.length), tab);
+      _activeIndex = _tabs.indexOf(activeTab);
+    });
+  }
+
   Future<void> _openLibrary(Repository repo, {String? path}) async {
     final existing = _tabs.indexWhere((tab) => tab.kind == _TabKind.library && tab.repo?.id == repo.id);
     if (existing >= 0) {
@@ -167,10 +185,7 @@ class _AppShellState extends State<AppShell> {
       workspace.dispose();
       return;
     }
-    setState(() {
-      _tabs.add(_AppTab.library(workspace, repo));
-      _activeIndex = _tabs.length - 1;
-    });
+    setState(() => _insertTab(_AppTab.library(workspace, repo)));
   }
 
   Future<void> _openLibraryAt(Repository repo, String path) => _openLibrary(repo, path: path);
@@ -178,10 +193,7 @@ class _AppShellState extends State<AppShell> {
   void _openFile(Repository repo, Dirent entry) {
     final workspace = WorkspaceController(context.read<AppSession>());
     unawaited(workspace.openRepo(repo));
-    setState(() {
-      _tabs.add(_AppTab.file(workspace, repo, entry));
-      _activeIndex = _tabs.length - 1;
-    });
+    setState(() => _insertTab(_AppTab.file(workspace, repo, entry)));
   }
 
   Future<void> _openPath(Repository repo, String path, bool isDir) async {
@@ -220,10 +232,7 @@ class _AppShellState extends State<AppShell> {
       setState(() => _activeIndex = existing);
       return;
     }
-    setState(() {
-      _tabs.add(_AppTab.account());
-      _activeIndex = _tabs.length - 1;
-    });
+    setState(() => _insertTab(_AppTab.account()));
   }
 
   void _openSystemSettings() {
@@ -232,10 +241,7 @@ class _AppShellState extends State<AppShell> {
       setState(() => _activeIndex = existing);
       return;
     }
-    setState(() {
-      _tabs.add(_AppTab.system());
-      _activeIndex = _tabs.length - 1;
-    });
+    setState(() => _insertTab(_AppTab.system()));
   }
 
   void _openWebPage(String path, String title) {
@@ -244,10 +250,7 @@ class _AppShellState extends State<AppShell> {
       setState(() => _activeIndex = existing);
       return;
     }
-    setState(() {
-      _tabs.add(_AppTab.web(path, title));
-      _activeIndex = _tabs.length - 1;
-    });
+    setState(() => _insertTab(_AppTab.web(path, title)));
   }
 
   Future<void> _closeTab(int index) async {
@@ -384,6 +387,7 @@ class _AppShellState extends State<AppShell> {
                                 activeIndex: _activeIndex,
                                 onSelect: (index) => setState(() => _activeIndex = index),
                                 onClose: _closeTab,
+                                onReorder: _reorderTabs,
                               ),
                               Expanded(
                                 child: IndexedStack(
@@ -416,6 +420,7 @@ class _AppShellState extends State<AppShell> {
           value: tab.workspace!,
           child: BrowserView(
             onOpenFile: _openFile,
+            onOpenHome: _openLibraries,
           ),
         );
       case _TabKind.file:
@@ -461,12 +466,14 @@ class _TabStrip extends StatefulWidget {
     required this.activeIndex,
     required this.onSelect,
     required this.onClose,
+    required this.onReorder,
   });
 
   final List<_AppTab> tabs;
   final int activeIndex;
   final ValueChanged<int> onSelect;
   final ValueChanged<int> onClose;
+  final void Function(int oldIndex, int newIndex) onReorder;
 
   @override
   State<_TabStrip> createState() => _TabStripState();
@@ -506,24 +513,36 @@ class _TabStripState extends State<_TabStrip> {
       child: Row(
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              controller: _scroll,
+            child: ReorderableListView.builder(
+              scrollController: _scroll,
               scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (var index = 0; index < widget.tabs.length; index++)
-                    _TabChip(
-                      tab: widget.tabs[index],
-                      active: index == widget.activeIndex,
-                      closable: index > 0,
-                      homeLabel: l10n.zh ? '主页' : 'Home',
-                      accountLabel: l10n.accountSettings,
-                      systemLabel: l10n.systemSettings,
-                      onTap: () => widget.onSelect(index),
-                      onClose: () => widget.onClose(index),
-                    ),
-                ],
+              buildDefaultDragHandles: false,
+              padding: EdgeInsets.zero,
+              itemCount: widget.tabs.length,
+              onReorder: widget.onReorder,
+              proxyDecorator: (child, index, animation) => Material(
+                color: Colors.transparent,
+                elevation: 4,
+                child: child,
               ),
+              itemBuilder: (context, index) {
+                final tab = widget.tabs[index];
+                return ReorderableDragStartListener(
+                  key: ObjectKey(tab),
+                  index: index,
+                  enabled: index > 0,
+                  child: _TabChip(
+                    tab: tab,
+                    active: index == widget.activeIndex,
+                    closable: index > 0,
+                    homeLabel: l10n.zh ? '主页' : 'Home',
+                    accountLabel: l10n.accountSettings,
+                    systemLabel: l10n.systemSettings,
+                    onTap: () => widget.onSelect(index),
+                    onClose: () => widget.onClose(index),
+                  ),
+                );
+              },
             ),
           ),
         ],
