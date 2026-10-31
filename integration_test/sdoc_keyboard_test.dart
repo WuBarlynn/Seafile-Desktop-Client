@@ -174,6 +174,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Copy'), findsWidgets);
     expect(find.text('Paste'), findsWidgets);
+
+    await tester.tap(find.byType(TextField).at(1));
+    await tester.pump();
+    final textField = tester.widget<TextField>(find.byType(TextField).at(1));
+    textField.controller!.selection = const TextSelection(baseOffset: 0, extentOffset: 5);
+    await tester.pump();
+    await tester.tap(find.byTooltip('Bold'));
+    await tester.pump();
+    await Future<void>.delayed(const Duration(seconds: 3));
+    await tester.pump();
+    final styled = await api.loadSdocDocument(_repoId, _path);
+    final styledElements = (styled['elements'] as List).whereType<Map>().toList();
+    final styledParagraph = styledElements.firstWhere((element) => element['id'] == 'kb-p1');
+    final styledChildren = (styledParagraph['children'] as List).whereType<Map>().toList();
+    expect(styledChildren.any((child) => child['bold'] == true && (child['text'] as String?)?.contains('first') == true), isTrue);
   });
 }
 

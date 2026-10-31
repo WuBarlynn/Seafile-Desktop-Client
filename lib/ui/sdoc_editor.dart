@@ -50,6 +50,308 @@ class _SdocBlock {
   String get type => element['type'] as String? ?? 'paragraph';
 }
 
+class _SdocTextStyle {
+  const _SdocTextStyle({
+    this.bold = false,
+    this.italic = false,
+    this.underline = false,
+    this.strikethrough = false,
+    this.code = false,
+    this.superscript = false,
+    this.subscript = false,
+    this.color,
+    this.highlight,
+    this.fontSize,
+    this.font,
+  });
+
+  static const none = _SdocTextStyle();
+
+  final bool bold;
+  final bool italic;
+  final bool underline;
+  final bool strikethrough;
+  final bool code;
+  final bool superscript;
+  final bool subscript;
+  final String? color;
+  final String? highlight;
+  final double? fontSize;
+  final String? font;
+
+  bool get isEmpty => !bold && !italic && !underline && !strikethrough && !code && !superscript && !subscript && color == null && highlight == null && fontSize == null && font == null;
+
+  _SdocTextStyle copyWith({
+    bool? bold,
+    bool? italic,
+    bool? underline,
+    bool? strikethrough,
+    bool? code,
+    bool? superscript,
+    bool? subscript,
+    String? color,
+    String? highlight,
+    double? fontSize,
+    String? font,
+  }) {
+    return _SdocTextStyle(
+      bold: bold ?? this.bold,
+      italic: italic ?? this.italic,
+      underline: underline ?? this.underline,
+      strikethrough: strikethrough ?? this.strikethrough,
+      code: code ?? this.code,
+      superscript: superscript ?? this.superscript,
+      subscript: subscript ?? this.subscript,
+      color: color ?? this.color,
+      highlight: highlight ?? this.highlight,
+      fontSize: fontSize ?? this.fontSize,
+      font: font ?? this.font,
+    );
+  }
+
+  factory _SdocTextStyle.fromLeaf(Map node) {
+    double? size;
+    final rawSize = node['font_size'];
+    if (rawSize is num) {
+      size = rawSize.toDouble();
+    } else if (rawSize is String) {
+      size = double.tryParse(rawSize.replaceAll(RegExp(r'[^0-9.]'), ''));
+    }
+    return _SdocTextStyle(
+      bold: node['bold'] == true,
+      italic: node['italic'] == true,
+      underline: node['underline'] == true,
+      strikethrough: node['strikethrough'] == true,
+      code: node['code'] == true,
+      superscript: node['superscript'] == true,
+      subscript: node['subscript'] == true,
+      color: node['color'] is String ? node['color'] as String : null,
+      highlight: node['highlight_color'] is String ? node['highlight_color'] as String : null,
+      fontSize: size,
+      font: node['font'] is String ? node['font'] as String : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        if (bold) 'bold': true,
+        if (italic) 'italic': true,
+        if (underline) 'underline': true,
+        if (strikethrough) 'strikethrough': true,
+        if (code) 'code': true,
+        if (superscript) 'superscript': true,
+        if (subscript) 'subscript': true,
+        if (color != null) 'color': color,
+        if (highlight != null) 'highlight_color': highlight,
+        if (fontSize != null) 'font_size': fontSize,
+        if (font != null) 'font': font,
+      };
+
+  TextStyle apply(TextStyle base) {
+    var style = base;
+    if (bold) style = style.copyWith(fontWeight: FontWeight.w700);
+    if (italic) style = style.copyWith(fontStyle: FontStyle.italic);
+    if (underline || strikethrough) {
+      style = style.copyWith(
+        decoration: TextDecoration.combine([
+          if (underline) TextDecoration.underline,
+          if (strikethrough) TextDecoration.lineThrough,
+        ]),
+      );
+    }
+    if (superscript || subscript) {
+      style = style.copyWith(
+        fontSize: (style.fontSize ?? 15) * 0.72,
+        fontFeatures: [superscript ? const FontFeature.superscripts() : const FontFeature.subscripts()],
+      );
+    }
+    if (code) {
+      style = style.copyWith(fontFamily: 'Menlo', backgroundColor: const Color(0xFFF1F3F5), color: const Color(0xFFC7254E));
+    }
+    if (color != null) style = style.copyWith(color: _parseHexColor(color!));
+    if (highlight != null) style = style.copyWith(backgroundColor: _parseHexColor(highlight!));
+    if (fontSize != null) style = style.copyWith(fontSize: fontSize);
+    if (font != null) style = style.copyWith(fontFamily: font);
+    return style;
+  }
+
+  static Color? _parseHexColor(String value) {
+    var hex = value.trim().replaceFirst('#', '');
+    if (hex.length == 3) hex = hex.split('').map((char) => '$char$char').join();
+    if (hex.length != 6) return null;
+    final parsed = int.tryParse(hex, radix: 16);
+    return parsed == null ? null : Color(0xFF000000 | parsed);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _SdocTextStyle &&
+        other.bold == bold &&
+        other.italic == italic &&
+        other.underline == underline &&
+        other.strikethrough == strikethrough &&
+        other.code == code &&
+        other.superscript == superscript &&
+        other.subscript == subscript &&
+        other.color == color &&
+        other.highlight == highlight &&
+        other.fontSize == fontSize &&
+        other.font == font;
+  }
+
+  @override
+  int get hashCode => Object.hash(bold, italic, underline, strikethrough, code, superscript, subscript, color, highlight, fontSize, font);
+}
+
+class _SdocTextController extends TextEditingController {
+  _SdocTextController({String text = '', List<_SdocTextStyle>? styles})
+      : _styles = styles != null && styles.length == text.length ? List.of(styles) : List.filled(text.length, _SdocTextStyle.none),
+        super(text: text);
+
+  factory _SdocTextController.fromNode(dynamic node) {
+    final buffer = StringBuffer();
+    final styles = <_SdocTextStyle>[];
+    void visit(dynamic value) {
+      if (value is Map) {
+        final text = value['text'];
+        if (text is String) {
+          buffer.write(text);
+          styles.addAll(List.filled(text.length, _SdocTextStyle.fromLeaf(value)));
+        }
+        final children = value['children'];
+        if (children is List) {
+          for (final child in children) {
+            visit(child);
+          }
+        }
+      } else if (value is List) {
+        for (final child in value) {
+          visit(child);
+        }
+      }
+    }
+
+    visit(node is Map ? node['children'] : node);
+    return _SdocTextController(text: buffer.toString(), styles: styles);
+  }
+
+  List<_SdocTextStyle> _styles;
+  TextSelection? _lastRange;
+
+  @override
+  set value(TextEditingValue newValue) {
+    final oldText = super.value.text;
+    if (oldText != newValue.text) {
+      _styles = _diffStyles(oldText, _styles, newValue.text);
+    }
+    final selection = newValue.selection;
+    if (selection.isValid && !selection.isCollapsed) _lastRange = selection;
+    super.value = newValue;
+  }
+
+  TextSelection? get _formatRange {
+    final current = selection;
+    if (current.isValid && !current.isCollapsed) return current;
+    final last = _lastRange;
+    if (last != null && last.end <= text.length) return last;
+    return null;
+  }
+
+  static List<_SdocTextStyle> _diffStyles(String oldText, List<_SdocTextStyle> oldStyles, String newText) {
+    var prefix = 0;
+    final maxPrefix = oldText.length < newText.length ? oldText.length : newText.length;
+    while (prefix < maxPrefix && oldText[prefix] == newText[prefix]) {
+      prefix++;
+    }
+    var suffix = 0;
+    while (suffix < oldText.length - prefix && suffix < newText.length - prefix && oldText[oldText.length - 1 - suffix] == newText[newText.length - 1 - suffix]) {
+      suffix++;
+    }
+    final inserted = newText.length - prefix - suffix;
+    final inherited = prefix > 0 ? oldStyles[prefix - 1] : (oldStyles.isNotEmpty ? oldStyles.first : _SdocTextStyle.none);
+    return [
+      ...oldStyles.sublist(0, prefix),
+      ...List.filled(inserted, inherited),
+      ...oldStyles.sublist(oldText.length - suffix),
+    ];
+  }
+
+  void toggleMark(_SdocTextStyle Function(_SdocTextStyle) toggle, {bool allIfCollapsed = false}) {
+    final range = _formatRange;
+    if (range == null && !allIfCollapsed) return;
+    final start = range == null ? 0 : range.start.clamp(0, text.length);
+    final end = range == null ? text.length : range.end.clamp(0, text.length);
+    for (var i = start; i < end; i++) {
+      _styles[i] = toggle(_styles[i]);
+    }
+    notifyListeners();
+  }
+
+  void clearMarks() {
+    final range = _formatRange;
+    final start = range == null ? 0 : range.start.clamp(0, text.length);
+    final end = range == null ? text.length : range.end.clamp(0, text.length);
+    for (var i = start; i < end; i++) {
+      _styles[i] = _SdocTextStyle.none;
+    }
+    notifyListeners();
+  }
+
+  _SdocTextController cutAt(int offset) {
+    final safe = offset.clamp(0, text.length);
+    final tail = _SdocTextController(text: text.substring(safe), styles: _styles.sublist(safe));
+    value = TextEditingValue(text: text.substring(0, safe), selection: TextSelection.collapsed(offset: safe));
+    return tail;
+  }
+
+  void appendWith(_SdocTextController other) {
+    final offset = text.length;
+    final next = '$text${other.text}';
+    final nextStyles = [..._styles, ...other._styles];
+    value = TextEditingValue(text: next, selection: TextSelection.collapsed(offset: next.length));
+    _styles = nextStyles;
+    if (text.length == offset) selection = TextSelection.collapsed(offset: offset);
+    notifyListeners();
+  }
+
+  List<Map<String, dynamic>> toChildren(String prefix) {
+    if (text.isEmpty) {
+      return [
+        {'id': '$prefix-0', 'text': ''},
+      ];
+    }
+    final children = <Map<String, dynamic>>[];
+    var start = 0;
+    var run = 0;
+    for (var i = 1; i <= text.length; i++) {
+      if (i == text.length || _styles[i] != _styles[start]) {
+        children.add({
+          'id': '$prefix-$run',
+          'text': text.substring(start, i),
+          ..._styles[start].toJson(),
+        });
+        start = i;
+        run++;
+      }
+    }
+    return children;
+  }
+
+  @override
+  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
+    final base = style ?? const TextStyle();
+    if (text.isEmpty) return TextSpan(text: '', style: base);
+    final children = <TextSpan>[];
+    var start = 0;
+    for (var i = 1; i <= text.length; i++) {
+      if (i == text.length || _styles[i] != _styles[start]) {
+        children.add(TextSpan(text: text.substring(start, i), style: _styles[start].apply(base)));
+        start = i;
+      }
+    }
+    return TextSpan(style: base, children: children);
+  }
+}
+
 enum _SdocFieldKind { simple, code, listItem, calloutChild, toggleTitle, toggleChild }
 
 class _SdocField {
@@ -186,7 +488,7 @@ class SdocEditorState extends State<SdocEditor> {
         final children = (element['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
         block.childElements = children;
         block.children = [
-          for (final child in children) TextEditingController(text: _textOf(child)),
+          for (final child in children) _SdocTextController.fromNode(child),
         ];
         block.childFocus = [for (final _ in children) FocusNode()];
         for (final controller in block.children) {
@@ -196,7 +498,7 @@ class SdocEditorState extends State<SdocEditor> {
         final children = (element['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
         block.childElements = children;
         block.children = [
-          for (final child in children) TextEditingController(text: _textOf(child)),
+          for (final child in children) _SdocTextController.fromNode(child),
         ];
         block.childFocus = [for (final _ in children) FocusNode()];
         for (final controller in block.children) {
@@ -207,20 +509,20 @@ class SdocEditorState extends State<SdocEditor> {
         final titleElement = children.isNotEmpty ? children.first : null;
         final contentElement = children.length > 1 ? children[1] : null;
         block.toggleCollapsed = element['collapsed'] == true;
-        block.toggleTitle = TextEditingController(text: titleElement == null ? '' : _textOf(titleElement));
+        block.toggleTitle = titleElement == null ? _SdocTextController() : _SdocTextController.fromNode(titleElement);
         block.toggleTitleFocus = FocusNode();
         _watch(block.toggleTitle!);
         final contentChildren = (contentElement?['children'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? [];
         block.toggleChildElements = contentChildren;
         block.toggleChildren = [
-          for (final child in contentChildren) TextEditingController(text: _textOf(child)),
+          for (final child in contentChildren) _SdocTextController.fromNode(child),
         ];
         block.toggleChildFocus = [for (final _ in contentChildren) FocusNode()];
         for (final controller in block.toggleChildren) {
           _watch(controller);
         }
       } else if (_isSimpleEditable(type)) {
-        block.text = TextEditingController(text: _textOf(element));
+        block.text = _SdocTextController(text: _textOf(element));
         block.textFocus = FocusNode();
         _watch(block.text!);
       }
@@ -232,9 +534,9 @@ class SdocEditorState extends State<SdocEditor> {
     _active = _blocks.isEmpty ? null : 0;
   }
 
-  _SdocBlock _newParagraphBlock(String text) {
+  _SdocBlock _newParagraphBlock(String text, {TextEditingController? controller}) {
     final block = _SdocBlock(_paragraphElement(text));
-    block.text = TextEditingController(text: text);
+    block.text = controller ?? _SdocTextController(text: text);
     block.textFocus = FocusNode();
     _watch(block.text!);
     return block;
@@ -658,7 +960,7 @@ class SdocEditorState extends State<SdocEditor> {
     if (previous == null) return;
     final offset = previous.controller.text.length;
     final newline = previous.kind == _SdocFieldKind.code || field.kind == _SdocFieldKind.code;
-    previous.controller.text = '${previous.controller.text}${newline && previous.controller.text.isNotEmpty ? '\n' : ''}${controller.text}';
+    _appendController(previous.controller, controller, newline: newline);
     setState(() {
       _removeField(field);
       _changed();
@@ -671,12 +973,30 @@ class SdocEditorState extends State<SdocEditor> {
     if (next == null || next.kind == _SdocFieldKind.toggleTitle) return;
     final offset = field.controller.text.length;
     final newline = next.kind == _SdocFieldKind.code || field.kind == _SdocFieldKind.code;
-    field.controller.text = '${field.controller.text}${newline && field.controller.text.isNotEmpty ? '\n' : ''}${next.controller.text}';
+    _appendController(field.controller, next.controller, newline: newline);
     setState(() {
       _removeField(next);
       _changed();
     });
     _focusField(field, offset);
+  }
+
+  TextEditingController _cutController(TextEditingController controller, int offset) {
+    if (controller is _SdocTextController) return controller.cutAt(offset);
+    final after = controller.text.substring(offset);
+    controller.text = controller.text.substring(0, offset);
+    return _SdocTextController(text: after);
+  }
+
+  void _appendController(TextEditingController target, TextEditingController source, {bool newline = false}) {
+    if (target is _SdocTextController && source is _SdocTextController) {
+      if (newline && target.text.isNotEmpty) {
+        target.appendWith(_SdocTextController(text: '\n'));
+      }
+      target.appendWith(source);
+      return;
+    }
+    target.text = '${target.text}${newline && target.text.isNotEmpty ? '\n' : ''}${source.text}';
   }
 
   void _splitSimple(_SdocField field) {
@@ -698,13 +1018,13 @@ class SdocEditorState extends State<SdocEditor> {
       _insertParagraphAfter(index, '');
       return;
     }
-    controller.text = before;
     final newType = switch (block.type) {
       'quote' => 'quote',
       'check_list_item' => 'check_list_item',
       _ => 'paragraph',
     };
-    final newBlock = _newTextBlock(newType, after);
+    final afterController = _cutController(controller, caret);
+    final newBlock = _newTextBlock(newType, after, controller: afterController);
     setState(() {
       _blocks.insert(index + 1, newBlock);
       _active = index + 1;
@@ -713,7 +1033,7 @@ class SdocEditorState extends State<SdocEditor> {
     _focusBlock(newBlock, index + 1, 0);
   }
 
-  _SdocBlock _newTextBlock(String type, String text) {
+  _SdocBlock _newTextBlock(String type, String text, {TextEditingController? controller}) {
     final id = 'p-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
     final element = <String, dynamic>{
       'id': id,
@@ -724,14 +1044,14 @@ class SdocEditorState extends State<SdocEditor> {
       if (type == 'check_list_item') 'checked': false,
     };
     final block = _SdocBlock(element);
-    block.text = TextEditingController(text: text);
+    block.text = controller ?? _SdocTextController(text: text);
     block.textFocus = FocusNode();
     _watch(block.text!);
     return block;
   }
 
-  void _insertParagraphAfter(int index, String text) {
-    final block = _newParagraphBlock(text);
+  void _insertParagraphAfter(int index, String text, {TextEditingController? controller}) {
+    final block = _newParagraphBlock(text, controller: controller);
     setState(() {
       _blocks.insert(index + 1, block);
       _active = index + 1;
@@ -767,8 +1087,8 @@ class SdocEditorState extends State<SdocEditor> {
       }
       return;
     }
-    controller.text = before;
     final item = field.item;
+    final newController = _cutController(controller, caret);
     final id = 'l-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
     final element = <String, dynamic>{
       'id': id,
@@ -777,7 +1097,6 @@ class SdocEditorState extends State<SdocEditor> {
     };
     final list = block.element['children'];
     if (list is List) list.insert(item + 1, element);
-    final newController = TextEditingController(text: after);
     final newFocus = FocusNode();
     block.childElements.insert(item + 1, element);
     block.children.insert(item + 1, newController);
@@ -798,12 +1117,11 @@ class SdocEditorState extends State<SdocEditor> {
       _insertParagraphAfter(field.blockIndex, '');
       return;
     }
-    controller.text = before;
     final item = field.item;
+    final newController = _cutController(controller, caret);
     final element = _paragraphElement(after);
     final list = block.element['children'];
     if (list is List) list.insert(item + 1, element);
-    final newController = TextEditingController(text: after);
     final newFocus = FocusNode();
     block.childElements.insert(item + 1, element);
     block.children.insert(item + 1, newController);
@@ -818,9 +1136,8 @@ class SdocEditorState extends State<SdocEditor> {
     final controller = field.controller;
     final text = controller.text;
     final caret = controller.selection.start.clamp(0, text.length);
-    final before = text.substring(0, caret);
     final after = text.substring(caret);
-    controller.text = before;
+    final afterController = _cutController(controller, caret);
     if (after.isEmpty && block.toggleChildren.isNotEmpty) {
       if (block.toggleCollapsed) {
         setState(() {
@@ -834,7 +1151,7 @@ class SdocEditorState extends State<SdocEditor> {
       );
       return;
     }
-    _insertParagraphAfter(field.blockIndex, after);
+    _insertParagraphAfter(field.blockIndex, after, controller: afterController);
   }
 
   void _splitToggleChild(_SdocField field) {
@@ -842,22 +1159,20 @@ class SdocEditorState extends State<SdocEditor> {
     final controller = field.controller;
     final text = controller.text;
     final caret = controller.selection.start.clamp(0, text.length);
-    final before = text.substring(0, caret);
     final after = text.substring(caret);
     final content = (block.element['children'] as List?) != null && (block.element['children'] as List).length > 1
         ? (block.element['children'] as List)[1]
         : null;
     final contentChildren = content is Map ? content['children'] : null;
     if (contentChildren is! List) {
-      controller.text = before;
-      _insertParagraphAfter(field.blockIndex, after);
+      final afterController = _cutController(controller, caret);
+      _insertParagraphAfter(field.blockIndex, after, controller: afterController);
       return;
     }
-    controller.text = before;
+    final newController = _cutController(controller, caret);
     final element = _paragraphElement(after);
     final item = field.item;
     contentChildren.insert(item + 1, element);
-    final newController = TextEditingController(text: after);
     final newFocus = FocusNode();
     block.toggleChildElements.insert(item + 1, element);
     block.toggleChildren.insert(item + 1, newController);
@@ -976,12 +1291,34 @@ class SdocEditorState extends State<SdocEditor> {
     block.toggleChildElements = const [];
   }
 
+  void _setNodeChildren(Map<String, dynamic> node, TextEditingController controller) {
+    if (controller is _SdocTextController) {
+      final runs = controller.toChildren(node['id'] as String? ?? 'run');
+      if (_replaceTextChildren(node, runs)) return;
+    }
+    _setNodeText(node, controller.text);
+  }
+
+  bool _replaceTextChildren(dynamic node, List<Map<String, dynamic>> runs) {
+    if (node is! Map) return false;
+    final children = node['children'];
+    if (children is! List) return false;
+    if (children.any((child) => child is Map && child['text'] is String)) {
+      node['children'] = runs;
+      return true;
+    }
+    for (final child in children) {
+      if (_replaceTextChildren(child, runs)) return true;
+    }
+    return false;
+  }
+
   void _saveTableText(dynamic node) {
     if (node is! Map) return;
     if (node['type'] == 'table_cell') {
       final id = node['id'] as String?;
       final controller = id == null ? null : _tableControllers[id];
-      if (controller != null) _setNodeText(node.cast<String, dynamic>(), controller.text);
+      if (controller != null) _setNodeChildren(node.cast<String, dynamic>(), controller);
     }
     for (final child in (node['children'] as List?) ?? const []) {
       _saveTableText(child);
@@ -995,25 +1332,25 @@ class SdocEditorState extends State<SdocEditor> {
       final type = block.type;
       if (type == 'unordered_list' || type == 'ordered_list') {
         for (var i = 0; i < block.childElements.length && i < block.children.length; i++) {
-          _setNodeText(block.childElements[i], block.children[i].text);
+          _setNodeChildren(block.childElements[i], block.children[i]);
         }
         elements.add(block.element);
       } else if (type == 'callout') {
         for (var i = 0; i < block.childElements.length && i < block.children.length; i++) {
-          _setNodeText(block.childElements[i], block.children[i].text);
+          _setNodeChildren(block.childElements[i], block.children[i]);
         }
         elements.add(block.element);
       } else if (type == 'toggle_header') {
         final children = (block.element['children'] as List?)?.whereType<Map>().toList() ?? const [];
         if (children.isNotEmpty && block.toggleTitle != null) {
-          _setNodeText(children.first.cast<String, dynamic>(), block.toggleTitle!.text);
+          _setNodeChildren(children.first.cast<String, dynamic>(), block.toggleTitle!);
         }
         if (children.length > 1) {
           final content = children[1]['children'];
           if (content is List) {
             final paragraphs = content.whereType<Map>().toList();
             for (var i = 0; i < block.toggleChildElements.length && i < block.toggleChildren.length; i++) {
-              _setNodeText(block.toggleChildElements[i], block.toggleChildren[i].text);
+              _setNodeChildren(block.toggleChildElements[i], block.toggleChildren[i]);
             }
             for (var i = paragraphs.length; i < block.toggleChildren.length; i++) {
               content.add(_paragraphElement(block.toggleChildren[i].text));
@@ -1037,7 +1374,7 @@ class SdocEditorState extends State<SdocEditor> {
         ];
         elements.add(block.element);
       } else if (_isSimpleEditable(type) && block.text != null) {
-        _setNodeText(block.element, block.text!.text);
+        _setNodeChildren(block.element, block.text!);
         elements.add(block.element);
       } else {
         elements.add(block.element);
@@ -1141,7 +1478,7 @@ class SdocEditorState extends State<SdocEditor> {
         block.element
           ..['type'] = type
           ..['children'] = [item];
-        final controller = TextEditingController(text: text);
+        final controller = _SdocTextController(text: text);
         block.childElements = [item];
         block.children = [controller];
         block.childFocus = [FocusNode()];
@@ -1166,7 +1503,7 @@ class SdocEditorState extends State<SdocEditor> {
         ];
         block.element['type'] = 'code_block';
         block.element['language'] = block.element['language'] ?? 'plaintext';
-        block.text = TextEditingController(text: text);
+        block.text = _SdocTextController(text: text);
         block.textFocus = FocusNode();
         _watch(block.text!);
         setState(_changed);
@@ -1182,7 +1519,7 @@ class SdocEditorState extends State<SdocEditor> {
       if (type == 'check_list_item' && block.element['checked'] is! bool) {
         block.element['checked'] = false;
       }
-      block.text = TextEditingController(text: text);
+      block.text = _SdocTextController(text: text);
       block.textFocus = FocusNode();
       _watch(block.text!);
       setState(_changed);
@@ -1295,16 +1632,172 @@ class SdocEditorState extends State<SdocEditor> {
                   _ToolbarButton(icon: Icons.undo, tooltip: l10n.zh ? '撤销' : 'Undo', onTap: canUndo ? _undo : null),
                   _ToolbarButton(icon: Icons.redo, tooltip: l10n.zh ? '重做' : 'Redo', onTap: canRedo ? _redo : null),
                   _toolDivider(),
-                  _ToolbarButton(icon: Icons.notes, tooltip: l10n.zh ? '正文' : 'Paragraph', onTap: () => _changeType('paragraph')),
-                  _ToolbarButton(icon: Icons.title, tooltip: l10n.zh ? '一级标题' : 'Heading 1', onTap: () => _changeType('header1')),
-                  _ToolbarButton(icon: Icons.text_fields, tooltip: l10n.zh ? '二级标题' : 'Heading 2', onTap: () => _changeType('header2')),
-                  _ToolbarButton(icon: Icons.format_size, tooltip: l10n.zh ? '三级标题' : 'Heading 3', onTap: () => _changeType('header3')),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '插入' : 'Insert',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'table':
+                          _insertTable();
+                        case 'code_block':
+                          _insertCodeBlock();
+                        case 'formula':
+                          unawaited(_insertFormula());
+                        case 'divider':
+                          _insertDivider();
+                        case 'callout':
+                          _insertCallout();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'code_block', child: Row(children: [const Icon(Icons.data_object, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '代码块' : 'Code block', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'formula', child: Row(children: [const Icon(Icons.functions, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '公式' : 'Formula', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'callout', child: Row(children: [const Icon(Icons.lightbulb_outline, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '高亮块' : 'Callout', style: const TextStyle(fontSize: 13))])),
+                    ],
+                    child: Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.add_circle_outline, size: 15),
+                          const SizedBox(width: 4),
+                          Text(l10n.zh ? '插入' : 'Insert', style: const TextStyle(fontSize: 12.5)),
+                          const Icon(Icons.arrow_drop_down, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _ToolbarButton(icon: Icons.format_bold, tooltip: l10n.zh ? '粗体' : 'Bold', onTap: () => _toggleInlineMark((style) => style.copyWith(bold: !style.bold))),
+                  _ToolbarButton(icon: Icons.format_italic, tooltip: l10n.zh ? '斜体' : 'Italic', onTap: () => _toggleInlineMark((style) => style.copyWith(italic: !style.italic))),
+                  _ToolbarButton(icon: Icons.format_underlined, tooltip: l10n.zh ? '下划线' : 'Underline', onTap: () => _toggleInlineMark((style) => style.copyWith(underline: !style.underline))),
+                  _ToolbarButton(icon: Icons.format_strikethrough, tooltip: l10n.zh ? '删除线' : 'Strikethrough', onTap: () => _toggleInlineMark((style) => style.copyWith(strikethrough: !style.strikethrough))),
+                  _ToolbarButton(icon: Icons.code, tooltip: l10n.zh ? '行内代码' : 'Inline code', onTap: () => _toggleInlineMark((style) => style.copyWith(code: !style.code))),
+                  _ToolbarButton(icon: Icons.format_clear, tooltip: l10n.zh ? '清除格式' : 'Clear formatting', onTap: _clearFormatting),
+                  _toolDivider(),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '段落样式' : 'Block type',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: _changeType,
+                    itemBuilder: (context) {
+                      final activeType = _activeBlock?.type ?? 'paragraph';
+                      final options = <String, String>{
+                        'paragraph': l10n.zh ? '段落' : 'Paragraph',
+                        'header1': l10n.zh ? '一级标题' : 'Heading 1',
+                        'header2': l10n.zh ? '二级标题' : 'Heading 2',
+                        'header3': l10n.zh ? '三级标题' : 'Heading 3',
+                        'header4': l10n.zh ? '四级标题' : 'Heading 4',
+                        'header5': l10n.zh ? '五级标题' : 'Heading 5',
+                        'header6': l10n.zh ? '六级标题' : 'Heading 6',
+                        'quote': l10n.zh ? '引用' : 'Quote',
+                        'unordered_list': l10n.zh ? '无序列表' : 'Unordered list',
+                        'ordered_list': l10n.zh ? '有序列表' : 'Ordered list',
+                        'check_list_item': l10n.zh ? '任务列表' : 'Check list',
+                        'code_block': l10n.zh ? '代码块' : 'Code block',
+                      };
+                      return [
+                        for (final entry in options.entries)
+                          PopupMenuItem<String>(
+                            value: entry.key,
+                            child: Row(
+                              children: [
+                                SizedBox(width: 22, child: entry.key == activeType ? const Icon(Icons.check, size: 14, color: AppColors.primary) : null),
+                                Text(entry.value, style: const TextStyle(fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                      ];
+                    },
+                    child: Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 9),
+                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_blockTypeLabel(l10n), style: const TextStyle(fontSize: 12.5)),
+                          const SizedBox(width: 3),
+                          const Icon(Icons.arrow_drop_down, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  PopupMenuButton<double>(
+                    tooltip: l10n.zh ? '字号' : 'Font size',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: _setFontSize,
+                    itemBuilder: (context) => [
+                      for (final size in const [11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 32.0])
+                        PopupMenuItem<double>(value: size, child: Text(size.toInt().toString(), style: const TextStyle(fontSize: 13))),
+                    ],
+                    child: Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_activeFontSize.toInt().toString(), style: const TextStyle(fontSize: 12.5)),
+                          const Icon(Icons.arrow_drop_down, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  PopupMenuButton<TextAlign>(
+                    tooltip: l10n.zh ? '对齐方式' : 'Alignment',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: _setAlignment,
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: TextAlign.left, child: Row(children: [const Icon(Icons.format_align_left, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '左对齐' : 'Left', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: TextAlign.center, child: Row(children: [const Icon(Icons.format_align_center, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '居中' : 'Center', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: TextAlign.right, child: Row(children: [const Icon(Icons.format_align_right, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '右对齐' : 'Right', style: const TextStyle(fontSize: 13))])),
+                    ],
+                    child: const SizedBox(width: 30, height: 30, child: Icon(Icons.format_align_left, size: 17, color: AppColors.textSecondary)),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '更多' : 'More',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'superscript':
+                          _toggleInlineMark((style) => style.copyWith(superscript: !style.superscript, subscript: false), allIfCollapsed: true);
+                        case 'subscript':
+                          _toggleInlineMark((style) => style.copyWith(subscript: !style.subscript, superscript: false), allIfCollapsed: true);
+                        case 'font_increase':
+                          _adjustFontSize(1);
+                        case 'font_decrease':
+                          _adjustFontSize(-1);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: 'superscript', child: Row(children: [const Icon(Icons.superscript, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '上标' : 'Superscript', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'subscript', child: Row(children: [const Icon(Icons.subscript, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '下标' : 'Subscript', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'font_increase', child: Row(children: [const Icon(Icons.text_increase, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '增大字号' : 'Increase font size', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'font_decrease', child: Row(children: [const Icon(Icons.text_decrease, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '减小字号' : 'Decrease font size', style: const TextStyle(fontSize: 13))])),
+                    ],
+                    child: const SizedBox(width: 30, height: 30, child: Icon(Icons.more_horiz, size: 18, color: AppColors.textSecondary)),
+                  ),
                   _toolDivider(),
                   _ToolbarButton(icon: Icons.format_list_bulleted, tooltip: l10n.zh ? '无序列表' : 'Bulleted list', onTap: () => _changeType('unordered_list')),
                   _ToolbarButton(icon: Icons.format_list_numbered, tooltip: l10n.zh ? '有序列表' : 'Numbered list', onTap: () => _changeType('ordered_list')),
                   _ToolbarButton(icon: Icons.checklist, tooltip: l10n.zh ? '任务列表' : 'Checklist', onTap: () => _changeType('check_list_item')),
                   _ToolbarButton(icon: Icons.format_quote, tooltip: l10n.zh ? '引用' : 'Quote', onTap: () => _changeType('quote')),
-                  _ToolbarButton(icon: Icons.code, tooltip: l10n.zh ? '代码块' : 'Code block', onTap: () => _changeType('code_block')),
                   const Spacer(),
                 ],
               ),
@@ -1312,6 +1805,235 @@ class SdocEditorState extends State<SdocEditor> {
         ],
       ),
     );
+  }
+
+  _SdocField? _activeTextField() {
+    final fields = _fields();
+    for (final field in fields) {
+      if (field.focus.hasFocus) return field;
+    }
+    for (final field in fields) {
+      if (field.blockIndex == _active) return field;
+    }
+    return fields.isEmpty ? null : fields.first;
+  }
+
+  void _toggleInlineMark(_SdocTextStyle Function(_SdocTextStyle) toggle, {bool allIfCollapsed = false}) {
+    final controller = _activeTextField()?.controller;
+    if (controller is! _SdocTextController) return;
+    controller.toggleMark(toggle, allIfCollapsed: allIfCollapsed);
+    setState(_changed);
+  }
+
+  double get _activeFontSize {
+    return switch (_activeBlock?.type) {
+      'title' => 28,
+      'header1' => 26,
+      'header2' => 22,
+      'header3' => 18,
+      'header4' || 'header5' || 'header6' => 16,
+      'code_block' => 13,
+      _ => 15,
+    };
+  }
+
+  void _setFontSize(double size) {
+    _toggleInlineMark((style) => style.copyWith(fontSize: size), allIfCollapsed: true);
+  }
+
+  void _adjustFontSize(int delta) {
+    final base = _activeFontSize;
+    _toggleInlineMark((style) => style.copyWith(fontSize: ((style.fontSize ?? base) + delta).clamp(8, 72)), allIfCollapsed: true);
+  }
+
+  void _clearFormatting() {
+    final controller = _activeTextField()?.controller;
+    if (controller is! _SdocTextController) return;
+    controller.clearMarks();
+    setState(_changed);
+  }
+
+  _SdocBlock? get _activeBlock {
+    final index = _active;
+    if (index == null || index < 0 || index >= _blocks.length) return null;
+    final block = _blocks[index];
+    return block.deleted ? null : block;
+  }
+
+  String _blockTypeLabel(L10n l10n) {
+    final type = _activeBlock?.type ?? 'paragraph';
+    return switch (type) {
+      'header1' => l10n.zh ? '一级标题' : 'Heading 1',
+      'header2' => l10n.zh ? '二级标题' : 'Heading 2',
+      'header3' => l10n.zh ? '三级标题' : 'Heading 3',
+      'header4' => l10n.zh ? '四级标题' : 'Heading 4',
+      'header5' => l10n.zh ? '五级标题' : 'Heading 5',
+      'header6' => l10n.zh ? '六级标题' : 'Heading 6',
+      'quote' => l10n.zh ? '引用' : 'Quote',
+      'unordered_list' => l10n.zh ? '无序列表' : 'Unordered list',
+      'ordered_list' => l10n.zh ? '有序列表' : 'Ordered list',
+      'check_list_item' => l10n.zh ? '任务列表' : 'Check list',
+      'code_block' => l10n.zh ? '代码块' : 'Code block',
+      'callout' => l10n.zh ? '高亮块' : 'Callout',
+      _ => l10n.zh ? '段落' : 'Paragraph',
+    };
+  }
+
+  void _setAlignment(TextAlign align) {
+    final block = _activeBlock;
+    if (block == null) return;
+    setState(() {
+      block.element['text_align'] = switch (align) {
+        TextAlign.center => 'center',
+        TextAlign.right => 'right',
+        _ => 'left',
+      };
+      _changed();
+    });
+  }
+
+  TextAlign _textAlignOf(_SdocBlock block) {
+    return switch (block.element['text_align']) {
+      'center' => TextAlign.center,
+      'right' => TextAlign.right,
+      _ => TextAlign.left,
+    };
+  }
+
+  int get _insertIndex => _active == null ? _blocks.length : (_active! + 1).clamp(0, _blocks.length);
+
+  void _insertNode(_SdocBlock block, {VoidCallback? onInserted}) {
+    final index = _insertIndex;
+    setState(() {
+      _blocks.insert(index, block);
+      _active = index;
+      _changed();
+    });
+    if (onInserted != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => onInserted());
+    }
+  }
+
+  void _insertCodeBlock() {
+    final id = 'code-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    final element = <String, dynamic>{
+      'id': id,
+      'type': 'code_block',
+      'language': 'plaintext',
+      'children': [
+        {
+          'id': '$id-0',
+          'type': 'code_line',
+          'children': [
+            {'id': '$id-0-t', 'text': ''},
+          ],
+        },
+      ],
+    };
+    final block = _SdocBlock(element)
+      ..text = _SdocTextController()
+      ..textFocus = FocusNode();
+    _watch(block.text!);
+    _insertNode(block, onInserted: () {
+      final field = _firstFieldOfBlock(block, _blocks.indexOf(block));
+      if (field != null) _focusField(field, 0);
+    });
+  }
+
+  void _insertDivider() {
+    final id = 'divider-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    _insertNode(_SdocBlock({
+      'id': id,
+      'type': 'divider',
+      'children': [
+        {'id': '$id-t', 'text': ''},
+      ],
+    }));
+  }
+
+  void _insertCallout() {
+    final id = 'callout-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    final children = [_paragraphElement('')];
+    final element = <String, dynamic>{
+      'id': id,
+      'type': 'callout',
+      'children': children,
+      'style': {'background_color': '#fef7e0'},
+    };
+    final block = _SdocBlock(element);
+    final childMaps = children.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList();
+    block.childElements = childMaps;
+    block.children = [for (final child in childMaps) _SdocTextController.fromNode(child)];
+    block.childFocus = [for (final _ in childMaps) FocusNode()];
+    for (final controller in block.children) {
+      _watch(controller);
+    }
+    _insertNode(block, onInserted: () {
+      final field = _firstFieldOfBlock(block, _blocks.indexOf(block));
+      if (field != null) _focusField(field, 0);
+    });
+  }
+
+  Future<void> _insertFormula() async {
+    final controller = TextEditingController();
+    final formula = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(L10n.of(context).zh ? '插入公式' : 'Insert formula'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: InputDecoration(hintText: L10n.of(context).zh ? '输入 LaTeX 公式' : 'Enter a LaTeX formula'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(L10n.of(context).cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: Text(L10n.of(context).confirm)),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || formula == null || formula.isEmpty) return;
+    final id = 'formula-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    _insertNode(_SdocBlock({
+      'id': id,
+      'type': 'formula',
+      'data': {'formula': formula},
+      'children': [
+        {'id': '$id-t', 'text': ''},
+      ],
+    }));
+  }
+
+  void _insertTable() {
+    final id = 'table-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    final rows = <Map<String, dynamic>>[];
+    for (var r = 0; r < 3; r++) {
+      final rowId = '$id-r$r';
+      final cells = <Map<String, dynamic>>[];
+      for (var c = 0; c < 2; c++) {
+        final cellId = '$rowId-c$c';
+        cells.add({
+          'id': cellId,
+          'type': 'table_cell',
+          'children': [_paragraphElement('')..['id'] = '$cellId-p'],
+          'style': <String, dynamic>{},
+          'inherit_style': <String, dynamic>{},
+        });
+      }
+      rows.add({
+        'id': rowId,
+        'type': 'table_row',
+        'children': cells,
+        'style': {'min_height': 42},
+      });
+    }
+    _insertNode(_SdocBlock({
+      'id': id,
+      'type': 'table',
+      'children': rows,
+      'style': {'gridTemplateColumns': 'repeat(2, 220px)', 'gridAutoRows': 'minmax(42px, auto)'},
+    }));
   }
 
   Widget _toolDivider() => Container(width: 1, height: 18, margin: const EdgeInsets.symmetric(horizontal: 5), color: AppColors.border);
@@ -1380,6 +2102,7 @@ class SdocEditorState extends State<SdocEditor> {
       'video' => _videoView(block),
       'embed_link' => _embedView(block),
       'formula' => _formulaView(block),
+      'divider' => const Divider(height: 24, thickness: 1, color: AppColors.border),
       'toggle_header' => _toggleView(block, index),
       'multi_column' => _multiColumnView(block),
       _ => _unknownView(block),
@@ -1491,6 +2214,7 @@ class SdocEditorState extends State<SdocEditor> {
         onTap: onTap,
         enabled: !_readOnly,
         maxLines: null,
+        textAlign: _textAlignOf(block),
         style: TextStyle(fontSize: size, fontWeight: weight, height: 1.5, color: AppColors.text),
         decoration: const InputDecoration(
           border: InputBorder.none,
@@ -1969,7 +2693,7 @@ class SdocEditorState extends State<SdocEditor> {
   TextEditingController _controllerForCell(Map cell) {
     final id = (cell['id'] as String?) ?? 'cell-${_idSeed++}';
     return _tableControllers.putIfAbsent(id, () {
-      final controller = TextEditingController(text: _plainNode(cell));
+      final controller = _SdocTextController.fromNode(cell);
       _watch(controller);
       return controller;
     });

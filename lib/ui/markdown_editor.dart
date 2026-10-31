@@ -519,6 +519,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                   _divider(),
                   _button(Icons.format_bold, l10n.zh ? '粗体' : 'Bold', () => _wrapSelection('**', '**')),
                   _button(Icons.format_italic, l10n.zh ? '斜体' : 'Italic', () => _wrapSelection('*', '*')),
+                  _button(Icons.format_underlined, l10n.zh ? '下划线' : 'Underline', () => _wrapSelection('<u>', '</u>')),
                   _button(Icons.format_strikethrough, l10n.zh ? '删除线' : 'Strikethrough', () => _wrapSelection('~~', '~~')),
                   _button(Icons.code, l10n.zh ? '行内代码' : 'Inline code', () => _wrapSelection('`', '`')),
                   _button(Icons.link, l10n.zh ? '链接' : 'Link', () => _wrapSelection('[', '](https://)')),
@@ -696,6 +697,9 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         final close = token.indexOf(']');
         visible = token.substring(1, close);
         style = base.copyWith(color: const Color(0xFF2F6FEB), decoration: TextDecoration.underline);
+      } else if (token.startsWith('<u>')) {
+        visible = token.substring(3, token.length - 4);
+        style = base.copyWith(decoration: TextDecoration.underline);
       } else if (token.startsWith('*') || token.startsWith('_')) {
         visible = token.substring(1, token.length - 1);
         style = base.copyWith(fontStyle: FontStyle.italic);
@@ -710,7 +714,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     return Text.rich(TextSpan(style: base, children: spans), style: base);
   }
 
-  static final _inline = RegExp(r'(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\]\([^)]+\))');
+  static final _inline = RegExp(r'(<u>[^<]+</u>|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\]\([^)]+\))');
 
   Widget _button(IconData icon, String tooltip, VoidCallback? onTap) {
     return Tooltip(
