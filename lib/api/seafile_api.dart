@@ -276,7 +276,10 @@ class SeafileApi {
   }
 
   Future<void> updateAdminWebSettings(Map<String, dynamic> values) async {
-    await _putJson('api/v2.1/admin/web-settings/', values);
+    await _putForm('api/v2.1/admin/web-settings/', {
+      for (final entry in values.entries)
+        entry.key: entry.value is bool ? ((entry.value as bool) ? '1' : '0') : '${entry.value}',
+    });
   }
 
   Future<Map<String, dynamic>> adminUsers({int page = 1, int perPage = 50, String query = ''}) async {
@@ -562,6 +565,33 @@ class SeafileApi {
 
   Future<void> addAdminNotification(String message) async {
     await _postForm('api/v2.1/admin/sys-notifications/', {'msg': message});
+  }
+
+  Future<List<Map<String, dynamic>>> adminTerms() async {
+    final data = asMap(await _get('api/v2.1/admin/terms-and-conditions/'));
+    return asMapList(data['term_and_condition_list']);
+  }
+
+  Future<void> addAdminTerm({required String name, required String version, required String text, required bool active}) async {
+    await _postForm('api/v2.1/admin/terms-and-conditions/', {
+      'name': name,
+      'version_number': version,
+      'text': text,
+      'is_active': active ? 'true' : 'false',
+    });
+  }
+
+  Future<void> updateAdminTerm(int id, {required String name, required String version, required String text, required bool active}) async {
+    await _putForm('api/v2.1/admin/terms-and-conditions/$id/', {
+      'name': name,
+      'version_number': version,
+      'text': text,
+      'is_active': active ? 'true' : 'false',
+    });
+  }
+
+  Future<void> deleteAdminTerm(int id) async {
+    await _delete('api/v2.1/admin/terms-and-conditions/$id/');
   }
 
   Future<void> setAdminNotificationCurrent(int id) async {

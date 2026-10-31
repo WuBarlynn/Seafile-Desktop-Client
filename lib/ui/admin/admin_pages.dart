@@ -2189,6 +2189,165 @@ class _AdminAdminLogsPanelState extends State<AdminAdminLogsPanel> {
   }
 }
 
+class AdminTermsDialog extends StatefulWidget {
+  const AdminTermsDialog({super.key});
+
+  @override
+  State<AdminTermsDialog> createState() => _AdminTermsDialogState();
+}
+
+class _AdminTermsDialogState extends State<AdminTermsDialog> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _terms = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final terms = await context.read<AppSession>().api!.adminTerms();
+      if (!mounted) return;
+      setState(() {
+        _terms = terms;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _edit([Map<String, dynamic>? term]) async {
+    final l10n = L10n.of(context);
+    final zh = l10n.zh;
+    final name = TextEditingController(text: '${term?['name'] ?? ''}');
+    final version = TextEditingController(text: '${term?['version_number'] ?? '1'}');
+    final text = TextEditingController(text: '${term?['text'] ?? ''}');
+    var active = adminTruthy(term?['is_active']) || term?['activate_time'] != null;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(term == null ? (zh ? '新增条款' : 'New terms') : (zh ? '编辑条款' : 'Edit terms')),
+          content: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: TextField(controller: name, decoration: InputDecoration(labelText: zh ? '名称' : 'Name'))),
+                    const SizedBox(width: 10),
+                    SizedBox(width: 110, child: TextField(controller: version, decoration: InputDecoration(labelText: zh ? '版本' : 'Version'))),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(controller: text, minLines: 6, maxLines: 10, decoration: InputDecoration(labelText: zh ? '条款内容' : 'Terms text')),
+                const SizedBox(height: 6),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: active,
+                  onChanged: (value) => setDialogState(() => active = value == true),
+                  title: Text(zh ? '启用此版本' : 'Active', style: const TextStyle(fontSize: 13)),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.save)),
+          ],
+        ),
+      ),
+    );
+    final values = (name.text.trim(), version.text.trim(), text.text, active);
+    name.dispose();
+    version.dispose();
+    text.dispose();
+    if (result != true || values.$1.isEmpty || values.$2.isEmpty) return;
+    try {
+      final api = context.read<AppSession>().api!;
+      if (term == null) {
+        await api.addAdminTerm(name: values.$1, version: values.$2, text: values.$3, active: values.$4);
+      } else {
+        await api.updateAdminTerm((term['id'] as num).toInt(), name: values.$1, version: values.$2, text: values.$3, active: values.$4);
+      }
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _delete(Map<String, dynamic> term) async {
+    try {
+      await context.read<AppSession>().api!.deleteAdminTerm((term['id'] as num).toInt());
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = L10n.of(context);
+    final zh = l10n.zh;
+    return AlertDialog(
+      title: Text(zh ? '条款管理' : 'Terms management'),
+      content: SizedBox(
+        width: 620,
+        height: 420,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      onPressed: () => _edit(),
+                      icon: const Icon(Icons.add, size: 15),
+                      label: Text(zh ? '新增条款' : 'New terms', style: const TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: _terms.isEmpty
+                        ? Center(child: Text(zh ? '暂无条款' : 'No terms', style: const TextStyle(fontSize: 12.5, color: AppColors.muted)))
+                        : ListView.separated(
+                            itemCount: _terms.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                            itemBuilder: (context, index) {
+                              final term = _terms[index];
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text('${term['name'] ?? ''} · v${term['version_number'] ?? ''}', style: const TextStyle(fontSize: 13)),
+                                subtitle: Text(
+                                  adminTruthy(term['is_active']) || term['activate_time'] != null ? (zh ? '已启用' : 'Active') : (zh ? '未启用' : 'Inactive'),
+                                  style: const TextStyle(fontSize: 11.5),
+                                ),
+                                onTap: () => _edit(term),
+                                trailing: IconButton(
+                                  onPressed: () => _delete(term),
+                                  icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(zh ? '关闭' : 'Close'))],
+    );
+  }
+}
+
 class AdminSettingsPanel extends StatefulWidget {
   const AdminSettingsPanel({super.key, this.reloadTick = 0});
 
@@ -2384,6 +2543,18 @@ class _AdminSettingsPanelState extends State<AdminSettingsPanel> {
                           ]),
                           _section(zh ? '使用条款' : 'Terms and conditions', [
                             _toggle('ENABLE_TERMS_AND_CONDITIONS', zh ? '开启条款和条件' : 'Enable terms', zh ? '用户必须接受条款' : 'Users must accept terms'),
+                            if (adminTruthy(_values['ENABLE_TERMS_AND_CONDITIONS']))
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8, bottom: 6),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => showDialog<void>(context: context, builder: (_) => const AdminTermsDialog()),
+                                    icon: const Icon(Icons.description_outlined, size: 15),
+                                    label: Text(zh ? '管理条款内容' : 'Manage terms', style: const TextStyle(fontSize: 12)),
+                                  ),
+                                ),
+                              ),
                           ]),
                         ],
                       ),
@@ -2410,7 +2581,8 @@ class _AdminSettingsPanelState extends State<AdminSettingsPanel> {
   }
 
   Widget _toggle(String key, String title, String subtitle) {
-    if (_values[key] is! bool) return const SizedBox.shrink();
+    final value = _values[key];
+    if (value is! bool && value is! num) return const SizedBox.shrink();
     return Container(
       constraints: const BoxConstraints(minHeight: 50),
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
@@ -2427,7 +2599,7 @@ class _AdminSettingsPanelState extends State<AdminSettingsPanel> {
               ],
             ),
           ),
-          CompactSwitch(value: _values[key] == true, onChanged: (value) => setState(() => _values[key] = value)),
+          CompactSwitch(value: adminTruthy(value), onChanged: (next) => setState(() => _values[key] = next)),
         ],
       ),
     );
