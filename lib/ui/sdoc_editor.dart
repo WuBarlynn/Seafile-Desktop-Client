@@ -1932,6 +1932,7 @@ class SdocEditorState extends State<SdocEditor> {
                   _ToolbarButton(icon: Icons.format_list_numbered, tooltip: l10n.zh ? '有序列表' : 'Numbered list', onTap: () => _changeType('ordered_list')),
                   _ToolbarButton(icon: Icons.checklist, tooltip: l10n.zh ? '任务列表' : 'Checklist', onTap: () => _changeType('check_list_item')),
                     _ToolbarButton(icon: Icons.format_quote, tooltip: l10n.zh ? '引用' : 'Quote', onTap: () => _changeType('quote')),
+                    _ToolbarButton(icon: Icons.search, tooltip: l10n.zh ? '查找' : 'Find', onTap: () => unawaited(_findInDocument())),
                   ],
                 ),
               ),
@@ -1990,6 +1991,49 @@ class SdocEditorState extends State<SdocEditor> {
 
   void _setHighlightColor(String? color) {
     _toggleInlineMark((style) => style.withHighlight(color), allIfCollapsed: true);
+  }
+
+  Future<void> _findInDocument() async {
+    final input = TextEditingController();
+    final query = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(L10n.of(context).zh ? '查找' : 'Find'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: InputDecoration(hintText: L10n.of(context).zh ? '输入要查找的文字' : 'Find text'),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(L10n.of(context).cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, input.text), child: Text(L10n.of(context).zh ? '查找' : 'Find')),
+        ],
+      ),
+    );
+    input.dispose();
+    if (!mounted || query == null || query.isEmpty) return;
+    final fields = _fields();
+    if (fields.isEmpty) return;
+    final activeField = _activeTextField();
+    final startIndex = activeField == null ? 0 : fields.indexOf(activeField);
+    final startOffset = activeField?.controller.selection.end ?? 0;
+    final needle = query.toLowerCase();
+    for (var step = 0; step < fields.length; step++) {
+      final index = (startIndex + step) % fields.length;
+      final field = fields[index];
+      final text = field.controller.text.toLowerCase();
+      final offset = text.indexOf(needle, step == 0 ? startOffset.clamp(0, text.length) : 0);
+      if (offset < 0) continue;
+      setState(() => _active = field.blockIndex);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        field.focus.requestFocus();
+        field.controller.selection = TextSelection(baseOffset: offset, extentOffset: offset + query.length);
+      });
+      return;
+    }
+    showToast(context, L10n.of(context).zh ? '未找到匹配内容' : 'No match found', error: true);
   }
 
   Future<void> _setLink() async {
