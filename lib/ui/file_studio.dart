@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -346,6 +347,31 @@ class FileStudioState extends State<FileStudio> {
     }
   }
 
+  Future<String?> _pickMarkdownImage() async {
+    if (_readOnly) return null;
+    final file = await openFile(acceptedTypeGroups: [
+      const XTypeGroup(label: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg']),
+    ]);
+    if (file == null || !mounted) return null;
+    try {
+      final api = context.read<AppSession>().api!;
+      final dir = parentRepoPath(widget.entry.path);
+      final extension = p.extension(file.path);
+      final name = 'image-${DateTime.now().millisecondsSinceEpoch}$extension';
+      await api.uploadFile(
+        repoId: widget.repo.id,
+        dirPath: dir,
+        filePath: file.path,
+        fileName: name,
+      );
+      final link = await api.fileDownloadLink(widget.repo.id, joinRepoPath(dir, name));
+      return link.toString();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+      return null;
+    }
+  }
+
   Widget _textView(L10n l10n) {
     if (_kind == FileKind.markdown) {
       final initial = _markdownInitial;
@@ -354,6 +380,7 @@ class FileStudioState extends State<FileStudio> {
         key: _markdownKey,
         initialText: initial,
         readOnly: _readOnly,
+        onPickImage: _pickMarkdownImage,
         onChanged: (dirty) {
           if (dirty != _dirty) setState(() => _dirty = dirty);
         },

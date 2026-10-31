@@ -17,6 +17,7 @@ class _MdBlock {
     this.checked = false,
     this.codeLanguage = '',
     this.alt = '',
+    this.indent = 0,
   })  : controller = TextEditingController(text: text),
         focus = FocusNode();
 
@@ -25,6 +26,7 @@ class _MdBlock {
   bool checked;
   String codeLanguage;
   String alt;
+  int indent;
   List<List<TextEditingController>> tableCells = [];
   final TextEditingController controller;
   final FocusNode focus;
@@ -48,11 +50,13 @@ class MarkdownEditor extends StatefulWidget {
     required this.initialText,
     required this.readOnly,
     this.onChanged,
+    this.onPickImage,
   });
 
   final String initialText;
   final bool readOnly;
   final ValueChanged<bool>? onChanged;
+  final Future<String?> Function()? onPickImage;
 
   @override
   State<MarkdownEditor> createState() => MarkdownEditorState();
@@ -268,9 +272,9 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         ));
         continue;
       }
-      final check = RegExp(r'^\s*[-*+]\s+\[([ xX])\]\s+(.*)$').firstMatch(line);
+      final check = RegExp(r'^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)$').firstMatch(line);
       if (check != null) {
-        _add(_MdBlock(type: _MdType.check, text: check.group(2)!, checked: check.group(1)!.toLowerCase() == 'x'));
+        _add(_MdBlock(type: _MdType.check, text: check.group(3)!, checked: check.group(2)!.toLowerCase() == 'x', indent: (check.group(1)!.length ~/ 2).clamp(0, 5)));
         continue;
       }
       final quote = RegExp(r'^\s*>\s?(.*)$').firstMatch(line);
@@ -278,14 +282,14 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         _add(_MdBlock(type: _MdType.quote, text: quote.group(1)!));
         continue;
       }
-      final bullet = RegExp(r'^\s*[-*+]\s+(.*)$').firstMatch(line);
+      final bullet = RegExp(r'^(\s*)[-*+]\s+(.*)$').firstMatch(line);
       if (bullet != null) {
-        _add(_MdBlock(type: _MdType.bullet, text: bullet.group(1)!));
+        _add(_MdBlock(type: _MdType.bullet, text: bullet.group(2)!, indent: (bullet.group(1)!.length ~/ 2).clamp(0, 5)));
         continue;
       }
-      final numbered = RegExp(r'^\s*\d+[.)]\s+(.*)$').firstMatch(line);
+      final numbered = RegExp(r'^(\s*)\d+[.)]\s+(.*)$').firstMatch(line);
       if (numbered != null) {
-        _add(_MdBlock(type: _MdType.numbered, text: numbered.group(1)!));
+        _add(_MdBlock(type: _MdType.numbered, text: numbered.group(2)!, indent: (numbered.group(1)!.length ~/ 2).clamp(0, 5)));
         continue;
       }
       _add(_MdBlock(type: _MdType.paragraph, text: line));
@@ -358,11 +362,11 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         case _MdType.quote:
           buffer.write('> $content');
         case _MdType.bullet:
-          buffer.write('- $content');
+          buffer.write('${'  ' * block.indent}- $content');
         case _MdType.numbered:
-          buffer.write('1. $content');
+          buffer.write('${'  ' * block.indent}1. $content');
         case _MdType.check:
-          buffer.write('- [${block.checked ? 'x' : ' '}] $content');
+          buffer.write('${'  ' * block.indent}- [${block.checked ? 'x' : ' '}] $content');
         case _MdType.code:
           buffer.write('```${block.codeLanguage}\n$content\n```');
         case _MdType.image:
@@ -475,6 +479,17 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       _redo();
       return KeyEventResult.handled;
     }
+    final isList = block.type == _MdType.bullet || block.type == _MdType.numbered || block.type == _MdType.check;
+    if (key == LogicalKeyboardKey.tab) {
+      if (!isList) return KeyEventResult.ignored;
+      _pushUndo();
+      setState(() {
+        block.indent = (block.indent + (shift ? -1 : 1)).clamp(0, 5);
+      });
+      _settleHistory();
+      widget.onChanged?.call(isDirty);
+      return KeyEventResult.handled;
+    }
     if (command && key == LogicalKeyboardKey.keyB) {
       _wrapBlock(block, '**', '**');
       return KeyEventResult.handled;
@@ -493,6 +508,14 @@ class MarkdownEditorState extends State<MarkdownEditor> {
 
     if (key == LogicalKeyboardKey.backspace) {
       if (!selection.isCollapsed || selection.start != 0) return KeyEventResult.ignored;
+      final listType = block.type == _MdType.bullet || block.type == _MdType.numbered || block.type == _MdType.check;
+      if (listType && block.indent > 0) {
+        _pushUndo();
+        setState(() => block.indent -= 1);
+        _settleHistory();
+        widget.onChanged?.call(isDirty);
+        return KeyEventResult.handled;
+      }
       if (text.isEmpty) {
         if (_blocks.length <= 1) return KeyEventResult.handled;
         _pushUndo();
@@ -591,6 +614,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       setState(() {
         block.type = _MdType.paragraph;
         block.checked = false;
+        block.indent = 0;
       });
       _settleHistory();
       widget.onChanged?.call(isDirty);
@@ -604,7 +628,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       _MdType.quote => _MdType.quote,
       _ => _MdType.paragraph,
     };
-    final newBlock = _MdBlock(type: newType, text: after);
+    final newBlock = _MdBlock(type: newType, text: after, indent: block.indent);
     _listen(newBlock);
     setState(() {
       _blocks.insert(index + 1, newBlock);
@@ -653,6 +677,12 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     _insertBlock(_MdBlock(type: _MdType.image, text: url, alt: 'image'));
   }
 
+  Future<void> _insertLocalImage() async {
+    final url = await widget.onPickImage?.call();
+    if (!mounted || url == null || url.isEmpty) return;
+    _insertBlock(_MdBlock(type: _MdType.image, text: url, alt: 'image'));
+  }
+
   void _insertDivider() {
     _insertBlock(_MdBlock(type: _MdType.divider));
   }
@@ -680,6 +710,44 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _codeBlockView(_MdBlock block, int index) {
+    final l10n = L10n.of(context);
+    const languages = ['', 'Text', 'HTML', 'CSS', 'Javascript', 'C', 'C++', 'C#', 'Java', 'Python', 'SQL', 'Swift', 'JSON'];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PopupMenuButton<String>(
+            tooltip: l10n.zh ? '代码语言' : 'Code language',
+            offset: const Offset(0, 24),
+            color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            onSelected: (value) {
+              _pushUndo();
+              setState(() => block.codeLanguage = value);
+              _settleHistory();
+              widget.onChanged?.call(isDirty);
+            },
+            itemBuilder: (context) => [
+              for (final language in languages)
+                PopupMenuItem(value: language, child: Text(language.isEmpty ? (l10n.zh ? '纯文本' : 'Text') : language, style: const TextStyle(fontSize: 13))),
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(block.codeLanguage.isEmpty ? (l10n.zh ? '纯文本' : 'Text') : block.codeLanguage, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                const Icon(Icons.arrow_drop_down, size: 15, color: AppColors.textSecondary),
+              ],
+            ),
+          ),
+          _textField(block, index, 13, FontWeight.w400, monospace: true),
+        ],
+      ),
     );
   }
 
@@ -843,6 +911,8 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                       switch (value) {
                         case 'image':
                           unawaited(_insertImage());
+                        case 'image_local':
+                          unawaited(_insertLocalImage());
                         case 'table':
                           _insertTable();
                         case 'code_block':
@@ -854,7 +924,9 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                       }
                     },
                     itemBuilder: (context) => [
-                      PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '图片' : 'Image', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '网络图片' : 'Image URL', style: const TextStyle(fontSize: 13))])),
+                      if (widget.onPickImage != null)
+                        PopupMenuItem(value: 'image_local', child: Row(children: [const Icon(Icons.upload_file, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '本地图片' : 'Local image', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'code_block', child: Row(children: [const Icon(Icons.data_object, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '代码块' : 'Code block', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
@@ -978,6 +1050,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       _MdType.check => Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (block.indent > 0) SizedBox(width: block.indent * 20),
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Checkbox(
@@ -998,11 +1071,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
             Expanded(child: _textField(block, index, 15, FontWeight.w400)),
           ],
         ),
-      _MdType.code => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: const Color(0xFFF6F8FA), borderRadius: BorderRadius.circular(5)),
-          child: _textField(block, index, 13, FontWeight.w400, monospace: true),
-        ),
+      _MdType.code => _codeBlockView(block, index),
       _MdType.image => _imageBlockView(block, index),
       _MdType.table => _tableBlockView(block, index),
       _MdType.formula => _formulaBlockView(block, index),
@@ -1027,7 +1096,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(width: 24, child: Padding(padding: const EdgeInsets.only(top: 4), child: Text(marker, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)))),
+        SizedBox(width: 24 + block.indent * 20, child: Padding(padding: const EdgeInsets.only(top: 4), child: Text(marker, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)))),
         Expanded(child: _textField(block, index, 15, FontWeight.w400)),
       ],
     );
