@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.1.18 — Markdown insert menu. Every iteration is published to this repository.
+> **Status:** 1.1.19 — Markdown tables. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -21,7 +21,7 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - Downloads: single file, folder ZIP, progress and cancellation
 - **Tabbed workspace** with a pinned Home tab; single-clicking a library or file opens a new tab immediately to the right of the active tab, other tabs can be dragged to reorder them, and sidebar sections switch inside Home without spawning tabs. Clicking the `File` breadcrumb returns to Home without clearing or closing the library tab
 - **In-place editors** — opening a file never pushes a new page. Images/PDF, text, Markdown, SeaDoc, Office, Excalidraw and media all render inside the file tab
-- Native text editor and **block-based Markdown editor**: headings, lists, checklists, quotes and code blocks render as content (no `#`/`-` markers), with a formatting toolbar, save button, full-width canvas and unsaved-change prompt. Enter splits at the caret and continues lists/quotes, Backspace merges blocks or removes an empty one, Delete merges the next block, arrow keys cross block boundaries, Cmd/Ctrl+B/I apply emphasis, Cmd/Ctrl+Z/Y undo and redo, and IME composition is never intercepted. An Insert menu adds network images and horizontal dividers as Markdown blocks, and Backspace/Delete remove image or divider blocks. Add-row and delete-row toolbar buttons have been removed
+- Native text editor and **block-based Markdown editor**: headings, lists, checklists, quotes and code blocks render as content (no `#`/`-` markers), with a formatting toolbar, save button, full-width canvas and unsaved-change prompt. Enter splits at the caret and continues lists/quotes, Backspace merges blocks or removes an empty one, Delete merges the next block, arrow keys cross block boundaries, Cmd/Ctrl+B/I apply emphasis, Cmd/Ctrl+Z/Y undo and redo, and IME composition is never intercepted. An Insert menu adds network images, horizontal dividers and editable pipe tables as Markdown blocks; tables and images are parsed from and serialized back to standard Markdown, and Backspace/Delete remove non-text blocks. Add-row and delete-row toolbar buttons have been removed
 - Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab. It autosaves two seconds after the last change, shows the last saved time next to the filename, provides undo/redo buttons and Cmd/Ctrl+Z/Y, and exposes a right-click menu with cut, copy, paste, delete and select-all. The toolbar now follows the web layout with an Insert menu (table, code block, formula, divider, callout), a block-type menu (paragraph, headings 1–6, quote, lists, check list, code), inline bold/italic/underline/strikethrough/inline-code/link/clear-format controls, font family, font size, text and highlight colours, alignment and superscript/subscript controls, all horizontally scrollable on narrow windows. The insert menu can add tables, network images, locally uploaded images, local video uploads, video links, code blocks, formulas, dividers and callouts. The find panel supports find, replace and replace-all across all text blocks. Inline styles are stored in SeaDoc text runs and survive autosave and reload. Enter creates the next paragraph, list item, check item, callout paragraph or toggle content with web-style behavior, Backspace merges into the previous block or exits an empty list, Delete merges forward, and IME composition remains untouched. Add-row and delete-row toolbar buttons have been removed
 - Inline web editors for OnlyOffice documents, Excalidraw drawings, audio/video and the full web app; the embedded page is auto-fitted to the tab
 - Native **account settings** (profile, contact details, password) and **system settings** (overview, users with enable/reset/delete, libraries, server switches) for administrators; the complete admin console also opens in a tab
@@ -91,6 +91,10 @@ lib/
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
 
+## Release 1.1.19
+
+Tagged `v1.1.19`. Adds editable pipe tables to the native Markdown editor. Tables are parsed from standard Markdown, rendered as a cell grid with editable headers and cells, serialized back on save, and can be inserted from the toolbar's Insert menu. All 1.1.18 image/divider blocks and earlier SeaDoc find/replace, autosave, undo/redo, context-menu, formatting and keyboard behavior remains.
+
 ## Release 1.1.18
 
 Tagged `v1.1.18`. Adds an Insert menu to the native Markdown editor for network images and horizontal dividers. These are stored as standard Markdown image/rule blocks, rendered inline and removed with Delete/Backspace like other blocks. All 1.1.17 SeaDoc find/replace and video insertion plus earlier autosave, undo/redo, context-menu, formatting and keyboard behavior remains.
@@ -142,7 +146,7 @@ Tagged `v1.1.7`. Adds native avatar upload/display to account settings and keeps
 ## Known limitations
 
 - Office, Excalidraw, audio/video and some web pages render with an inline WebView (WKWebView on macOS, WebView2 on Windows) because their editors depend on the server's web front-end. Text, Markdown and SeaDoc are native.
-- The native SeaDoc editor covers common text blocks, tables, toggle sections, images, formulas, video cards and embed-link cards. Inline bold, italic, underline, strikethrough, inline code, links, superscript/subscript, font family, font size and text/highlight colours are editable and saved as SeaDoc text runs. Images and videos can be inserted from the local disk or a URL; Whiteboard, sdoc-link and library-file-link insertion are not exposed yet. Markdown can insert network images and dividers; tables and local image uploads are not exposed yet.
+- The native SeaDoc editor covers common text blocks, tables, toggle sections, images, formulas, video cards and embed-link cards. Inline bold, italic, underline, strikethrough, inline code, links, superscript/subscript, font family, font size and text/highlight colours are editable and saved as SeaDoc text runs. Images and videos can be inserted from the local disk or a URL; Whiteboard, sdoc-link and library-file-link insertion are not exposed yet. Markdown can insert network images, dividers and editable tables; local image uploads and nested lists are not exposed yet.
 - Embedded pages require the WebView2 Runtime on Windows 10 (included in Windows 11); if it is missing the client falls back to the system browser.
 - Inline emphasis is shown rendered when a Markdown block is not focused and shows its source while editing; block structure is always rendered.
 - The 13-specific layout and feature differences are detected, but finer 13/14 parity work is ongoing.

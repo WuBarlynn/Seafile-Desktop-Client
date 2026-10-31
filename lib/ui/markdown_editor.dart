@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 
-enum _MdType { paragraph, heading, quote, bullet, numbered, check, code, image, divider }
+enum _MdType { paragraph, heading, quote, bullet, numbered, check, code, image, divider, table }
 
 class _MdBlock {
   _MdBlock({
@@ -24,12 +24,18 @@ class _MdBlock {
   bool checked;
   String codeLanguage;
   String alt;
+  List<List<TextEditingController>> tableCells = [];
   final TextEditingController controller;
   final FocusNode focus;
 
   void dispose() {
     controller.dispose();
     focus.dispose();
+    for (final row in tableCells) {
+      for (final cell in row) {
+        cell.dispose();
+      }
+    }
   }
 }
 
@@ -208,7 +214,8 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     var inCode = false;
     var codeLanguage = '';
     final codeLines = <String>[];
-    for (final line in lines) {
+    for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      final line = lines[lineIndex];
       final fence = RegExp(r'^\s*```(.*)$').firstMatch(line);
       if (inCode) {
         if (fence != null) {
@@ -226,6 +233,17 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         continue;
       }
       if (line.trim().isEmpty) continue;
+      if (line.contains('|') && lineIndex + 1 < lines.length && _isTableSeparator(lines[lineIndex + 1])) {
+        final rows = <List<String>>[_splitTableRow(line)];
+        var cursor = lineIndex + 2;
+        while (cursor < lines.length && lines[cursor].trim().isNotEmpty && lines[cursor].contains('|')) {
+          rows.add(_splitTableRow(lines[cursor]));
+          cursor++;
+        }
+        _add(_createTableBlock(rows));
+        lineIndex = cursor - 1;
+        continue;
+      }
       final image = RegExp(r'^!\[(.*?)\]\((.*?)\)$').firstMatch(line.trim());
       if (image != null) {
         _add(_MdBlock(type: _MdType.image, text: image.group(2)!, alt: image.group(1)!));
@@ -273,6 +291,47 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     }
   }
 
+  bool _isTableSeparator(String line) {
+    return RegExp(r'^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$').hasMatch(line);
+  }
+
+  List<String> _splitTableRow(String line) {
+    var value = line.trim();
+    if (value.startsWith('|')) value = value.substring(1);
+    if (value.endsWith('|')) value = value.substring(0, value.length - 1);
+    return value.split('|').map((cell) => cell.trim()).toList();
+  }
+
+  _MdBlock _createTableBlock(List<List<String>> rows) {
+    var columns = 0;
+    for (final row in rows) {
+      if (row.length > columns) columns = row.length;
+    }
+    final block = _MdBlock(type: _MdType.table);
+    block.tableCells = [
+      for (final row in rows)
+        [
+          for (var c = 0; c < columns; c++)
+            TextEditingController(text: c < row.length ? row[c] : '')..addListener(_onChange),
+        ],
+    ];
+    return block;
+  }
+
+  String _tableSource(_MdBlock block) {
+    if (block.tableCells.isEmpty) return '';
+    final buffer = StringBuffer();
+    for (var r = 0; r < block.tableCells.length; r++) {
+      final cells = block.tableCells[r];
+      buffer.write('| ${cells.map((cell) => cell.text.replaceAll('|', '\\|')).join(' | ')} |');
+      if (r == 0) {
+        buffer.write('\n| ${List.filled(cells.length, '---').join(' | ')} |');
+      }
+      if (r < block.tableCells.length - 1) buffer.write('\n');
+    }
+    return buffer.toString();
+  }
+
   void _add(_MdBlock block) {
     _listen(block);
     _blocks.add(block);
@@ -304,6 +363,8 @@ class MarkdownEditorState extends State<MarkdownEditor> {
           buffer.write('![${block.alt}]($content)');
         case _MdType.divider:
           buffer.write('---');
+        case _MdType.table:
+          buffer.write(_tableSource(block));
         case _MdType.paragraph:
           buffer.write(content);
       }
@@ -402,7 +463,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       }
       if (index == 0) return KeyEventResult.ignored;
       final previous = _blocks[index - 1];
-      if (previous.type == _MdType.image || previous.type == _MdType.divider) {
+      if (previous.type == _MdType.image || previous.type == _MdType.divider || previous.type == _MdType.table) {
         _pushUndo();
         setState(() {
           _blocks.removeAt(index - 1).dispose();
@@ -433,7 +494,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       if (!selection.isCollapsed || selection.start != text.length) return KeyEventResult.ignored;
       if (index >= _blocks.length - 1) return KeyEventResult.ignored;
       final next = _blocks[index + 1];
-      if (next.type == _MdType.image || next.type == _MdType.divider) {
+      if (next.type == _MdType.image || next.type == _MdType.divider || next.type == _MdType.table) {
         final offset = text.length;
         _pushUndo();
         setState(() {
@@ -577,6 +638,63 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     );
   }
 
+  void _insertTable() {
+    final block = _MdBlock(type: _MdType.table);
+    block.tableCells = [
+      for (var r = 0; r < 3; r++)
+        [
+          for (var c = 0; c < 3; c++) TextEditingController()..addListener(_onChange),
+        ],
+    ];
+    _insertBlock(block);
+  }
+
+  Widget _tableBlockView(_MdBlock block, int index) {
+    if (block.tableCells.isEmpty) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var r = 0; r < block.tableCells.length; r++)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var c = 0; c < block.tableCells[r].length; c++)
+                    Container(
+                      width: 170,
+                      decoration: BoxDecoration(
+                        color: r == 0 ? const Color(0xFFF6F8FA) : Colors.white,
+                        border: Border(
+                          right: c < block.tableCells[r].length - 1 ? const BorderSide(color: AppColors.border) : BorderSide.none,
+                          bottom: r < block.tableCells.length - 1 ? const BorderSide(color: AppColors.border) : BorderSide.none,
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      child: TextField(
+                        controller: block.tableCells[r][c],
+                        onTap: () => setState(() => _active = index),
+                        maxLines: null,
+                        style: TextStyle(fontSize: 13, fontWeight: r == 0 ? FontWeight.w600 : FontWeight.w400),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _wrapSelection(String before, String after) {
     if (widget.readOnly || _blocks.isEmpty) return;
     _wrapBlock(_blocks[_active.clamp(0, _blocks.length - 1)], before, after);
@@ -631,9 +749,12 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                         unawaited(_insertImage());
                       } else if (value == 'divider') {
                         _insertDivider();
+                      } else if (value == 'table') {
+                        _insertTable();
                       }
                     },
                     itemBuilder: (context) => [
+                      PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '图片' : 'Image', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
                     ],
@@ -744,6 +865,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
           child: _textField(block, index, 13, FontWeight.w400, monospace: true),
         ),
       _MdType.image => _imageBlockView(block, index),
+      _MdType.table => _tableBlockView(block, index),
       _MdType.divider => GestureDetector(
           onTap: () => setState(() => _active = index),
           child: const Padding(

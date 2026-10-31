@@ -45,6 +45,26 @@ void main() {
     expect(key.currentState!.text, 'alphabeta');
   });
 
+  testWidgets('Parses and edits Markdown tables as cells', (tester) async {
+    final key = GlobalKey<MarkdownEditorState>();
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [L10nDelegate()],
+      supportedLocales: const [Locale('en')],
+      home: Scaffold(
+        body: MarkdownEditor(
+          key: key,
+          initialText: '| A | B |\n| --- | --- |\n| 1 | 2 |',
+          readOnly: false,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNWidgets(4));
+    await tester.enterText(find.byType(TextField).at(2), '9');
+    await tester.pump();
+    expect(key.currentState!.text, contains('| 9 | 2 |'));
+  });
+
   testWidgets('Delete removes a following divider block', (tester) async {
     final key = GlobalKey<MarkdownEditorState>();
     await tester.pumpWidget(MaterialApp(
