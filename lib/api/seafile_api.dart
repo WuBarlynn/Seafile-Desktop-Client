@@ -1651,6 +1651,20 @@ class SeafileApi {
     return asMapList(raw).map(ShareableGroup.fromJson).where((group) => group.id.isNotEmpty).toList();
   }
 
+  Future<ShareLink> updateShareLink(
+    String token, {
+    required bool canDownload,
+    required bool canUpload,
+    required bool canEdit,
+    DateTime? expireDate,
+  }) async {
+    final data = await _putForm('api/v2.1/share-links/$token/', {
+      'permissions': jsonEncode({'can_download': canDownload, 'can_upload': canUpload, 'can_edit': canEdit}),
+      'expiration_time': expireDate?.toUtc().toIso8601String() ?? '',
+    });
+    return ShareLink.fromJson(asMap(data));
+  }
+
   Future<ShareLink> createShareLink({
     required String repoId,
     required String path,

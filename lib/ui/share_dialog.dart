@@ -123,6 +123,84 @@ class _ShareDialogState extends State<_ShareDialog> {
     if (mounted) showToast(context, l10n.linkCopied);
   }
 
+  Future<void> _editLink(ShareLink link) async {
+    final l10n = L10n.of(context);
+    var canDownload = link.permissions?['can_download'] != false;
+    var canUpload = link.permissions?['can_upload'] == true;
+    var canEdit = link.permissions?['can_edit'] == true;
+    final days = link.expireDate == null ? 0 : link.expireDate!.difference(DateTime.now()).inDays.clamp(0, 365);
+    var expireDays = [0, 1, 7, 30].contains(days) ? days : 0;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(l10n.zh ? '修改链接设置' : 'Edit share link'),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: canDownload,
+                  onChanged: (value) => setDialogState(() => canDownload = value == true),
+                  title: Text(l10n.zh ? '允许下载' : 'Allow download', style: const TextStyle(fontSize: 13)),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                if (link.isDir)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: canUpload,
+                    onChanged: (value) => setDialogState(() => canUpload = value == true),
+                    title: Text(l10n.zh ? '允许上传' : 'Allow upload', style: const TextStyle(fontSize: 13)),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: canEdit,
+                  onChanged: (value) => setDialogState(() => canEdit = value == true),
+                  title: Text(l10n.zh ? '允许在线编辑' : 'Allow online edit', style: const TextStyle(fontSize: 13)),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  initialValue: expireDays,
+                  decoration: InputDecoration(labelText: l10n.expireDays),
+                  items: [
+                    DropdownMenuItem(value: 0, child: Text(l10n.expireNever, style: const TextStyle(fontSize: 12.5))),
+                    DropdownMenuItem(value: 1, child: Text(l10n.expireOneDay, style: const TextStyle(fontSize: 12.5))),
+                    DropdownMenuItem(value: 7, child: Text(l10n.expireSevenDays, style: const TextStyle(fontSize: 12.5))),
+                    DropdownMenuItem(value: 30, child: Text(l10n.expireThirtyDays, style: const TextStyle(fontSize: 12.5))),
+                  ],
+                  onChanged: (value) => setDialogState(() => expireDays = value ?? 0),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.save)),
+          ],
+        ),
+      ),
+    );
+    if (result != true || !mounted) return;
+    try {
+      final updated = await context.read<AppSession>().api!.updateShareLink(
+        link.token,
+        canDownload: canDownload,
+        canUpload: canUpload,
+        canEdit: canEdit,
+        expireDate: expireDays > 0 ? DateTime.now().add(Duration(days: expireDays)) : null,
+      );
+      if (!mounted) return;
+      setState(() => _links = _links.map((item) => item.token == link.token ? updated : item).toList());
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   Future<void> _delete(ShareLink link) async {
     final l10n = L10n.of(context);
     final confirmed = await showConfirmDialog(
@@ -196,6 +274,7 @@ class _ShareDialogState extends State<_ShareDialog> {
                               serverBase: session.serverBase,
                               onCopy: () => _copy(link),
                               onDelete: () => _delete(link),
+                              onEdit: () => _editLink(link),
                             );
                           },
                         ),
@@ -278,12 +357,13 @@ class _ShareDialogState extends State<_ShareDialog> {
 }
 
 class _LinkRow extends StatelessWidget {
-  const _LinkRow({required this.link, required this.serverBase, required this.onCopy, required this.onDelete});
+  const _LinkRow({required this.link, required this.serverBase, required this.onCopy, required this.onDelete, required this.onEdit});
 
   final ShareLink link;
   final String serverBase;
   final VoidCallback onCopy;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -328,6 +408,8 @@ class _LinkRow extends StatelessWidget {
               ],
             ),
           ),
+          IconAction(icon: 'settings', tooltip: l10n.zh ? '修改链接设置' : 'Edit link', size: 15, onPressed: onEdit),
+          const SizedBox(width: 4),
           IconAction(icon: 'copy', tooltip: l10n.copyLink, size: 15, onPressed: onCopy),
           const SizedBox(width: 4),
           IconAction(icon: 'delete', tooltip: l10n.deleteLink, size: 15, color: AppColors.danger, onPressed: onDelete),
