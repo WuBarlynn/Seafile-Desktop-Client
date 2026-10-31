@@ -170,6 +170,7 @@ class NewMenuButton extends StatelessWidget {
     return items;
   }
 
+
   Widget _fileItem(BuildContext context, String label, String suffix, L10n l10n) {
     return MenuItemButton(
       style: _itemStyle,

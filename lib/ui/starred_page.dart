@@ -65,6 +65,16 @@ class _StarredPageState extends State<StarredPage> {
     }
   }
 
+  Future<void> _unstar(StarredItem item) async {
+    try {
+      await context.read<AppSession>().api!.setStarred(repoId: item.repoId, path: item.path, starred: false);
+      if (!mounted) return;
+      setState(() => _items = _items.where((entry) => !(entry.repoId == item.repoId && entry.path == item.path)).toList());
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
@@ -131,6 +141,13 @@ class _StarredPageState extends State<StarredPage> {
                                         ),
                                       ),
                                       Text(formatRelative(item.mtime, zh: l10n.zh), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        onPressed: () => _unstar(item),
+                                        icon: const Icon(Icons.star_rounded, size: 18, color: AppColors.warning),
+                                        tooltip: l10n.zh ? '取消星标' : 'Remove star',
+                                        visualDensity: VisualDensity.compact,
+                                      ),
                                     ],
                                   ),
                                 ),
