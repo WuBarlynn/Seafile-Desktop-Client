@@ -199,7 +199,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     return Column(
       children: [
         Container(
-          height: 48,
+          height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 18),
           decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: AppColors.border))),
           child: Row(
@@ -209,7 +209,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               Text(l10n.systemSettings, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
               TextButton.icon(
-                onPressed: () => widget.onOpenWeb?.call('/sysadmin/', l10n.systemSettings),
+                onPressed: () => widget.onOpenWeb?.call('/sys/info/', l10n.systemSettings),
                 icon: const Icon(Icons.open_in_new, size: 14),
                 label: Text(l10n.zh ? '完整管理后台' : 'Full admin console', style: const TextStyle(fontSize: 12)),
               ),
@@ -225,67 +225,94 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
             ],
           ),
         ),
-        Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: AppColors.border))),
-          child: Row(
-            children: [
-              _tabButton(0, l10n.zh ? '概览' : 'Overview', Icons.dashboard_outlined),
-              _tabButton(1, l10n.zh ? '用户' : 'Users', Icons.people_outline),
-              _tabButton(2, l10n.zh ? '群组' : 'Groups', Icons.groups_outlined),
-              _tabButton(3, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
-              _tabButton(4, l10n.zh ? '分享链接' : 'Share links', Icons.link),
-              _tabButton(5, l10n.zh ? '日志' : 'Logs', Icons.history),
-              _tabButton(6, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
-            ],
-          ),
-        ),
         Expanded(
-          child: Container(
-            color: const Color(0xFFF5F6F8),
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(_error!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                            const SizedBox(height: 12),
-                            OutlinedButton(onPressed: _loadOverview, child: Text(l10n.retry)),
-                          ],
-                        ),
-                      )
-                    : switch (_tab) {
-                        0 => _overview(l10n),
-                        1 => _usersView(l10n),
-                        2 => _groupsView(l10n),
-                        3 => _librariesView(l10n),
-                        4 => _shareLinksView(l10n),
-                        5 => _logsView(l10n),
-                        _ => _settingsView(l10n),
-                      },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 216,
+                decoration: const BoxDecoration(color: Colors.white, border: Border(right: BorderSide(color: AppColors.border))),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(10, 14, 10, 16),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      child: Text(l10n.zh ? '系统管理' : 'Administration', style: const TextStyle(fontSize: 11.5, color: AppColors.muted, fontWeight: FontWeight.w500)),
+                    ),
+                    _navItem(0, l10n.zh ? '概览' : 'Overview', Icons.dashboard_outlined),
+                    _navItem(1, l10n.zh ? '用户' : 'Users', Icons.people_outline),
+                    _navItem(2, l10n.zh ? '群组' : 'Groups', Icons.groups_outlined),
+                    _navItem(3, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
+                    _navItem(4, l10n.zh ? '分享链接' : 'Share links', Icons.link),
+                    _navItem(5, l10n.zh ? '日志' : 'Logs', Icons.history),
+                    _navItem(6, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  color: const Color(0xFFF5F6F8),
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(_error!, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                  const SizedBox(height: 12),
+                                  OutlinedButton(onPressed: _loadOverview, child: Text(l10n.retry)),
+                                ],
+                              ),
+                            )
+                          : switch (_tab) {
+                              0 => _overview(l10n),
+                              1 => _usersView(l10n),
+                              2 => _groupsView(l10n),
+                              3 => _librariesView(l10n),
+                              4 => _shareLinksView(l10n),
+                              5 => _logsView(l10n),
+                              _ => _settingsView(l10n),
+                            },
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _tabButton(int value, String label, IconData icon) {
+  Widget _navItem(int value, String label, IconData icon) {
     final active = _tab == value;
-    return InkWell(
-      onTap: () => _selectTab(value),
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: active ? AppColors.primary : Colors.transparent, width: 2))),
-        child: Row(
-          children: [
-            Icon(icon, size: 15, color: active ? AppColors.primary : AppColors.textSecondary),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(fontSize: 13, color: active ? AppColors.primary : AppColors.textSecondary, fontWeight: active ? FontWeight.w500 : FontWeight.w400)),
-          ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: InkWell(
+        onTap: () => _selectTab(value),
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primarySoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 17, color: active ? AppColors.primary : AppColors.textSecondary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: active ? AppColors.primary : AppColors.text,
+                    fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

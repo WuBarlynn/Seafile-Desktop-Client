@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -481,18 +482,41 @@ class _TabStrip extends StatefulWidget {
 
 class _TabStripState extends State<_TabStrip> {
   final _scroll = ScrollController();
+  final Map<Object, GlobalKey> _tabKeys = {};
+
+  GlobalKey _keyFor(_AppTab tab) => _tabKeys.putIfAbsent(tab, () => GlobalKey());
 
   @override
   void didUpdateWidget(covariant _TabStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _tabKeys.removeWhere((tab, _) => !widget.tabs.contains(tab));
     if (oldWidget.activeIndex != widget.activeIndex || oldWidget.tabs.length != widget.tabs.length) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scroll.hasClients) return;
-        if (widget.activeIndex >= widget.tabs.length - 1) {
-          _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 160), curve: Curves.easeOut);
-        }
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealActive());
     }
+  }
+
+  void _revealActive() {
+    if (!mounted || widget.tabs.isEmpty) return;
+    final safeIndex = widget.activeIndex.clamp(0, widget.tabs.length - 1);
+    final context = _tabKeys[widget.tabs[safeIndex]]?.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 160),
+        alignment: 0.5,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+      return;
+    }
+    if (!_scroll.hasClients || widget.tabs.length <= 1) return;
+    final target = _scroll.position.maxScrollExtent * safeIndex / (widget.tabs.length - 1);
+    _scroll.animateTo(target.clamp(0.0, _scroll.position.maxScrollExtent), duration: const Duration(milliseconds: 160), curve: Curves.easeOut);
+  }
+
+  void _nudge(double direction) {
+    if (!_scroll.hasClients) return;
+    final target = (_scroll.offset + direction * 220).clamp(0.0, _scroll.position.maxScrollExtent);
+    _scroll.animateTo(target, duration: const Duration(milliseconds: 160), curve: Curves.easeOut);
   }
 
   @override
@@ -510,42 +534,77 @@ class _TabStripState extends State<_TabStrip> {
         color: Color(0xFFF0F2F5),
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: ReorderableListView.builder(
-              scrollController: _scroll,
-              scrollDirection: Axis.horizontal,
-              buildDefaultDragHandles: false,
-              padding: EdgeInsets.zero,
-              itemCount: widget.tabs.length,
-              onReorder: widget.onReorder,
-              proxyDecorator: (child, index, animation) => Material(
-                color: Colors.transparent,
-                elevation: 4,
-                child: child,
-              ),
-              itemBuilder: (context, index) {
-                final tab = widget.tabs[index];
-                return ReorderableDragStartListener(
-                  key: ObjectKey(tab),
-                  index: index,
-                  enabled: index > 0,
-                  child: _TabChip(
-                    tab: tab,
-                    active: index == widget.activeIndex,
-                    closable: index > 0,
-                    homeLabel: l10n.zh ? '主页' : 'Home',
-                    accountLabel: l10n.accountSettings,
-                    systemLabel: l10n.systemSettings,
-                    onTap: () => widget.onSelect(index),
-                    onClose: () => widget.onClose(index),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final count = widget.tabs.length;
+          final needsScroll = count > 0 && constraints.maxWidth / count < 104;
+          final usable = constraints.maxWidth - (needsScroll ? 48 : 0);
+          final tabWidth = count == 0 ? 104.0 : (usable / count).clamp(104.0, 230.0);
+          return Row(
+            children: [
+              Expanded(
+                child: Listener(
+                  onPointerSignal: (event) {
+                    if (event is! PointerScrollEvent || !_scroll.hasClients) return;
+                    final delta = event.scrollDelta.dx != 0 ? event.scrollDelta.dx : event.scrollDelta.dy;
+                    final target = (_scroll.offset + delta).clamp(0.0, _scroll.position.maxScrollExtent);
+                    _scroll.jumpTo(target);
+                  },
+                  child: ReorderableListView.builder(
+                    scrollController: _scroll,
+                    scrollDirection: Axis.horizontal,
+                    buildDefaultDragHandles: false,
+                    padding: EdgeInsets.zero,
+                    itemCount: count,
+                    onReorder: widget.onReorder,
+                    proxyDecorator: (child, index, animation) => Material(
+                      color: Colors.transparent,
+                      elevation: 4,
+                      child: child,
+                    ),
+                    itemBuilder: (context, index) {
+                      final tab = widget.tabs[index];
+                      return ReorderableDragStartListener(
+                        key: _keyFor(tab),
+                        index: index,
+                        enabled: index > 0,
+                        child: _TabChip(
+                          tab: tab,
+                          width: tabWidth,
+                          active: index == widget.activeIndex,
+                          closable: index > 0,
+                          homeLabel: l10n.zh ? '主页' : 'Home',
+                          accountLabel: l10n.accountSettings,
+                          systemLabel: l10n.systemSettings,
+                          onTap: () => widget.onSelect(index),
+                          onClose: () => widget.onClose(index),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              ),
+              if (needsScroll) _scrollButton(Icons.chevron_left, () => _nudge(-1), l10n.zh ? '向左滚动标签' : 'Scroll tabs left'),
+              if (needsScroll) _scrollButton(Icons.chevron_right, () => _nudge(1), l10n.zh ? '向右滚动标签' : 'Scroll tabs right'),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _scrollButton(IconData icon, VoidCallback onTap, String tooltip) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: 24,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(border: Border(left: BorderSide(color: AppColors.border))),
+          child: Icon(icon, size: 16, color: AppColors.textSecondary),
+        ),
       ),
     );
   }
@@ -554,6 +613,7 @@ class _TabStripState extends State<_TabStrip> {
 class _TabChip extends StatefulWidget {
   const _TabChip({
     required this.tab,
+    required this.width,
     required this.active,
     required this.closable,
     required this.homeLabel,
@@ -564,6 +624,7 @@ class _TabChip extends StatefulWidget {
   });
 
   final _AppTab tab;
+  final double width;
   final bool active;
   final bool closable;
   final String homeLabel;
@@ -598,9 +659,9 @@ class _TabChipState extends State<_TabChip> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
+          width: widget.width,
           height: 38,
-          constraints: const BoxConstraints(minWidth: 120, maxWidth: 230),
-          padding: const EdgeInsets.only(left: 12, right: 6),
+          padding: const EdgeInsets.only(left: 10, right: 4),
           decoration: BoxDecoration(
             color: widget.active ? Colors.white : (_hovered ? const Color(0xFFF7F8FA) : Colors.transparent),
             border: Border(

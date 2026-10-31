@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
@@ -1021,22 +1022,35 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                         horizontal: 8,
                         vertical: 5,
                       ),
-                      child: TextField(
-                        controller: block.tableCells[r][c],
-                        onTap: () => setState(() => _active = index),
-                        maxLines: null,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: r == 0
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                        ),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
+                      child: Listener(
+                        onPointerDown: (event) {
+                          if (event.buttons == kSecondaryMouseButton) {
+                            unawaited(showEditorContextMenu(
+                              context: context,
+                              position: event.position,
+                              controller: block.tableCells[r][c],
+                            ));
+                          }
+                        },
+                        child: TextField(
+                          controller: block.tableCells[r][c],
+                          onTap: () => setState(() => _active = index),
+                          maxLines: null,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: r == 0
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                          contextMenuBuilder: (context, editableTextState) =>
+                              const SizedBox.shrink(),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
                         ),
                       ),
                     ),
@@ -1384,6 +1398,19 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     );
   }
 
+  void _showBlockMenu(_MdBlock block, int index, Offset position) {
+    setState(() {
+      _active = index;
+      _editing = index;
+    });
+    unawaited(showEditorContextMenu(
+      context: context,
+      position: position,
+      controller: block.controller,
+      onInsertLink: () => _wrapBlock(block, '[', '](https://)'),
+    ));
+  }
+
   Widget _textField(
     _MdBlock block,
     int index,
@@ -1400,45 +1427,61 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       color: color ?? AppColors.text,
     );
     if (!widget.readOnly && _editing != index) {
-      return MouseRegion(
-        cursor: SystemMouseCursors.text,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            setState(() {
-              _active = index;
-              _editing = index;
-            });
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            child: _richText(
-              block.controller.text,
-              style,
-              monospace: monospace,
+      return Listener(
+        onPointerDown: (event) {
+          if (event.buttons == kSecondaryMouseButton) {
+            _showBlockMenu(block, index, event.position);
+          }
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.text,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              setState(() {
+                _active = index;
+                _editing = index;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: _richText(
+                block.controller.text,
+                style,
+                monospace: monospace,
+              ),
             ),
           ),
         ),
       );
     }
-    return Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      onKeyEvent: (node, event) => _onKey(block, index, event),
-      child: TextField(
-        controller: block.controller,
-        focusNode: block.focus,
-        autofocus: _editing == index,
-        enabled: !widget.readOnly,
-        onTap: () => _setActive(index),
-        maxLines: null,
-        style: style,
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(vertical: 3),
+    return Listener(
+      onPointerDown: (event) {
+        if (event.buttons == kSecondaryMouseButton) {
+          _showBlockMenu(block, index, event.position);
+        }
+      },
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: (node, event) => _onKey(block, index, event),
+        child: TextField(
+          controller: block.controller,
+          focusNode: block.focus,
+          autofocus: _editing == index,
+          enabled: !widget.readOnly,
+          onTap: () => _setActive(index),
+          maxLines: null,
+          style: style,
+          contextMenuBuilder: (context, editableTextState) =>
+              const SizedBox.shrink(),
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(vertical: 3),
+          ),
         ),
       ),
     );

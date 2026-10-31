@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
@@ -3389,92 +3390,34 @@ class SdocEditorState extends State<SdocEditor> {
     );
   }
 
-  Widget _contextMenu(
-    BuildContext context,
-    EditableTextState editableTextState,
-  ) {
-    final l10n = L10n.of(context);
-    void hide() => editableTextState.hideToolbar();
-    return AdaptiveTextSelectionToolbar.buttonItems(
-      anchors: editableTextState.contextMenuAnchors,
-      buttonItems: [
-        ContextMenuButtonItem(
-          label: l10n.zh ? '剪切' : 'Cut',
-          onPressed: () {
-            editableTextState.cutSelection(SelectionChangedCause.toolbar);
-            hide();
-          },
-        ),
-        ContextMenuButtonItem(
-          label: l10n.copy,
-          onPressed: () {
-            editableTextState.copySelection(SelectionChangedCause.toolbar);
-            hide();
-          },
-        ),
-        ContextMenuButtonItem(
-          label: l10n.zh ? '粘贴' : 'Paste',
-          onPressed: () {
-            editableTextState.pasteText(SelectionChangedCause.toolbar);
-            hide();
-          },
-        ),
-        ContextMenuButtonItem(
-          label: l10n.delete,
-          onPressed: () {
-            _deleteSelection(editableTextState);
-            hide();
-          },
-        ),
-        ContextMenuButtonItem(
-          label: l10n.zh ? '全选' : 'Select all',
-          onPressed: () {
-            editableTextState.selectAll(SelectionChangedCause.toolbar);
-            hide();
-          },
-        ),
-      ],
-    );
-  }
-
-  void _deleteSelection(EditableTextState state) {
-    final value = state.textEditingValue;
-    final selection = value.selection;
-    if (!selection.isValid) return;
-    if (selection.isCollapsed) {
-      if (selection.start <= 0) return;
-      state.userUpdateTextEditingValue(
-        value.copyWith(
-          text: value.text.replaceRange(
-            selection.start - 1,
-            selection.start,
-            '',
-          ),
-          selection: TextSelection.collapsed(offset: selection.start - 1),
-          composing: TextRange.empty,
-        ),
-        SelectionChangedCause.toolbar,
-      );
-      return;
-    }
-    state.userUpdateTextEditingValue(
-      value.copyWith(
-        text: value.text.replaceRange(selection.start, selection.end, ''),
-        selection: TextSelection.collapsed(offset: selection.start),
-        composing: TextRange.empty,
-      ),
-      SelectionChangedCause.toolbar,
-    );
+  Widget _contextMenu(BuildContext context, EditableTextState editableTextState) {
+    return const SizedBox.shrink();
   }
 
   Widget _keyboard(_SdocField field, Widget child) {
     if (_readOnly) return child;
-    return Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      onKeyEvent: (node, event) => _onKey(field, event),
-      child: child,
+    return Listener(
+      onPointerDown: (event) {
+        if (event.buttons == kSecondaryMouseButton) _showFieldMenu(field, event.position);
+      },
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: (node, event) => _onKey(field, event),
+        child: child,
+      ),
     );
+  }
+
+  void _showFieldMenu(_SdocField field, Offset position) {
+    setState(() => _active = field.blockIndex);
+    field.focus.requestFocus();
+    unawaited(showEditorContextMenu(
+      context: context,
+      position: position,
+      controller: field.controller,
+      onInsertLink: field.kind == _SdocFieldKind.code ? null : () => unawaited(_setLink()),
+    ));
   }
 
   Widget _textField(
@@ -3928,18 +3871,26 @@ class SdocEditorState extends State<SdocEditor> {
                             bottom: BorderSide(color: AppColors.border),
                           ),
                         ),
-                        child: TextField(
-                          controller: _controllerForCell(cell),
-                          contextMenuBuilder: _contextMenu,
-                          enabled: !_readOnly,
-                          maxLines: null,
-                          style: const TextStyle(fontSize: 13, height: 1.45),
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
+                        child: Listener(
+                          onPointerDown: (event) {
+                            if (event.buttons == kSecondaryMouseButton) {
+                              final controller = _controllerForCell(cell);
+                              unawaited(showEditorContextMenu(context: context, position: event.position, controller: controller));
+                            }
+                          },
+                          child: TextField(
+                            controller: _controllerForCell(cell),
+                            contextMenuBuilder: _contextMenu,
+                            enabled: !_readOnly,
+                            maxLines: null,
+                            style: const TextStyle(fontSize: 13, height: 1.45),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
                           ),
                         ),
                       ),

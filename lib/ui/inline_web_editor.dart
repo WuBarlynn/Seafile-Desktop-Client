@@ -77,28 +77,29 @@ class _InlineWebEditorState extends State<InlineWebEditor> {
       color: const Color(0xFFF4F5F7),
       child: Column(
         children: [
-          Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: AppColors.border))),
-            child: Row(
-              children: [
-                _button(Icons.arrow_back, l10n.zh ? '后退' : 'Back', () => _controller?.goBack()),
-                _button(Icons.arrow_forward, l10n.zh ? '前进' : 'Forward', () => _controller?.goForward()),
-                _button(Icons.refresh, l10n.refresh, () => _controller?.reload()),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _target ?? '',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: AppColors.muted),
+          if (widget.entry == null)
+            Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: AppColors.border))),
+              child: Row(
+                children: [
+                  _button(Icons.arrow_back, l10n.zh ? '后退' : 'Back', () => _controller?.goBack()),
+                  _button(Icons.arrow_forward, l10n.zh ? '前进' : 'Forward', () => _controller?.goForward()),
+                  _button(Icons.refresh, l10n.refresh, () => _controller?.reload()),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _target ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                    ),
                   ),
-                ),
-                _button(Icons.open_in_new, l10n.openInBrowser, _openExternal),
-              ],
+                  _button(Icons.open_in_new, l10n.openInBrowser, _openExternal),
+                ],
+              ),
             ),
-          ),
           if (_loading)
             LinearProgressIndicator(value: _progress > 0 && _progress < 1 ? _progress : null, minHeight: 2, backgroundColor: AppColors.hover),
           Expanded(
@@ -140,7 +141,8 @@ class _InlineWebEditorState extends State<InlineWebEditor> {
                           isInspectable: false,
                           supportZoom: true,
                           useShouldOverrideUrlLoading: false,
-                          javaScriptCanOpenWindowsAutomatically: true,
+                          javaScriptCanOpenWindowsAutomatically: false,
+                          supportMultipleWindows: false,
                           sharedCookiesEnabled: true,
                           isFraudulentWebsiteWarningEnabled: false,
                           userAgent: Platform.isMacOS
@@ -149,6 +151,12 @@ class _InlineWebEditorState extends State<InlineWebEditor> {
                         ),
                         onConsoleMessage: (controller, message) {
                           debugPrint('[inline-web] ${message.messageLevel}: ${message.message}');
+                        },
+                        onCreateWindow: (controller, action) async {
+                          final url = action.request.url;
+                          if (url == null) return false;
+                          await controller.loadUrl(urlRequest: URLRequest(url: url));
+                          return true;
                         },
                         onWebViewCreated: (controller) => _controller = controller,
                         onLoadStart: (controller, url) {
