@@ -138,6 +138,7 @@ class Repository {
     this.fileCount = 0,
     this.enableOnlyOffice = false,
     this.monitored = false,
+    this.archiveStatus,
   });
 
   final String id;
@@ -162,6 +163,7 @@ class Repository {
   final int fileCount;
   final bool enableOnlyOffice;
   final bool monitored;
+  final String? archiveStatus;
 
   factory Repository.fromJson(Map<String, dynamic> json) {
     return Repository(
@@ -187,6 +189,7 @@ class Repository {
       fileCount: firstInt(json, ['file_count']) ?? 0,
       enableOnlyOffice: asBool(json['enable_onlyoffice']),
       monitored: asBool(json['monitored']),
+      archiveStatus: firstString(json, ['archive_status']),
     );
   }
 

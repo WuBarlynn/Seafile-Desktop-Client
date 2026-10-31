@@ -86,6 +86,34 @@ class _LibraryHomeState extends State<LibraryHome> {
     }
   }
 
+  Future<void> _transferLibrary(Repository repo) async {
+    final l10n = L10n.of(context);
+    final controller = TextEditingController();
+    final owner = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '转让资料库' : 'Transfer library'),
+        content: SizedBox(
+          width: 380,
+          child: TextField(controller: controller, autofocus: true, decoration: InputDecoration(labelText: l10n.zh ? '新所有者邮箱' : 'New owner email')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: Text(l10n.zh ? '转让' : 'Transfer')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (owner == null || owner.isEmpty || !mounted) return;
+    try {
+      await context.read<AppSession>().api!.transferLibrary(repo.id, owner);
+      await context.read<AppSession>().refreshLibraries();
+      if (mounted) showToast(context, l10n.zh ? '资料库已转让' : 'Library transferred');
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   Future<void> _deleteLibrary(Repository repo) async {
     final l10n = L10n.of(context);
     final confirmed = await showConfirmDialog(
@@ -116,6 +144,12 @@ class _LibraryHomeState extends State<LibraryHome> {
         PopupMenuItem(value: 'open', child: _menuRow('folder-open', l10n.open)),
         PopupMenuItem(value: 'star', child: _menuRow('starred', repo.starred ? (l10n.zh ? '取消星标' : 'Remove star') : (l10n.zh ? '添加星标' : 'Add star'))),
         if (repo.isOwner) PopupMenuItem(value: 'rename', child: _menuRow('rename', l10n.rename)),
+        if (repo.isOwner) PopupMenuItem(value: 'transfer', child: _menuRow('share-with-me', l10n.zh ? '转让' : 'Transfer')),
+        if (repo.isOwner && repo.archiveStatus != null)
+          PopupMenuItem(
+            value: 'archive',
+            child: _menuRow('archive', repo.archiveStatus == 'archived' ? (l10n.zh ? '取消归档' : 'Unarchive') : (l10n.zh ? '归档' : 'Archive')),
+          ),
         if (repo.isOwner) const PopupMenuDivider(),
         if (repo.isOwner) PopupMenuItem(value: 'delete', child: _menuRow('delete', l10n.delete, danger: true)),
       ],
@@ -135,6 +169,16 @@ class _LibraryHomeState extends State<LibraryHome> {
         try {
           await context.read<AppSession>().api!.setStarred(repoId: repo.id, path: '/', starred: !repo.starred);
           await context.read<AppSession>().refreshLibraries();
+        } catch (error) {
+          if (mounted) showToast(context, friendlyError(context, error), error: true);
+        }
+      case 'transfer':
+        await _transferLibrary(repo);
+      case 'archive':
+        try {
+          await context.read<AppSession>().api!.archiveLibrary(repo.id, repo.archiveStatus != 'archived');
+          await context.read<AppSession>().refreshLibraries();
+          if (mounted) showToast(context, repo.archiveStatus == 'archived' ? (l10n.zh ? '已取消归档' : 'Library unarchived') : (l10n.zh ? '资料库已归档' : 'Library archived'));
         } catch (error) {
           if (mounted) showToast(context, friendlyError(context, error), error: true);
         }

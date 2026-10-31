@@ -394,6 +394,22 @@ class SeafileApi {
     await _delete('api/v2.1/admin/share-links/$token/');
   }
 
+  Future<void> archiveLibrary(String repoId, bool archive) async {
+    await _postJson('api/v2.1/repos/$repoId/archive/', {'op_type': archive ? 'archive' : 'unarchive'});
+  }
+
+  Future<void> transferLibrary(String repoId, String owner, {bool reshare = true}) async {
+    try {
+      await _api.put<dynamic>(
+        'api2/repos/$repoId/owner/',
+        data: {'owner': owner, 'reshare': reshare.toString()},
+        options: Options(contentType: Headers.formUrlEncodedContentType, headers: _authHeaders),
+      );
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
   Future<void> deleteAdminLibrary(String repoId) async {
     await _delete('api/v2.1/admin/libraries/$repoId/');
   }
