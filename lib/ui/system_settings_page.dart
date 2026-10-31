@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,6 +39,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   int _reloadTick = 0;
   final _userQuery = TextEditingController();
   final _libraryQuery = TextEditingController();
+  final _groupQuery = TextEditingController();
+  bool _userShowAdmins = false;
   bool _loadingUsers = false;
   bool _loadingLibraries = false;
   bool _loadingWikis = false;
@@ -56,6 +60,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   void dispose() {
     _userQuery.dispose();
     _libraryQuery.dispose();
+    _groupQuery.dispose();
     super.dispose();
   }
 
@@ -163,7 +168,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   Future<void> _loadGroups() async {
     setState(() => _loadingGroups = true);
     try {
-      final data = await context.read<AppSession>().api!.adminGroups();
+      final data = await context.read<AppSession>().api!.adminGroups(name: _groupQuery.text.trim());
       if (!mounted) return;
       setState(() {
         _groups = (data['groups'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
@@ -491,12 +496,43 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
             children: [
               Row(
                 children: [
-                  Text(l10n.zh ? '所有群组' : 'All groups', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  Text(l10n.zh ? '群组' : 'Groups', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 240,
+                    height: 32,
+                    child: TextField(
+                      controller: _groupQuery,
+                      onSubmitted: (_) => _loadGroups(),
+                      style: const TextStyle(fontSize: 12.5),
+                      decoration: InputDecoration(
+                        hintText: l10n.zh ? '根据名称搜索群组' : 'Search groups by name',
+                        prefixIcon: const Padding(padding: EdgeInsets.all(8), child: WebIcon('search', size: 14)),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(onPressed: _loadGroups, child: Text(l10n.search, style: const TextStyle(fontSize: 12))),
                   const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: () => _exportCsv('groups.csv', ['Name', 'Owner', 'Created'], [
+                      for (final group in _groups)
+                        [
+                          '${group['name'] ?? ''}',
+                          '${group['owner_name'] ?? group['owner'] ?? ''}',
+                          '${group['created_at'] ?? ''}',
+                        ],
+                    ]),
+                    icon: const Icon(Icons.file_download_outlined, size: 15),
+                    label: Text(l10n.zh ? '导出 CSV' : 'Export CSV', style: const TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(width: 6),
                   FilledButton.icon(
                     onPressed: _createGroup,
                     icon: const Icon(Icons.group_add_outlined, size: 16),
-                    label: Text(l10n.zh ? '新建群组' : 'New group'),
+                    label: Text(l10n.zh ? '新建群组' : 'New group', style: const TextStyle(fontSize: 12)),
                   ),
                   if (_loadingGroups) ...[
                     const SizedBox(width: 10),
@@ -741,18 +777,48 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
+  List<Map<String, dynamic>> get _visibleUsers =>
+      _userShowAdmins ? _users.where((user) => user['is_staff'] == true).toList() : _users;
+
   Widget _usersView(L10n l10n) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
+          constraints: const BoxConstraints(maxWidth: 1180),
           child: Column(
             children: [
               Row(
                 children: [
+                  for (final entry in [(false, l10n.zh ? '全部' : 'All'), (true, l10n.zh ? '管理' : 'Admins')])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        onTap: () => setState(() => _userShowAdmins = entry.$1),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _userShowAdmins == entry.$1 ? AppColors.primarySoft : Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _userShowAdmins == entry.$1 ? AppColors.primary.withValues(alpha: 0.45) : AppColors.border),
+                          ),
+                          child: Text(
+                            entry.$2,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: _userShowAdmins == entry.$1 ? AppColors.primaryDark : AppColors.textSecondary,
+                              fontWeight: _userShowAdmins == entry.$1 ? FontWeight.w500 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 10),
                   SizedBox(
-                    width: 320,
+                    width: 260,
                     height: 34,
                     child: TextField(
                       controller: _userQuery,
@@ -764,15 +830,27 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   OutlinedButton(onPressed: _loadUsers, child: Text(l10n.search)),
                   const Spacer(),
                   if (_loadingUsers) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: _importUsers,
+                    icon: const Icon(Icons.upload_file_outlined, size: 15),
+                    label: Text(l10n.zh ? '导入用户' : 'Import users', style: const TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    onPressed: () => _exportUsers(l10n),
+                    icon: const Icon(Icons.file_download_outlined, size: 15),
+                    label: Text(l10n.zh ? '导出 CSV' : 'Export CSV', style: const TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(width: 6),
                   FilledButton.icon(
                     onPressed: _createUser,
                     icon: const Icon(Icons.person_add_alt_1_outlined, size: 16),
-                    label: Text(l10n.zh ? '新建用户' : 'New user'),
+                    label: Text(l10n.zh ? '新建用户' : 'New user', style: const TextStyle(fontSize: 12)),
                   ),
                 ],
               ),
@@ -783,6 +861,47 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _importUsers() async {
+    final l10n = L10n.of(context);
+    final file = await openFile(acceptedTypeGroups: const [XTypeGroup(label: 'CSV', extensions: ['csv', 'txt'])]);
+    if (file == null) return;
+    try {
+      await context.read<AppSession>().api!.importAdminUsers(file.path);
+      await _loadUsers();
+      if (mounted) showToast(context, l10n.savedSuccessfully);
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _exportUsers(L10n l10n) async {
+    await _exportCsv('users.csv', ['Email', 'Name', 'Role', 'Active', 'Quota used', 'Last login'], [
+      for (final user in _visibleUsers)
+        [
+          '${user['email'] ?? ''}',
+          '${user['name'] ?? ''}',
+          user['is_staff'] == true ? 'Admin' : 'User',
+          user['is_active'] == 1 || user['is_active'] == true ? 'Active' : 'Disabled',
+          '${user['quota_usage'] ?? 0}',
+          '${user['last_login'] ?? ''}',
+        ],
+    ]);
+  }
+
+  Future<void> _exportCsv(String name, List<String> headers, List<List<String>> rows) async {
+    final l10n = L10n.of(context);
+    final buffer = StringBuffer();
+    String cell(String value) => '"${value.replaceAll('"', '""')}"';
+    buffer.writeln(headers.map(cell).join(','));
+    for (final row in rows) {
+      buffer.writeln(row.map(cell).join(','));
+    }
+    final location = await getSaveLocation(suggestedName: name);
+    if (location == null) return;
+    await XFile.fromData(utf8.encode(buffer.toString()), mimeType: 'text/csv', name: name).saveTo(location.path);
+    if (mounted) showToast(context, l10n.savedSuccessfully);
   }
 
   Widget _librariesView(L10n l10n) {
@@ -1081,8 +1200,8 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               ],
             ),
           ),
-          for (var index = 0; index < _users.length; index++)
-            _userRow(_users[index], index == _users.length - 1, l10n),
+          for (var index = 0; index < _visibleUsers.length; index++)
+            _userRow(_visibleUsers[index], index == _visibleUsers.length - 1, l10n),
         ],
       ),
     );

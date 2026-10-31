@@ -330,6 +330,10 @@ class SeafileApi {
     return asMap(await _postJson('api/v2.1/admin/users/', values));
   }
 
+  Future<void> importAdminUsers(String filePath) async {
+    await _postMultipart('api/v2.1/admin/import-users/', 'file', filePath);
+  }
+
   Future<Map<String, dynamic>> updateAdminUser(String email, Map<String, dynamic> values) async {
     final encoded = Uri.encodeComponent(email);
     return asMap(await _putJson('api/v2.1/admin/users/$encoded/', values));
