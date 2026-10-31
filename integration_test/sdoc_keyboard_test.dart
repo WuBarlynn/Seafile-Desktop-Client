@@ -51,6 +51,9 @@ void main() {
     }
     await tester.pumpAndSettle();
     expect(_texts(tester), ['Keyboard', 'first', 'one', 'two', 'last', '']);
+    final canvas = tester.getSize(find.byKey(const ValueKey('sdoc-canvas')));
+    final viewport = tester.getSize(find.byType(Scaffold));
+    expect(canvas.height, greaterThan(viewport.height - 160), reason: 'the SeaDoc canvas must fill the tab height');
 
     await tester.tap(find.byType(TextField).at(1));
     await tester.pump();

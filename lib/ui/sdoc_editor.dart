@@ -1076,6 +1076,7 @@ class SdocEditorState extends State<SdocEditor> {
         if (_saving) const LinearProgressIndicator(minHeight: 2),
         Expanded(
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(child: _content(l10n)),
               if (_commentsOpen)
@@ -1194,6 +1195,7 @@ class SdocEditorState extends State<SdocEditor> {
       color: const Color(0xFFF4F5F7),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Container(
+        key: const ValueKey('sdoc-canvas'),
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border.all(color: AppColors.border),
