@@ -20,9 +20,10 @@ void main() {
     await session.restore();
     expect(session.hasSession, isTrue, reason: 'A stored local test session is required');
     final api = session.api!;
-    try {
+    final entries = await api.listDir(_repoId, '/');
+    if (!entries.any((entry) => entry.path == _path)) {
       await api.createFile(_repoId, _path);
-    } catch (_) {}
+    }
     await api.saveSdocDocument(_repoId, _path, _fixture());
 
     final repository = const Repository(id: _repoId, name: 'seasearch-test', permission: 'rw');
