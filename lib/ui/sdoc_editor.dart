@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -76,6 +78,14 @@ class SdocEditorState extends State<SdocEditor> {
   final Set<String> _openingVideos = {};
   bool _commentsOpen = false;
   final Map<TextEditingController, String> _lastTexts = {};
+  final List<String> _undoStack = [];
+  final List<String> _redoStack = [];
+  Timer? _historyTimer;
+  Timer? _autoSaveTimer;
+  String _lastSnapshot = '';
+  String? _savedSnapshot;
+  DateTime? _lastSavedAt;
+  bool _restoring = false;
   Map<String, dynamic>? _document;
   bool _loading = true;
   bool _saving = false;
@@ -85,16 +95,21 @@ class SdocEditorState extends State<SdocEditor> {
   int _idSeed = 0;
 
   bool get isDirty => _dirty;
+  bool get canUndo => _undoStack.isNotEmpty || (_dirty && _lastSnapshot.isNotEmpty);
+  bool get canRedo => _redoStack.isNotEmpty;
   bool get _readOnly => widget.entry.isReadOnly || widget.repo.isReadOnly;
 
   @override
   void initState() {
     super.initState();
+    _lastSavedAt = widget.entry.mtime;
     _load();
   }
 
   @override
   void dispose() {
+    _historyTimer?.cancel();
+    _autoSaveTimer?.cancel();
     for (final block in _blocks) {
       _disposeBlock(block);
     }
@@ -141,6 +156,8 @@ class SdocEditorState extends State<SdocEditor> {
       if (!mounted) return;
       _document = document;
       _buildBlocks(document);
+      _lastSnapshot = _snapshotNow();
+      _savedSnapshot = _lastSnapshot;
       setState(() => _loading = false);
     } catch (error) {
       if (!mounted) return;
@@ -330,7 +347,117 @@ class SdocEditorState extends State<SdocEditor> {
   }
 
   void _markDirty() {
-    if (!_dirty) setState(() => _dirty = true);
+    if (_readOnly) return;
+    if (!_dirty) {
+      setState(_changed);
+    } else {
+      _scheduleAutoSave();
+      _scheduleHistory();
+    }
+  }
+
+  void _changed() {
+    if (_readOnly) return;
+    _dirty = true;
+    _scheduleAutoSave();
+    _scheduleHistory();
+  }
+
+  void _scheduleAutoSave() {
+    if (_readOnly) return;
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) unawaited(save(auto: true));
+    });
+  }
+
+  void _scheduleHistory() {
+    if (_readOnly || _restoring) return;
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 600), _commitTextHistory);
+  }
+
+  void _commitTextHistory() {
+    if (!mounted) return;
+    final current = _snapshotNow();
+    if (current == _lastSnapshot) return;
+    _undoStack.add(_lastSnapshot);
+    _trimHistory();
+    _redoStack.clear();
+    _lastSnapshot = current;
+    setState(() {});
+  }
+
+  void _trimHistory() {
+    if (_undoStack.length > 100) _undoStack.removeRange(0, _undoStack.length - 100);
+  }
+
+  void _undo() {
+    _historyTimer?.cancel();
+    final current = _snapshotNow();
+    String target;
+    if (current != _lastSnapshot) {
+      target = _lastSnapshot;
+      _redoStack.add(current);
+      _lastSnapshot = target;
+    } else {
+      if (_undoStack.isEmpty) return;
+      target = _undoStack.removeLast();
+      _redoStack.add(current);
+    }
+    _restoreSnapshot(target);
+  }
+
+  void _redo() {
+    _historyTimer?.cancel();
+    final current = _snapshotNow();
+    if (current != _lastSnapshot) {
+      _undoStack.add(_lastSnapshot);
+      _trimHistory();
+      _redoStack.clear();
+      _lastSnapshot = current;
+      setState(() {});
+      return;
+    }
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(current);
+    final target = _redoStack.removeLast();
+    _lastSnapshot = target;
+    _restoreSnapshot(target);
+  }
+
+  void _restoreSnapshot(String source) {
+    if (_document == null) return;
+    _restoring = true;
+    for (final block in _blocks) {
+      _disposeBlock(block);
+    }
+    for (final controller in _tableControllers.values) {
+      controller.dispose();
+    }
+    _blocks.clear();
+    _tableControllers.clear();
+    _lastTexts.clear();
+    final elements = (jsonDecode(source) as List).whereType<Map>().map((item) => item.cast<String, dynamic>()).toList();
+    _document!['elements'] = elements;
+    _buildBlocks(_document!);
+    _active = _blocks.isEmpty ? null : 0;
+    _lastSnapshot = _snapshotNow();
+    _dirty = _lastSnapshot != _savedSnapshot;
+    _restoring = false;
+    setState(() {});
+    _scheduleAutoSave();
+  }
+
+  String _snapshotNow() {
+    if (_blocks.isEmpty) return _savedSnapshot ?? '';
+    return jsonEncode(_composeElements());
+  }
+
+  String _formatSavedTime(DateTime time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   void _setActive(int index) {
@@ -435,6 +562,20 @@ class SdocEditorState extends State<SdocEditor> {
     if (!selection.isValid) return KeyEventResult.ignored;
     final key = event.logicalKey;
     final text = value.text;
+    final command = HardwareKeyboard.instance.isMetaPressed || HardwareKeyboard.instance.isControlPressed;
+
+    if (command && key == LogicalKeyboardKey.keyZ) {
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        _redo();
+      } else {
+        _undo();
+      }
+      return KeyEventResult.handled;
+    }
+    if (command && key == LogicalKeyboardKey.keyY) {
+      _redo();
+      return KeyEventResult.handled;
+    }
 
     if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
       if (HardwareKeyboard.instance.isShiftPressed) return KeyEventResult.ignored;
@@ -496,7 +637,7 @@ class SdocEditorState extends State<SdocEditor> {
         if (field.kind == _SdocFieldKind.simple && block.type != 'paragraph' && block.type != 'title') {
           setState(() {
             block.element['type'] = 'paragraph';
-            _dirty = true;
+            _changed();
           });
         }
         return;
@@ -505,7 +646,7 @@ class SdocEditorState extends State<SdocEditor> {
       final next = _nextField(field);
       setState(() {
         _removeField(field);
-        _dirty = true;
+        _changed();
       });
       final target = previous ?? next;
       if (target != null) {
@@ -520,7 +661,7 @@ class SdocEditorState extends State<SdocEditor> {
     previous.controller.text = '${previous.controller.text}${newline && previous.controller.text.isNotEmpty ? '\n' : ''}${controller.text}';
     setState(() {
       _removeField(field);
-      _dirty = true;
+      _changed();
     });
     _focusField(previous, offset);
   }
@@ -533,7 +674,7 @@ class SdocEditorState extends State<SdocEditor> {
     field.controller.text = '${field.controller.text}${newline && field.controller.text.isNotEmpty ? '\n' : ''}${next.controller.text}';
     setState(() {
       _removeField(next);
-      _dirty = true;
+      _changed();
     });
     _focusField(field, offset);
   }
@@ -550,7 +691,7 @@ class SdocEditorState extends State<SdocEditor> {
       if (block.type == 'quote' || block.type == 'check_list_item') {
         setState(() {
           block.element['type'] = 'paragraph';
-          _dirty = true;
+          _changed();
         });
         return;
       }
@@ -567,7 +708,7 @@ class SdocEditorState extends State<SdocEditor> {
     setState(() {
       _blocks.insert(index + 1, newBlock);
       _active = index + 1;
-      _dirty = true;
+      _changed();
     });
     _focusBlock(newBlock, index + 1, 0);
   }
@@ -594,7 +735,7 @@ class SdocEditorState extends State<SdocEditor> {
     setState(() {
       _blocks.insert(index + 1, block);
       _active = index + 1;
-      _dirty = true;
+      _changed();
     });
     _focusBlock(block, index + 1, 0);
   }
@@ -613,14 +754,14 @@ class SdocEditorState extends State<SdocEditor> {
           _blocks[field.blockIndex] = replacement;
           _disposeBlock(block);
           _active = field.blockIndex;
-          _dirty = true;
+          _changed();
         });
         _focusBlock(replacement, field.blockIndex, 0);
       } else {
         final index = field.blockIndex;
         setState(() {
           _removeListItem(block, field.item);
-          _dirty = true;
+          _changed();
         });
         _insertParagraphAfter(index, '');
       }
@@ -642,7 +783,7 @@ class SdocEditorState extends State<SdocEditor> {
     block.children.insert(item + 1, newController);
     block.childFocus.insert(item + 1, newFocus);
     _watch(newController);
-    setState(() => _dirty = true);
+    setState(_changed);
     _focusField(_SdocField(block: block, blockIndex: field.blockIndex, kind: _SdocFieldKind.listItem, controller: newController, focus: newFocus, item: item + 1), 0);
   }
 
@@ -668,7 +809,7 @@ class SdocEditorState extends State<SdocEditor> {
     block.children.insert(item + 1, newController);
     block.childFocus.insert(item + 1, newFocus);
     _watch(newController);
-    setState(() => _dirty = true);
+    setState(_changed);
     _focusField(_SdocField(block: block, blockIndex: field.blockIndex, kind: _SdocFieldKind.calloutChild, controller: newController, focus: newFocus, item: item + 1), 0);
   }
 
@@ -684,7 +825,7 @@ class SdocEditorState extends State<SdocEditor> {
       if (block.toggleCollapsed) {
         setState(() {
           block.toggleCollapsed = false;
-          _dirty = true;
+          _changed();
         });
       }
       _focusField(
@@ -722,7 +863,7 @@ class SdocEditorState extends State<SdocEditor> {
     block.toggleChildren.insert(item + 1, newController);
     block.toggleChildFocus.insert(item + 1, newFocus);
     _watch(newController);
-    setState(() => _dirty = true);
+    setState(_changed);
     _focusField(_SdocField(block: block, blockIndex: field.blockIndex, kind: _SdocFieldKind.toggleChild, controller: newController, focus: newFocus, item: item + 1), 0);
   }
 
@@ -847,81 +988,102 @@ class SdocEditorState extends State<SdocEditor> {
     }
   }
 
-  Future<bool> save() async {
+  List<Map<String, dynamic>> _composeElements() {
+    final elements = <Map<String, dynamic>>[];
+    for (final block in _blocks) {
+      if (block.deleted) continue;
+      final type = block.type;
+      if (type == 'unordered_list' || type == 'ordered_list') {
+        for (var i = 0; i < block.childElements.length && i < block.children.length; i++) {
+          _setNodeText(block.childElements[i], block.children[i].text);
+        }
+        elements.add(block.element);
+      } else if (type == 'callout') {
+        for (var i = 0; i < block.childElements.length && i < block.children.length; i++) {
+          _setNodeText(block.childElements[i], block.children[i].text);
+        }
+        elements.add(block.element);
+      } else if (type == 'toggle_header') {
+        final children = (block.element['children'] as List?)?.whereType<Map>().toList() ?? const [];
+        if (children.isNotEmpty && block.toggleTitle != null) {
+          _setNodeText(children.first.cast<String, dynamic>(), block.toggleTitle!.text);
+        }
+        if (children.length > 1) {
+          final content = children[1]['children'];
+          if (content is List) {
+            final paragraphs = content.whereType<Map>().toList();
+            for (var i = 0; i < block.toggleChildElements.length && i < block.toggleChildren.length; i++) {
+              _setNodeText(block.toggleChildElements[i], block.toggleChildren[i].text);
+            }
+            for (var i = paragraphs.length; i < block.toggleChildren.length; i++) {
+              content.add(_paragraphElement(block.toggleChildren[i].text));
+            }
+          }
+        }
+        block.element['collapsed'] = block.toggleCollapsed;
+        elements.add(block.element);
+      } else if (type == 'code_block') {
+        final lines = (block.text?.text ?? '').split('\n');
+        final existing = (block.element['children'] as List?)?.whereType<Map>().toList() ?? [];
+        block.element['children'] = [
+          for (var i = 0; i < lines.length; i++)
+            {
+              'id': i < existing.length ? (existing[i]['id'] as String? ?? '${block.element['id']}-$i') : '${block.element['id']}-$i',
+              'type': 'code_line',
+              'children': [
+                {'id': '${block.element['id']}-$i-t', 'text': lines[i]},
+              ],
+            },
+        ];
+        elements.add(block.element);
+      } else if (_isSimpleEditable(type) && block.text != null) {
+        _setNodeText(block.element, block.text!.text);
+        elements.add(block.element);
+      } else {
+        elements.add(block.element);
+      }
+    }
+    for (final element in elements) {
+      _saveTableText(element);
+    }
+    return elements;
+  }
+
+  bool get _isComposing => _lastTexts.keys.any((controller) => controller.value.composing.isValid);
+
+  Future<bool> save({bool auto = false}) async {
     if (_readOnly || _saving || !_dirty || _document == null) return true;
+    if (auto && _isComposing) {
+      _scheduleAutoSave();
+      return true;
+    }
+    _autoSaveTimer?.cancel();
     final l10n = L10n.of(context);
     setState(() => _saving = true);
     try {
-      final elements = <Map<String, dynamic>>[];
-      for (final block in _blocks) {
-        if (block.deleted) continue;
-        final type = block.type;
-        if (type == 'unordered_list' || type == 'ordered_list') {
-          for (var i = 0; i < block.childElements.length; i++) {
-            _setNodeText(block.childElements[i], block.children[i].text);
-          }
-          elements.add(block.element);
-        } else if (type == 'callout') {
-          for (var i = 0; i < block.childElements.length; i++) {
-            _setNodeText(block.childElements[i], block.children[i].text);
-          }
-          elements.add(block.element);
-        } else if (type == 'toggle_header') {
-          final children = (block.element['children'] as List?)?.whereType<Map>().toList() ?? const [];
-          if (children.isNotEmpty && block.toggleTitle != null) {
-            _setNodeText(children.first.cast<String, dynamic>(), block.toggleTitle!.text);
-          }
-          if (children.length > 1) {
-            final content = children[1]['children'];
-            if (content is List) {
-              final paragraphs = content.whereType<Map>().toList();
-              for (var i = 0; i < block.toggleChildElements.length && i < block.toggleChildren.length; i++) {
-                _setNodeText(block.toggleChildElements[i], block.toggleChildren[i].text);
-              }
-              for (var i = paragraphs.length; i < block.toggleChildren.length; i++) {
-                content.add(_paragraphElement(block.toggleChildren[i].text));
-              }
-            }
-          }
-          block.element['collapsed'] = block.toggleCollapsed;
-          elements.add(block.element);
-        } else if (type == 'code_block') {
-          final lines = (block.text?.text ?? '').split('\n');
-          final existing = (block.element['children'] as List?)?.whereType<Map>().toList() ?? [];
-          block.element['children'] = [
-            for (var i = 0; i < lines.length; i++)
-              {
-                'id': i < existing.length ? (existing[i]['id'] as String? ?? '${block.element['id']}-$i') : '${block.element['id']}-$i',
-                'type': 'code_line',
-                'children': [
-                  {'id': '${block.element['id']}-$i-t', 'text': lines[i]},
-                ],
-              },
-          ];
-          elements.add(block.element);
-        } else if (_isSimpleEditable(type) && block.text != null) {
-          _setNodeText(block.element, block.text!.text);
-          elements.add(block.element);
-        } else {
-          elements.add(block.element);
-        }
-      }
-      for (final element in elements) {
-        _saveTableText(element);
-      }
+      final elements = _composeElements();
+      final snapshot = jsonEncode(elements);
       final version = _document!['version'];
       _document!['elements'] = elements;
       _document!['version'] = version is int ? version + 1 : 1;
       _document!['format_version'] = _document!['format_version'] ?? 4;
       await context.read<AppSession>().api!.saveSdocDocument(widget.repo.id, widget.entry.path, _document!);
       if (!mounted) return true;
+      final latest = _snapshotNow();
       setState(() {
         _saving = false;
-        _dirty = false;
+        _savedSnapshot = snapshot;
+        if (latest == snapshot) _lastSnapshot = snapshot;
+        _dirty = latest != snapshot;
+        _lastSavedAt = DateTime.now();
       });
-      final workspace = context.read<WorkspaceController>();
-      if (workspace.repoId == widget.repo.id) await workspace.refresh();
-      if (mounted) showToast(context, l10n.savedSuccessfully);
+      if (!auto) {
+        final workspace = context.read<WorkspaceController>();
+        if (workspace.repoId == widget.repo.id) await workspace.refresh();
+        if (mounted) showToast(context, l10n.savedSuccessfully);
+      } else if (_dirty) {
+        _scheduleAutoSave();
+      }
       return true;
     } catch (error) {
       if (mounted) {
@@ -966,7 +1128,7 @@ class SdocEditorState extends State<SdocEditor> {
       if (wasList) {
         setState(() {
           block.element['type'] = type;
-          _dirty = true;
+          _changed();
         });
       } else {
         final id = 'l-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
@@ -984,7 +1146,7 @@ class SdocEditorState extends State<SdocEditor> {
         block.children = [controller];
         block.childFocus = [FocusNode()];
         _watch(controller);
-        setState(() => _dirty = true);
+        setState(_changed);
         _focusBlock(block, index, text.length);
       }
     } else if (type == 'code_block') {
@@ -1007,7 +1169,7 @@ class SdocEditorState extends State<SdocEditor> {
         block.text = TextEditingController(text: text);
         block.textFocus = FocusNode();
         _watch(block.text!);
-        setState(() => _dirty = true);
+        setState(_changed);
         _focusBlock(block, index, text.length);
       }
     } else {
@@ -1023,47 +1185,9 @@ class SdocEditorState extends State<SdocEditor> {
       block.text = TextEditingController(text: text);
       block.textFocus = FocusNode();
       _watch(block.text!);
-      setState(() => _dirty = true);
+      setState(_changed);
       _focusBlock(block, index, text.length);
     }
-  }
-
-  void _addBlock() {
-    if (_readOnly) return;
-    final block = _newParagraphBlock('');
-    final index = _active == null ? _blocks.length : (_active! + 1).clamp(0, _blocks.length);
-    setState(() {
-      _blocks.insert(index, block);
-      _active = index;
-      _dirty = true;
-    });
-    _focusBlock(block, index, 0);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
-    });
-  }
-
-  void _deleteBlock(int index) {
-    if (_readOnly || _blocks.length <= 1) return;
-    final removed = _blocks[index];
-    final fields = _fields();
-    _SdocField? before;
-    _SdocField? after;
-    for (final field in fields) {
-      if (identical(field.block, removed)) continue;
-      if (field.blockIndex < index) {
-        before = field;
-      } else if (after == null) {
-        after = field;
-      }
-    }
-    setState(() {
-      removed.deleted = true;
-      if (_active == index) _active = index > 0 ? index - 1 : 0;
-      _dirty = true;
-    });
-    final target = before ?? after;
-    if (target != null) _focusField(target, before != null ? target.controller.text.length : 0);
   }
 
   @override
@@ -1124,13 +1248,28 @@ class SdocEditorState extends State<SdocEditor> {
                 ),
                 const SizedBox(width: 14),
                 const Spacer(),
-                FilledButton.icon(
-                  onPressed: _saving || !_dirty || _readOnly ? null : save,
-                  icon: _saving
-                      ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.save_outlined, size: 15),
-                  label: Text(l10n.save, style: const TextStyle(fontSize: 12)),
-                  style: FilledButton.styleFrom(minimumSize: const Size(0, 30), padding: const EdgeInsets.symmetric(horizontal: 12)),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_saving)
+                        const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
+                      else
+                        const Icon(Icons.cloud_done_outlined, size: 15, color: AppColors.muted),
+                      const SizedBox(width: 5),
+                      Text(
+                        _saving
+                            ? (l10n.zh ? '正在保存…' : 'Saving…')
+                            : _lastSavedAt == null
+                                ? (l10n.zh ? '未保存' : 'Not saved')
+                                : l10n.zh
+                                    ? '上次保存 ${_formatSavedTime(_lastSavedAt!)}'
+                                    : 'Saved ${_formatSavedTime(_lastSavedAt!)}',
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 4),
                 IconAction(
@@ -1153,6 +1292,9 @@ class SdocEditorState extends State<SdocEditor> {
               decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
               child: Row(
                 children: [
+                  _ToolbarButton(icon: Icons.undo, tooltip: l10n.zh ? '撤销' : 'Undo', onTap: canUndo ? _undo : null),
+                  _ToolbarButton(icon: Icons.redo, tooltip: l10n.zh ? '重做' : 'Redo', onTap: canRedo ? _redo : null),
+                  _toolDivider(),
                   _ToolbarButton(icon: Icons.notes, tooltip: l10n.zh ? '正文' : 'Paragraph', onTap: () => _changeType('paragraph')),
                   _ToolbarButton(icon: Icons.title, tooltip: l10n.zh ? '一级标题' : 'Heading 1', onTap: () => _changeType('header1')),
                   _ToolbarButton(icon: Icons.text_fields, tooltip: l10n.zh ? '二级标题' : 'Heading 2', onTap: () => _changeType('header2')),
@@ -1164,7 +1306,6 @@ class SdocEditorState extends State<SdocEditor> {
                   _ToolbarButton(icon: Icons.format_quote, tooltip: l10n.zh ? '引用' : 'Quote', onTap: () => _changeType('quote')),
                   _ToolbarButton(icon: Icons.code, tooltip: l10n.zh ? '代码块' : 'Code block', onTap: () => _changeType('code_block')),
                   const Spacer(),
-                  _ToolbarButton(icon: Icons.add, tooltip: l10n.zh ? '添加段落' : 'Add block', onTap: _addBlock),
                 ],
               ),
             ),
@@ -1222,7 +1363,6 @@ class SdocEditorState extends State<SdocEditor> {
 
   Widget _blockView(int index) {
     final block = _blocks[index];
-    final active = _active == index;
     final child = switch (block.type) {
       'title' => _textField(block, index, 28, FontWeight.w700, onTap: () => _setActive(index)),
       'paragraph' => _textField(block, index, 15, FontWeight.w400, onTap: () => _setActive(index)),
@@ -1246,23 +1386,78 @@ class SdocEditorState extends State<SdocEditor> {
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: child),
-          if (!_readOnly && active)
-            Padding(
-              padding: const EdgeInsets.only(left: 8, top: 4),
-              child: IconAction(
-                icon: 'delete',
-                tooltip: L10n.of(context).delete,
-                size: 13,
-                color: AppColors.danger,
-                onPressed: () => _deleteBlock(index),
-              ),
-            ),
-        ],
+      child: child,
+    );
+  }
+
+  Widget _contextMenu(BuildContext context, EditableTextState editableTextState) {
+    final l10n = L10n.of(context);
+    void hide() => editableTextState.hideToolbar();
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: [
+        ContextMenuButtonItem(
+          label: l10n.zh ? '剪切' : 'Cut',
+          onPressed: () {
+            editableTextState.cutSelection(SelectionChangedCause.toolbar);
+            hide();
+          },
+        ),
+        ContextMenuButtonItem(
+          label: l10n.copy,
+          onPressed: () {
+            editableTextState.copySelection(SelectionChangedCause.toolbar);
+            hide();
+          },
+        ),
+        ContextMenuButtonItem(
+          label: l10n.zh ? '粘贴' : 'Paste',
+          onPressed: () {
+            editableTextState.pasteText(SelectionChangedCause.toolbar);
+            hide();
+          },
+        ),
+        ContextMenuButtonItem(
+          label: l10n.delete,
+          onPressed: () {
+            _deleteSelection(editableTextState);
+            hide();
+          },
+        ),
+        ContextMenuButtonItem(
+          label: l10n.zh ? '全选' : 'Select all',
+          onPressed: () {
+            editableTextState.selectAll(SelectionChangedCause.toolbar);
+            hide();
+          },
+        ),
+      ],
+    );
+  }
+
+  void _deleteSelection(EditableTextState state) {
+    final value = state.textEditingValue;
+    final selection = value.selection;
+    if (!selection.isValid) return;
+    if (selection.isCollapsed) {
+      if (selection.start <= 0) return;
+      state.userUpdateTextEditingValue(
+        value.copyWith(
+          text: value.text.replaceRange(selection.start - 1, selection.start, ''),
+          selection: TextSelection.collapsed(offset: selection.start - 1),
+          composing: TextRange.empty,
+        ),
+        SelectionChangedCause.toolbar,
+      );
+      return;
+    }
+    state.userUpdateTextEditingValue(
+      value.copyWith(
+        text: value.text.replaceRange(selection.start, selection.end, ''),
+        selection: TextSelection.collapsed(offset: selection.start),
+        composing: TextRange.empty,
       ),
+      SelectionChangedCause.toolbar,
     );
   }
 
@@ -1291,6 +1486,7 @@ class SdocEditorState extends State<SdocEditor> {
       field,
       TextField(
         controller: controller,
+        contextMenuBuilder: _contextMenu,
         focusNode: focus,
         onTap: onTap,
         enabled: !_readOnly,
@@ -1321,6 +1517,7 @@ class SdocEditorState extends State<SdocEditor> {
           field,
           TextField(
             controller: controller,
+            contextMenuBuilder: _contextMenu,
             focusNode: focus,
             onTap: () => _setActive(index),
             enabled: !_readOnly,
@@ -1360,6 +1557,7 @@ class SdocEditorState extends State<SdocEditor> {
                             _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.listItem, controller: block.children[i], focus: block.childFocus[i], item: i),
                             TextField(
                               controller: block.children[i],
+                              contextMenuBuilder: _contextMenu,
                               focusNode: block.childFocus[i],
                               onTap: () => _setActive(index),
                               enabled: !_readOnly,
@@ -1394,7 +1592,7 @@ class SdocEditorState extends State<SdocEditor> {
                 : (value) {
                     setState(() {
                       block.element['checked'] = value == true;
-                      _dirty = true;
+                      _changed();
                     });
                   },
           ),
@@ -1425,6 +1623,7 @@ class SdocEditorState extends State<SdocEditor> {
                 _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.calloutChild, controller: block.children[i], focus: block.childFocus[i], item: i),
                 TextField(
                   controller: block.children[i],
+                  contextMenuBuilder: _contextMenu,
                   focusNode: block.childFocus[i],
                   onTap: () => _setActive(index),
                   enabled: !_readOnly,
@@ -1465,6 +1664,7 @@ class SdocEditorState extends State<SdocEditor> {
                         _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.toggleTitle, controller: title, focus: titleFocus),
                         TextField(
                           controller: title,
+                          contextMenuBuilder: _contextMenu,
                           focusNode: titleFocus,
                           onTap: () => _setActive(index),
                           enabled: !_readOnly,
@@ -1488,6 +1688,7 @@ class SdocEditorState extends State<SdocEditor> {
                         _SdocField(block: block, blockIndex: index, kind: _SdocFieldKind.toggleChild, controller: block.toggleChildren[i], focus: block.toggleChildFocus[i], item: i),
                         TextField(
                           controller: block.toggleChildren[i],
+                          contextMenuBuilder: _contextMenu,
                           focusNode: block.toggleChildFocus[i],
                           onTap: () => _setActive(index),
                           enabled: !_readOnly,
@@ -1571,6 +1772,7 @@ class SdocEditorState extends State<SdocEditor> {
                         decoration: const BoxDecoration(border: Border(right: BorderSide(color: AppColors.border), bottom: BorderSide(color: AppColors.border))),
                         child: TextField(
                           controller: _controllerForCell(cell),
+                          contextMenuBuilder: _contextMenu,
                           enabled: !_readOnly,
                           maxLines: null,
                           style: const TextStyle(fontSize: 13, height: 1.45),
@@ -1785,11 +1987,11 @@ class SdocEditorState extends State<SdocEditor> {
 }
 
 class _ToolbarButton extends StatefulWidget {
-  const _ToolbarButton({required this.icon, required this.tooltip, required this.onTap});
+  const _ToolbarButton({required this.icon, required this.tooltip, this.onTap});
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   State<_ToolbarButton> createState() => _ToolbarButtonState();
@@ -1804,8 +2006,8 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
       message: widget.tooltip,
       waitDuration: const Duration(milliseconds: 500),
       child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
+        cursor: widget.onTap == null ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = widget.onTap != null),
         onExit: (_) => setState(() => _hovered = false),
         child: GestureDetector(
           onTap: widget.onTap,
@@ -1814,7 +2016,7 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
             height: 30,
             margin: const EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(color: _hovered ? AppColors.hover : Colors.transparent, borderRadius: BorderRadius.circular(4)),
-            child: Icon(widget.icon, size: 17, color: AppColors.textSecondary),
+            child: Icon(widget.icon, size: 17, color: widget.onTap == null ? AppColors.borderStrong : AppColors.textSecondary),
           ),
         ),
       ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -50,12 +52,18 @@ class MarkdownEditor extends StatefulWidget {
 class MarkdownEditorState extends State<MarkdownEditor> {
   final _scroll = ScrollController();
   final List<_MdBlock> _blocks = [];
+  final List<String> _undoStack = [];
+  final List<String> _redoStack = [];
+  Timer? _historyTimer;
+  String _lastSnapshot = '';
   late String _original;
   int _active = 0;
   int? _editing;
 
   String get text => _serialize();
   bool get isDirty => text != _original;
+  bool get canUndo => _undoStack.isNotEmpty || _serialize() != _lastSnapshot;
+  bool get canRedo => _redoStack.isNotEmpty && _serialize() == _lastSnapshot;
 
   @override
   void initState() {
@@ -68,10 +76,12 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       _blocks.add(block);
     }
     _original = _serialize();
+    _lastSnapshot = _original;
   }
 
   @override
   void dispose() {
+    _historyTimer?.cancel();
     for (final block in _blocks) {
       block.dispose();
     }
@@ -99,10 +109,95 @@ class MarkdownEditorState extends State<MarkdownEditor> {
 
   void _onChange() {
     widget.onChanged?.call(isDirty);
+    if (widget.readOnly) return;
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 600), _commitTextHistory);
+  }
+
+  void _commitTextHistory() {
+    if (!mounted) return;
+    final current = _serialize();
+    if (current == _lastSnapshot) return;
+    _undoStack.add(_lastSnapshot);
+    _trimHistory();
+    _redoStack.clear();
+    _lastSnapshot = current;
+    setState(() {});
+  }
+
+  void _pushUndo() {
+    _historyTimer?.cancel();
+    final current = _serialize();
+    if (_undoStack.isEmpty || _undoStack.last != current) _undoStack.add(current);
+    _trimHistory();
+    _redoStack.clear();
+  }
+
+  void _settleHistory() {
+    _historyTimer?.cancel();
+    _lastSnapshot = _serialize();
+  }
+
+  void _trimHistory() {
+    if (_undoStack.length > 100) _undoStack.removeRange(0, _undoStack.length - 100);
+  }
+
+  void _undo() {
+    _historyTimer?.cancel();
+    final current = _serialize();
+    String target;
+    if (current != _lastSnapshot) {
+      target = _lastSnapshot;
+      _redoStack.add(current);
+      _lastSnapshot = target;
+    } else {
+      if (_undoStack.isEmpty) return;
+      target = _undoStack.removeLast();
+      _redoStack.add(current);
+    }
+    _restoreSnapshot(target);
+  }
+
+  void _redo() {
+    _historyTimer?.cancel();
+    final current = _serialize();
+    if (current != _lastSnapshot) {
+      _undoStack.add(_lastSnapshot);
+      _trimHistory();
+      _redoStack.clear();
+      _lastSnapshot = current;
+      setState(() {});
+      return;
+    }
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(current);
+    final target = _redoStack.removeLast();
+    _lastSnapshot = target;
+    _restoreSnapshot(target);
+  }
+
+  void _restoreSnapshot(String source) {
+    for (final block in _blocks) {
+      block.dispose();
+    }
+    _blocks.clear();
+    _parse(source);
+    if (_blocks.isEmpty) {
+      final block = _MdBlock(type: _MdType.paragraph);
+      _listen(block);
+      _blocks.add(block);
+    }
+    _active = 0;
+    _editing = null;
+    _lastSnapshot = _serialize();
+    setState(() {});
+    widget.onChanged?.call(isDirty);
   }
 
   void markSaved() {
+    _historyTimer?.cancel();
     _original = _serialize();
+    _lastSnapshot = _original;
     widget.onChanged?.call(false);
   }
 
@@ -162,6 +257,8 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     }
     if (inCode) {
       _add(_MdBlock(type: _MdType.code, text: codeLines.join('\n'), codeLanguage: codeLanguage));
+    } else if (source.endsWith('\n')) {
+      _add(_MdBlock(type: _MdType.paragraph));
     }
   }
 
@@ -208,39 +305,12 @@ class MarkdownEditorState extends State<MarkdownEditor> {
   void _changeType(_MdType type, {int level = 0}) {
     if (widget.readOnly) return;
     final index = _active.clamp(0, _blocks.length - 1);
+    _pushUndo();
     setState(() {
       _blocks[index].type = type;
       if (type == _MdType.heading) _blocks[index].headingLevel = level;
     });
-    widget.onChanged?.call(isDirty);
-  }
-
-  void _addBlock() {
-    if (widget.readOnly) return;
-    final index = (_active + 1).clamp(0, _blocks.length);
-    final block = _MdBlock(type: _MdType.paragraph);
-    _listen(block);
-    setState(() {
-      _blocks.insert(index, block);
-      _active = index;
-      _editing = index;
-    });
-    widget.onChanged?.call(isDirty);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      block.focus.requestFocus();
-      if (_scroll.hasClients) {
-        _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
-      }
-    });
-  }
-
-  void _deleteBlock() {
-    if (widget.readOnly || _blocks.length <= 1) return;
-    final index = _active.clamp(0, _blocks.length - 1);
-    setState(() {
-      _blocks.removeAt(index).dispose();
-      _active = (index - 1).clamp(0, _blocks.length - 1);
-    });
+    _settleHistory();
     widget.onChanged?.call(isDirty);
   }
 
@@ -270,7 +340,20 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     final key = event.logicalKey;
     final text = value.text;
     final command = HardwareKeyboard.instance.isMetaPressed || HardwareKeyboard.instance.isControlPressed;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
 
+    if (command && key == LogicalKeyboardKey.keyZ) {
+      if (shift) {
+        _redo();
+      } else {
+        _undo();
+      }
+      return KeyEventResult.handled;
+    }
+    if (command && key == LogicalKeyboardKey.keyY) {
+      _redo();
+      return KeyEventResult.handled;
+    }
     if (command && key == LogicalKeyboardKey.keyB) {
       _wrapBlock(block, '**', '**');
       return KeyEventResult.handled;
@@ -291,16 +374,19 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       if (!selection.isCollapsed || selection.start != 0) return KeyEventResult.ignored;
       if (text.isEmpty) {
         if (_blocks.length <= 1) return KeyEventResult.handled;
+        _pushUndo();
         setState(() {
           _blocks.removeAt(index).dispose();
           _active = (index - 1).clamp(0, _blocks.length - 1);
           _editing = _active;
         });
+        _settleHistory();
         widget.onChanged?.call(isDirty);
         _focusBlock(_blocks[_active], _blocks[_active].controller.text.length);
         return KeyEventResult.handled;
       }
       if (index == 0) return KeyEventResult.ignored;
+      _pushUndo();
       final previous = _blocks[index - 1];
       final offset = previous.controller.text.length;
       final separator = previous.type == _MdType.code || block.type == _MdType.code ? '\n' : '';
@@ -310,6 +396,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         _active = index - 1;
         _editing = index - 1;
       });
+      _settleHistory();
       widget.onChanged?.call(isDirty);
       _focusBlock(previous, offset);
       return KeyEventResult.handled;
@@ -318,6 +405,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     if (key == LogicalKeyboardKey.delete) {
       if (!selection.isCollapsed || selection.start != text.length) return KeyEventResult.ignored;
       if (index >= _blocks.length - 1) return KeyEventResult.ignored;
+      _pushUndo();
       final next = _blocks[index + 1];
       final offset = text.length;
       final separator = block.type == _MdType.code || next.type == _MdType.code ? '\n' : '';
@@ -327,6 +415,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         _active = index;
         _editing = index;
       });
+      _settleHistory();
       widget.onChanged?.call(isDirty);
       _focusBlock(block, offset);
       return KeyEventResult.handled;
@@ -351,11 +440,13 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     final before = text.substring(0, caret);
     final after = text.substring(caret);
     final exitsBlock = before.isEmpty && after.isEmpty && (block.type == _MdType.bullet || block.type == _MdType.numbered || block.type == _MdType.check || block.type == _MdType.quote);
+    _pushUndo();
     if (exitsBlock) {
       setState(() {
         block.type = _MdType.paragraph;
         block.checked = false;
       });
+      _settleHistory();
       widget.onChanged?.call(isDirty);
       return;
     }
@@ -374,6 +465,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       _active = index + 1;
       _editing = index + 1;
     });
+    _settleHistory();
     widget.onChanged?.call(isDirty);
     _focusBlock(newBlock, 0);
   }
@@ -387,6 +479,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     if (widget.readOnly) return;
     final index = _blocks.indexOf(block);
     if (index < 0) return;
+    _pushUndo();
     setState(() => _editing = index);
     final controller = block.controller;
     final selection = controller.selection;
@@ -398,6 +491,8 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       text: value.replaceRange(start, end, '$before$selected$after'),
       selection: TextSelection.collapsed(offset: start + before.length + selected.length),
     );
+    _settleHistory();
+    widget.onChanged?.call(isDirty);
   }
 
   @override
@@ -414,6 +509,9 @@ class MarkdownEditorState extends State<MarkdownEditor> {
               decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: AppColors.border))),
               child: Row(
                 children: [
+                  _button(Icons.undo, l10n.zh ? '撤销' : 'Undo', canUndo ? _undo : null),
+                  _button(Icons.redo, l10n.zh ? '重做' : 'Redo', canRedo ? _redo : null),
+                  _divider(),
                   _button(Icons.notes, l10n.zh ? '正文' : 'Paragraph', () => _changeType(_MdType.paragraph)),
                   _button(Icons.title, l10n.zh ? '一级标题' : 'Heading 1', () => _changeType(_MdType.heading, level: 1)),
                   _button(Icons.text_fields, l10n.zh ? '二级标题' : 'Heading 2', () => _changeType(_MdType.heading, level: 2)),
@@ -430,8 +528,6 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                   _button(Icons.checklist, l10n.zh ? '任务列表' : 'Checklist', () => _changeType(_MdType.check)),
                   _button(Icons.format_quote, l10n.zh ? '引用' : 'Quote', () => _changeType(_MdType.quote)),
                   _button(Icons.data_object, l10n.zh ? '代码块' : 'Code block', () => _changeType(_MdType.code)),
-                  const Spacer(),
-                  _button(Icons.add, l10n.zh ? '添加段落' : 'Add block', _addBlock),
                 ],
               ),
             ),
@@ -468,7 +564,6 @@ class MarkdownEditorState extends State<MarkdownEditor> {
 
   Widget _blockView(int index) {
     final block = _blocks[index];
-    final active = _active == index;
     final Widget content = switch (block.type) {
       _MdType.heading => _textField(block, index, _headingSize(block.headingLevel), FontWeight.w700),
       _MdType.quote => Container(
@@ -490,7 +585,9 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                 onChanged: widget.readOnly
                     ? null
                     : (value) {
+                        _pushUndo();
                         setState(() => block.checked = value == true);
+                        _settleHistory();
                         widget.onChanged?.call(isDirty);
                       },
               ),
@@ -508,23 +605,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: content),
-          if (!widget.readOnly && active)
-            Padding(
-              padding: const EdgeInsets.only(left: 8, top: 2),
-              child: IconButton(
-                onPressed: _deleteBlock,
-                icon: const Icon(Icons.delete_outline, size: 15, color: AppColors.danger),
-                padding: const EdgeInsets.all(2),
-                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                tooltip: L10n.of(context).delete,
-              ),
-            ),
-        ],
-      ),
+      child: content,
     );
   }
 
@@ -631,7 +712,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
 
   static final _inline = RegExp(r'(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\]\([^)]+\))');
 
-  Widget _button(IconData icon, String tooltip, VoidCallback onTap) {
+  Widget _button(IconData icon, String tooltip, VoidCallback? onTap) {
     return Tooltip(
       message: tooltip,
       waitDuration: const Duration(milliseconds: 500),
@@ -640,7 +721,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Icon(icon, size: 17, color: AppColors.textSecondary),
+          child: Icon(icon, size: 17, color: onTap == null ? AppColors.borderStrong : AppColors.textSecondary),
         ),
       ),
     );

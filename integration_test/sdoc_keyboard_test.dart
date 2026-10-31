@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,6 +106,74 @@ void main() {
     final items = (list['children'] as List).whereType<Map>().toList();
     expect(items.length, 1);
     expect(_textOf(items.first), 'two');
+  });
+
+  testWidgets('SeaDoc autosaves, shows the saved time, undoes and opens a context menu', (tester) async {
+    final session = AppSession();
+    await session.restore();
+    expect(session.hasSession, isTrue, reason: 'A stored local test session is required');
+    final api = session.api!;
+    final entries = await api.listDir(_repoId, '/');
+    if (!entries.any((entry) => entry.path == _path)) {
+      await api.createFile(_repoId, _path);
+    }
+    await api.saveSdocDocument(_repoId, _path, _fixture());
+
+    final repository = const Repository(id: _repoId, name: 'seasearch-test', permission: 'rw');
+    final entry = Dirent(name: 'keyboard-test.sdoc', path: _path, isDir: false, permission: 'rw', mtime: DateTime.now());
+    final workspace = WorkspaceController(session);
+    final editorKey = GlobalKey<SdocEditorState>();
+
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AppSession>.value(value: session),
+        ChangeNotifierProvider<WorkspaceController>.value(value: workspace),
+      ],
+      child: MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: const [L10nDelegate()],
+        supportedLocales: const [Locale('en')],
+        theme: ThemeData(useMaterial3: true),
+        home: Scaffold(body: SdocEditor(key: editorKey, repo: repository, entry: entry)),
+      ),
+    ));
+
+    for (var i = 0; i < 200 && find.byType(TextField).evaluate().length < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Saved'), findsWidgets);
+
+    await tester.tap(find.byType(TextField).at(1));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).at(1), 'first-auto');
+    await tester.pump();
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(_texts(tester)[1], 'first');
+    await tester.tap(find.byTooltip('Redo'));
+    await tester.pumpAndSettle();
+    expect(_texts(tester)[1], 'first-auto');
+
+    var saved = false;
+    for (var i = 0; i < 30 && !saved; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final document = await api.loadSdocDocument(_repoId, _path);
+      final elements = (document['elements'] as List).whereType<Map>().toList();
+      final first = elements.firstWhere((element) => element['id'] == 'kb-p1');
+      saved = _textOf(first) == 'first-auto';
+    }
+    expect(saved, isTrue, reason: 'SeaDoc content should be autosaved');
+
+    await tester.tapAt(tester.getCenter(find.byType(TextField).at(1)), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Copy'), findsWidgets);
+    expect(find.text('Paste'), findsWidgets);
   });
 }
 
