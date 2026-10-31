@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,7 @@ import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
+import 'admin/admin_pages.dart';
 import 'widgets.dart';
 
 class SystemSettingsPage extends StatefulWidget {
@@ -26,24 +28,15 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   List<Map<String, dynamic>> _libraries = const [];
   List<Map<String, dynamic>> _groups = const [];
   List<Map<String, dynamic>> _shareLinks = const [];
-  List<Map<String, dynamic>> _logs = const [];
-  List<Map<String, dynamic>> _loginLogs = const [];
-  List<Map<String, dynamic>> _fileUpdateLogs = const [];
-  DateTimeRange _logRange = DateTimeRange(
-    start: DateTime(DateTime.now().year, DateTime.now().month, 1),
-    end: DateTime.now(),
-  );
-  Map<String, dynamic> _webSettings = const {};
+  List<Map<String, dynamic>> _uploadLinks = const [];
+  int _shareTab = 0;
+  int _reloadTick = 0;
   final _userQuery = TextEditingController();
   bool _loadingUsers = false;
   bool _loadingLibraries = false;
   bool _loadingGroups = false;
   bool _loadingShareLinks = false;
-  bool _loadingLogs = false;
-  bool _loadingLoginLogs = false;
-  bool _loadingFileUpdateLogs = false;
-  bool _loadingSettings = false;
-  bool _savingSettings = false;
+  bool _loadingUploadLinks = false;
 
   @override
   void initState() {
@@ -126,71 +119,6 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
-  Future<void> _loadLogs() async {
-    setState(() => _loadingLogs = true);
-    try {
-      final data = await context.read<AppSession>().api!.adminLogs();
-      if (!mounted) return;
-      setState(() {
-        _logs = (data['data'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
-        _loadingLogs = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadingLogs = false);
-      showToast(context, friendlyError(context, error), error: true);
-    }
-  }
-
-  String get _logStart => '${_logRange.start.year.toString().padLeft(4, '0')}-${_logRange.start.month.toString().padLeft(2, '0')}-${_logRange.start.day.toString().padLeft(2, '0')}';
-
-  String get _logEnd => '${_logRange.end.year.toString().padLeft(4, '0')}-${_logRange.end.month.toString().padLeft(2, '0')}-${_logRange.end.day.toString().padLeft(2, '0')}';
-
-  Future<void> _pickLogRange() async {
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-      initialDateRange: _logRange,
-    );
-    if (range == null || !mounted) return;
-    setState(() => _logRange = range);
-    if (_tab == 7) _loadLoginLogs();
-    if (_tab == 8) _loadFileUpdateLogs();
-  }
-
-  Future<void> _loadLoginLogs() async {
-    setState(() => _loadingLoginLogs = true);
-    try {
-      final data = await context.read<AppSession>().api!.adminLoginLogs(start: _logStart, end: _logEnd);
-      if (!mounted) return;
-      setState(() {
-        _loginLogs = data;
-        _loadingLoginLogs = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadingLoginLogs = false);
-      showToast(context, friendlyError(context, error), error: true);
-    }
-  }
-
-  Future<void> _loadFileUpdateLogs() async {
-    setState(() => _loadingFileUpdateLogs = true);
-    try {
-      final data = await context.read<AppSession>().api!.adminFileUpdateLogs(start: _logStart, end: _logEnd);
-      if (!mounted) return;
-      setState(() {
-        _fileUpdateLogs = data;
-        _loadingFileUpdateLogs = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _loadingFileUpdateLogs = false);
-      showToast(context, friendlyError(context, error), error: true);
-    }
-  }
-
   Future<void> _loadShareLinks() async {
     setState(() => _loadingShareLinks = true);
     try {
@@ -207,49 +135,31 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
-  Future<void> _loadWebSettings() async {
-    setState(() => _loadingSettings = true);
+  Future<void> _loadUploadLinks() async {
+    setState(() => _loadingUploadLinks = true);
     try {
-      final data = await context.read<AppSession>().api!.adminWebSettings();
+      final data = await context.read<AppSession>().api!.adminUploadLinks();
       if (!mounted) return;
       setState(() {
-        _webSettings = data;
-        _loadingSettings = false;
+        _uploadLinks = (data['upload_link_list'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
+        _loadingUploadLinks = false;
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _loadingSettings = false);
+      setState(() => _loadingUploadLinks = false);
       showToast(context, friendlyError(context, error), error: true);
-    }
-  }
-
-  Future<void> _saveWebSettings() async {
-    final l10n = L10n.of(context);
-    setState(() => _savingSettings = true);
-    try {
-      await context.read<AppSession>().api!.updateAdminWebSettings(_webSettings);
-      if (mounted) {
-        setState(() => _savingSettings = false);
-        showToast(context, l10n.savedSuccessfully);
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(() => _savingSettings = false);
-        showToast(context, friendlyError(context, error), error: true);
-      }
     }
   }
 
   void _selectTab(int tab) {
     setState(() => _tab = tab);
-    if (tab == 1 && _users.isEmpty) _loadUsers();
-    if (tab == 2 && _groups.isEmpty) _loadGroups();
-    if (tab == 3 && _libraries.isEmpty) _loadLibraries();
-    if (tab == 4 && _shareLinks.isEmpty) _loadShareLinks();
-    if (tab == 5 && _logs.isEmpty) _loadLogs();
-    if (tab == 6 && _webSettings.isEmpty) _loadWebSettings();
-    if (tab == 7 && _loginLogs.isEmpty) _loadLoginLogs();
-    if (tab == 8 && _fileUpdateLogs.isEmpty) _loadFileUpdateLogs();
+    if (tab == 4 && _libraries.isEmpty) _loadLibraries();
+    if (tab == 5 && _users.isEmpty) _loadUsers();
+    if (tab == 6 && _groups.isEmpty) _loadGroups();
+    if (tab == 9) {
+      if (_shareLinks.isEmpty) _loadShareLinks();
+      if (_uploadLinks.isEmpty) _loadUploadLinks();
+    }
   }
 
   @override
@@ -274,14 +184,14 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               ),
               IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: () {
                 _loadOverview();
-                if (_tab == 1) _loadUsers();
-                if (_tab == 2) _loadGroups();
-                if (_tab == 3) _loadLibraries();
-                if (_tab == 4) _loadShareLinks();
-                if (_tab == 5) _loadLogs();
-                if (_tab == 6) _loadWebSettings();
-                if (_tab == 7) _loadLoginLogs();
-                if (_tab == 8) _loadFileUpdateLogs();
+                setState(() => _reloadTick++);
+                if (_tab == 4) _loadLibraries();
+                if (_tab == 5) _loadUsers();
+                if (_tab == 6) _loadGroups();
+                if (_tab == 9) {
+                  _loadShareLinks();
+                  _loadUploadLinks();
+                }
               }),
             ],
           ),
@@ -300,15 +210,19 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                       padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                       child: Text(l10n.zh ? '系统管理' : 'Administration', style: const TextStyle(fontSize: 11.5, color: AppColors.muted, fontWeight: FontWeight.w500)),
                     ),
-                    _navItem(0, l10n.zh ? '概览' : 'Overview', Icons.dashboard_outlined),
-                    _navItem(1, l10n.zh ? '用户' : 'Users', Icons.people_outline),
-                    _navItem(2, l10n.zh ? '群组' : 'Groups', Icons.groups_outlined),
-                    _navItem(3, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
-                    _navItem(4, l10n.zh ? '分享链接' : 'Share links', Icons.link),
-                    _navItem(5, l10n.zh ? '管理员日志' : 'Admin logs', Icons.history),
-                    _navItem(7, l10n.zh ? '登录日志' : 'Login logs', Icons.login_outlined),
-                    _navItem(8, l10n.zh ? '文件更新日志' : 'File update logs', Icons.update_outlined),
-                    _navItem(6, l10n.zh ? '系统设置' : 'Settings', Icons.tune),
+                    _navItem(0, l10n.zh ? '信息' : 'Information', Icons.dashboard_outlined),
+                    _navItem(1, l10n.zh ? '统计' : 'Statistics', Icons.insert_chart_outlined),
+                    _navItem(2, l10n.zh ? '设备' : 'Devices', Icons.devices_outlined),
+                    _navItem(3, l10n.zh ? '设置' : 'Settings', Icons.tune),
+                    _navItem(4, l10n.zh ? '资料库' : 'Libraries', Icons.folder_outlined),
+                    _navItem(5, l10n.zh ? '用户' : 'Users', Icons.people_outline),
+                    _navItem(6, l10n.zh ? '群组' : 'Groups', Icons.groups_outlined),
+                    _navItem(7, l10n.zh ? '组织架构' : 'Departments', Icons.account_tree_outlined),
+                    _navItem(8, l10n.zh ? '通知' : 'Notifications', Icons.notifications_none),
+                    _navItem(9, l10n.zh ? '链接' : 'Links', Icons.link),
+                    _navItem(10, l10n.zh ? '日志' : 'Logs', Icons.history),
+                    _navItem(11, l10n.zh ? '病毒扫描' : 'Virus scan', Icons.shield_outlined),
+                    _navItem(12, l10n.zh ? '管理员日志' : 'Admin logs', Icons.admin_panel_settings_outlined),
                   ],
                 ),
               ),
@@ -330,14 +244,18 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                             )
                           : switch (_tab) {
                               0 => _overview(l10n),
-                              1 => _usersView(l10n),
-                              2 => _groupsView(l10n),
-                              3 => _librariesView(l10n),
-                              4 => _shareLinksView(l10n),
-                              5 => _logsView(l10n),
-                              7 => _loginLogsView(l10n),
-                              8 => _fileUpdateLogsView(l10n),
-                              _ => _settingsView(l10n),
+                              1 => AdminStatisticsPanel(reloadTick: _reloadTick),
+                              2 => AdminDevicesPanel(reloadTick: _reloadTick),
+                              3 => AdminSettingsPanel(reloadTick: _reloadTick),
+                              4 => _librariesView(l10n),
+                              5 => _usersView(l10n),
+                              6 => _groupsView(l10n),
+                              7 => AdminDepartmentsPanel(reloadTick: _reloadTick),
+                              8 => AdminNotificationsPanel(reloadTick: _reloadTick),
+                              9 => _shareLinksView(l10n),
+                              10 => AdminLogsPanel(reloadTick: _reloadTick),
+                              11 => AdminVirusPanel(reloadTick: _reloadTick),
+                              _ => AdminAdminLogsPanel(reloadTick: _reloadTick),
                             },
                 ),
               ),
@@ -441,7 +359,17 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.zh ? '许可信息' : 'License', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    Row(
+                      children: [
+                        Text(l10n.zh ? '许可信息' : 'License', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        const Spacer(),
+                        OutlinedButton.icon(
+                          onPressed: _uploadLicense,
+                          icon: const Icon(Icons.upload_file_outlined, size: 15),
+                          label: Text(l10n.zh ? '上传许可证' : 'Upload license', style: const TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 14),
                     _row(l10n.zh ? '版本' : 'Edition', '${_sysInfo['is_pro'] == true ? 'Pro' : 'Community'}'),
                     _row(l10n.zh ? '许可用户数' : 'Licensed seats', '${_sysInfo['license_maxusers'] ?? '—'}'),
@@ -456,6 +384,19 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _uploadLicense() async {
+    final l10n = L10n.of(context);
+    final file = await openFile(acceptedTypeGroups: const [XTypeGroup(label: 'license', extensions: ['lic', 'license', 'txt'])]);
+    if (file == null) return;
+    try {
+      await context.read<AppSession>().api!.uploadAdminLicense(file.path);
+      await _loadOverview();
+      if (mounted) showToast(context, l10n.zh ? '许可证已更新' : 'License updated');
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Widget _row(String label, String value) {
@@ -552,6 +493,24 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   }
 
   Widget _shareLinksView(L10n l10n) {
+    final shareRows = [
+      for (final link in _shareLinks)
+        [
+          '${link['obj_name'] ?? ''}',
+          '${link['creator_name'] ?? link['creator_email'] ?? ''}',
+          '${link['view_cnt'] ?? 0}',
+          '${(link['expire_date'] as String?)?.isNotEmpty == true ? link['expire_date'] : (l10n.zh ? '永久' : 'Never')}',
+        ],
+    ];
+    final uploadRows = [
+      for (final link in _uploadLinks)
+        [
+          '${link['obj_name'] ?? link['repo_name'] ?? ''}',
+          '${link['creator_name'] ?? link['creator_email'] ?? ''}',
+          '${link['view_cnt'] ?? link['upload_cnt'] ?? 0}',
+          '${(link['expire_date'] as String?)?.isNotEmpty == true ? link['expire_date'] : (l10n.zh ? '永久' : 'Never')}',
+        ],
+    ];
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
@@ -561,136 +520,110 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
             children: [
               Row(
                 children: [
-                  Text(l10n.zh ? '全站分享链接' : 'All share links', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  Text(l10n.zh ? '链接' : 'Links', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   const Spacer(),
-                  if (_loadingShareLinks) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  if (_shareTab == 0 && _loadingShareLinks || _shareTab == 1 && _loadingUploadLinks)
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final entry in [
+                    (0, l10n.zh ? '分享链接' : 'Share links'),
+                    (1, l10n.zh ? '上传链接' : 'Upload links'),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _shareTab = entry.$1);
+                          if (entry.$1 == 0 && _shareLinks.isEmpty) _loadShareLinks();
+                          if (entry.$1 == 1 && _uploadLinks.isEmpty) _loadUploadLinks();
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _shareTab == entry.$1 ? AppColors.primarySoft : Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _shareTab == entry.$1 ? AppColors.primary.withValues(alpha: 0.45) : AppColors.border),
+                          ),
+                          child: Text(
+                            entry.$2,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: _shareTab == entry.$1 ? AppColors.primaryDark : AppColors.textSecondary,
+                              fontWeight: _shareTab == entry.$1 ? FontWeight.w500 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
+                  if (_shareTab == 0 && _loadingShareLinks || _shareTab == 1 && _loadingUploadLinks)
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                 ],
               ),
               const SizedBox(height: 14),
               _table(
-                headers: [l10n.name, l10n.zh ? '创建者' : 'Creator', l10n.zh ? '访问次数' : 'Views', l10n.zh ? '过期时间' : 'Expires'],
-                rows: [
-                  for (final link in _shareLinks)
-                    [
-                      '${link['obj_name'] ?? ''}',
-                      '${link['creator_name'] ?? link['creator_email'] ?? ''}',
-                      '${link['view_cnt'] ?? 0}',
-                      '${(link['expire_date'] as String?)?.isNotEmpty == true ? link['expire_date'] : (l10n.zh ? '永久' : 'Never')}',
+                headers: [
+                  l10n.name,
+                  l10n.zh ? '创建者' : 'Creator',
+                  _shareTab == 0 ? (l10n.zh ? '访问次数' : 'Views') : (l10n.zh ? '上传次数' : 'Uploads'),
+                  l10n.zh ? '过期时间' : 'Expires',
+                ],
+                rows: _shareTab == 0 ? shareRows : uploadRows,
+              ),
+              if ((_shareTab == 0 ? _shareLinks : _uploadLinks).isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final link in (_shareTab == 0 ? _shareLinks : _uploadLinks))
+                        OutlinedButton(
+                          onPressed: () => _shareTab == 0
+                              ? _deleteShareLink('${link['token'] ?? link['share_link'] ?? ''}')
+                              : _deleteUploadLink('${link['token'] ?? link['link'] ?? ''}'),
+                          child: Text(
+                            '${l10n.delete} ${link['obj_name'] ?? link['repo_name'] ?? ''}',
+                            style: const TextStyle(fontSize: 11.5, color: AppColors.danger),
+                          ),
+                        ),
                     ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _logsView(L10n l10n) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Text(l10n.zh ? '管理员操作日志' : 'Admin operation logs', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  const Spacer(),
-                  if (_loadingLogs) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                ],
-              ),
-              const SizedBox(height: 14),
-              _table(
-                headers: [l10n.zh ? '时间' : 'Time', l10n.zh ? '管理员' : 'Admin', l10n.zh ? '操作' : 'Operation', l10n.zh ? '详情' : 'Detail'],
-                rows: [
-                  for (final log in _logs)
-                    [
-                      '${log['datetime'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
-                      '${log['name'] ?? log['email'] ?? ''}',
-                      '${log['operation'] ?? ''}',
-                      '${log['detail'] ?? ''}',
-                    ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _loginLogsView(L10n l10n) {
-    return _auditLogView(
-      l10n,
-      title: l10n.zh ? '登录日志' : 'Login logs',
-      loading: _loadingLoginLogs,
-      headers: [l10n.zh ? '时间' : 'Time', l10n.zh ? '用户' : 'User', l10n.zh ? '邮箱' : 'Email', 'IP'],
-      rows: [
-        for (final log in _loginLogs)
-          [
-            '${log['login_time'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
-            '${log['name'] ?? ''}',
-            '${log['email'] ?? ''}',
-            '${log['login_ip'] ?? ''}',
-          ],
-      ],
-    );
-  }
-
-  Widget _fileUpdateLogsView(L10n l10n) {
-    return _auditLogView(
-      l10n,
-      title: l10n.zh ? '文件更新日志' : 'File update logs',
-      loading: _loadingFileUpdateLogs,
-      headers: [l10n.zh ? '时间' : 'Time', l10n.zh ? '用户' : 'User', l10n.zh ? '资料库' : 'Library', l10n.zh ? '操作' : 'Operation'],
-      rows: [
-        for (final log in _fileUpdateLogs)
-          [
-            '${log['time'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
-            '${log['user_name'] ?? log['user_email'] ?? ''}',
-            '${log['repo_name'] ?? ''}',
-            '${log['file_operation'] ?? ''}',
-          ],
-      ],
-    );
-  }
-
-  Widget _auditLogView(
-    L10n l10n, {
-    required String title,
-    required bool loading,
-    required List<String> headers,
-    required List<List<String>> rows,
-  }) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1180),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: _pickLogRange,
-                    icon: const Icon(Icons.date_range_outlined, size: 15),
-                    label: Text('$_logStart ~ $_logEnd', style: const TextStyle(fontSize: 12)),
                   ),
-                  const Spacer(),
-                  if (loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                ],
-              ),
-              const SizedBox(height: 14),
-              _table(headers: headers, rows: rows),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _deleteShareLink(String token) async {
+    if (token.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.deleteAdminShareLink(token);
+      await _loadShareLinks();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _deleteUploadLink(String token) async {
+    if (token.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.deleteAdminUploadLink(token);
+      await _loadUploadLinks();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Widget _usersView(L10n l10n) {
@@ -986,86 +919,6 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
-  Widget _settingsView(L10n l10n) {
-    if (_loadingSettings) return const Center(child: CircularProgressIndicator());
-    const keys = [
-      'ENABLE_SIGNUP',
-      'ENABLE_ENCRYPTED_LIBRARY',
-      'ENABLE_REPO_HISTORY_SETTING',
-      'USER_STRONG_PASSWORD_REQUIRED',
-      'ENABLE_TWO_FACTOR_AUTH',
-      'ENABLE_SHARE_TO_ALL_GROUPS',
-      'ENABLE_USER_CLEAN_TRASH',
-      'SHARE_LINK_FORCE_USE_PASSWORD',
-    ];
-    const labels = {
-      'ENABLE_SIGNUP': ('允许注册', 'Allow sign-up'),
-      'ENABLE_ENCRYPTED_LIBRARY': ('启用加密资料库', 'Encrypted libraries'),
-      'ENABLE_REPO_HISTORY_SETTING': ('允许设置资料库历史', 'Library history setting'),
-      'USER_STRONG_PASSWORD_REQUIRED': ('强制强密码', 'Strong password required'),
-      'ENABLE_TWO_FACTOR_AUTH': ('两步验证', 'Two-factor authentication'),
-      'ENABLE_SHARE_TO_ALL_GROUPS': ('共享给所有群组', 'Share to all groups'),
-      'ENABLE_USER_CLEAN_TRASH': ('用户可清空回收站', 'Users can clean trash'),
-      'SHARE_LINK_FORCE_USE_PASSWORD': ('分享链接强制密码', 'Share links require password'),
-    };
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 860),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(l10n.zh ? '系统设置' : 'System settings', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                Text(l10n.zh ? '更改后立即对服务器上的所有用户生效。' : 'Changes apply to all users on the server.', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                const SizedBox(height: 16),
-                for (final key in keys)
-                  if (_webSettings[key] is bool)
-                    Container(
-                      height: 46,
-                      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(l10n.zh ? labels[key]!.$1 : labels[key]!.$2, style: const TextStyle(fontSize: 13))),
-                          CompactSwitch(
-                            value: _webSettings[key] == true,
-                            onChanged: (value) => setState(() => _webSettings[key] = value),
-                          ),
-                        ],
-                      ),
-                    ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton(onPressed: _loadWebSettings, child: Text(l10n.zh ? '重置' : 'Reset')),
-                    const SizedBox(width: 10),
-                    FilledButton.icon(
-                      onPressed: _savingSettings ? null : _saveWebSettings,
-                      icon: _savingSettings
-                          ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.save_outlined, size: 16),
-                      label: Text(l10n.save),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.zh ? '其余高级设置（如邮件、存储、LDAP）仍保留在服务器配置中。' : 'Other advanced settings (email, storage, LDAP) remain in the server configuration.',
-                  style: const TextStyle(fontSize: 11.5, color: AppColors.muted),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _table({required List<String> headers, required List<List<String>> rows}) {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
@@ -1083,6 +936,15 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               ],
             ),
           ),
+          if (rows.isEmpty)
+            Container(
+              height: 120,
+              alignment: Alignment.center,
+              child: Text(
+                L10n.of(context).zh ? '暂无数据' : 'No data',
+                style: const TextStyle(fontSize: 12.5, color: AppColors.muted),
+              ),
+            ),
           for (var index = 0; index < rows.length; index++)
             Container(
               constraints: const BoxConstraints(minHeight: 48),

@@ -11,7 +11,15 @@ import 'package:window_manager/window_manager.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('System settings uses a left menu, audit logs and the correct admin console URL', (tester) async {
+  Future<void> waitFor(WidgetTester tester, Finder finder) async {
+    for (var i = 0; i < 120 && finder.evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('System settings mirrors the web admin menu and pages', (tester) async {
     await windowManager.ensureInitialized();
     await windowManager.setSize(const Size(1440, 900));
     final session = AppSession();
@@ -36,30 +44,32 @@ void main() {
       ),
     );
 
-    for (var i = 0; i < 200 && find.text('Login logs').evaluate().isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+    await waitFor(tester, find.text('Virus scan'));
+    for (final label in ['Information', 'Statistics', 'Devices', 'Settings', 'Libraries', 'Users', 'Groups', 'Departments', 'Notifications', 'Links', 'Logs', 'Virus scan', 'Admin logs']) {
+      expect(find.text(label), findsWidgets, reason: 'missing admin navigation item $label');
     }
-    await tester.pumpAndSettle();
-    expect(find.text('Login logs'), findsOneWidget);
-    expect(find.text('File update logs'), findsOneWidget);
 
-    await tester.tap(find.text('Login logs'));
-    for (var i = 0; i < 100 && find.text('IP').evaluate().isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings').first);
+    await waitFor(tester, find.text('Branding'));
+    expect(find.text('Two-factor authentication'), findsOneWidget);
+    expect(find.text('Text file extensions'), findsOneWidget);
+
+    await tester.tap(find.text('Logs').first);
+    await waitFor(tester, find.text('IP'));
     expect(find.text('IP'), findsWidgets);
-
-    await tester.tap(find.text('File update logs'));
-    for (var i = 0; i < 100 && find.text('Operation').evaluate().isEmpty; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
-    await tester.pumpAndSettle();
+    await tester.tap(find.text('File update').last);
+    await waitFor(tester, find.text('Operation'));
     expect(find.text('Operation'), findsWidgets);
 
+    await tester.tap(find.text('Notifications').first);
+    await waitFor(tester, find.text('Add notification'));
+
+    await tester.tap(find.text('Statistics').first);
+    await waitFor(tester, find.text('Added'));
+    expect(find.text('Added'), findsWidgets);
+
+    await tester.tap(find.text('Information').first);
+    await waitFor(tester, find.text('Full admin console'));
     await tester.tap(find.text('Full admin console'));
     await tester.pump();
     expect(openedPath, '/sys/info/');

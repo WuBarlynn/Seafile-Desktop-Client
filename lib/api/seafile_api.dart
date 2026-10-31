@@ -317,6 +317,223 @@ class SeafileApi {
     await _delete('api/v2.1/admin/users/$encoded/');
   }
 
+  Future<List<Map<String, dynamic>>> adminDepartments() async {
+    final data = asMap(await _get('api/v2.1/admin/address-book/groups/'));
+    final roots = asMapList(data['data']);
+    final result = <Map<String, dynamic>>[];
+    Future<void> visit(Map<String, dynamic> node, int depth) async {
+      result.add({...node, 'admin_depth': depth});
+      final detail = asMap(await _get('api/v2.1/admin/address-book/groups/${node['id']}/'));
+      for (final child in asMapList(detail['groups'])) {
+        await visit(child, depth + 1);
+      }
+    }
+    for (final root in roots) {
+      await visit(root, 0);
+    }
+    return result;
+  }
+
+  Future<void> createAdminDepartment(String name, {int? parentId}) async {
+    await _postForm('api/v2.1/admin/address-book/groups/', {
+      if (parentId != null) 'parent_group': '$parentId',
+      'group_name': name,
+      'group_owner': 'system admin',
+    });
+  }
+
+  Future<Map<String, dynamic>> adminDepartment(int id, {bool ancestors = false}) async {
+    return asMap(await _get('api/v2.1/admin/address-book/groups/$id/', query: {
+      if (ancestors) 'return_ancestors': 'true',
+    }));
+  }
+
+  Future<void> renameAdminDepartment(int id, String name) async {
+    await _putForm('api/v2.1/admin/groups/$id/', {'name': name});
+  }
+
+  Future<void> moveAdminDepartment(int id, int targetGroupId) async {
+    await _putForm('api/v2.1/admin/groups/$id/', {'target_group_id': '$targetGroupId'});
+  }
+
+  Future<void> updateAdminDepartmentQuota(int id, int quota) async {
+    await _putForm('api/v2.1/admin/groups/$id/', {'quota': '$quota'});
+  }
+
+  Future<void> addAdminDepartmentMember(int id, String email, {bool isAdmin = false}) async {
+    await _putForm('api/v2.1/admin/groups/$id/members/${Uri.encodeComponent(email)}/', {'is_admin': isAdmin.toString()});
+  }
+
+  Future<void> removeAdminDepartmentMember(int id, String email) async {
+    await _delete('api/v2.1/admin/groups/$id/members/${Uri.encodeComponent(email)}/');
+  }
+
+  Future<void> deleteAdminDepartment(int id) async {
+    await _delete('api/v2.1/admin/address-book/groups/$id/');
+  }
+
+  Future<List<Map<String, dynamic>>> adminNotifications() async {
+    final data = asMap(await _get('api/v2.1/admin/sys-notifications/'));
+    return asMapList(data['notifications']);
+  }
+
+  Future<void> addAdminNotification(String message) async {
+    await _postForm('api/v2.1/admin/sys-notifications/', {'msg': message});
+  }
+
+  Future<void> setAdminNotificationCurrent(int id) async {
+    await _put('api/v2.1/admin/sys-notifications/$id/');
+  }
+
+  Future<void> deleteAdminNotification(int id) async {
+    await _delete('api/v2.1/admin/sys-notifications/$id/');
+  }
+
+  Future<Map<String, dynamic>> adminDevices({String platform = 'desktop', int page = 1, int perPage = 100}) async {
+    return asMap(await _get('api/v2.1/admin/devices/', query: {
+      'platform': platform,
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<Map<String, dynamic>> adminDeviceErrors({int page = 1, int perPage = 100}) async {
+    return asMap(await _get('api/v2.1/admin/device-errors/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<void> unlinkAdminDevice(String id) async {
+    await _delete('api/v2.1/admin/devices/${Uri.encodeComponent(id)}/');
+  }
+
+  Future<Map<String, dynamic>> adminVirusFiles({bool? handled, int page = 1, int perPage = 100}) async {
+    return asMap(await _get('api/v2.1/admin/virus-files/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+      if (handled != null) 'handled': handled.toString(),
+    }));
+  }
+
+  Future<void> ignoreAdminVirusFile(int id, bool ignore) async {
+    await _putForm('api/v2.1/admin/virus-files/$id/', {'ignore': ignore.toString()});
+  }
+
+  Future<void> deleteAdminVirusFiles(List<int> ids) async {
+    await _postForm('api/v2.1/admin/virus-files/batch/', {
+      'virus_ids': ids.map((id) => '$id').toList(),
+      'operation': 'delete',
+    });
+  }
+
+  Future<Map<String, dynamic>> adminFileScanRecords({int page = 1, int perPage = 100}) async {
+    return asMap(await _get('api/v2.1/admin/file-scan-records/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<List<Map<String, dynamic>>> adminStatisticsFileOperations({required String start, required String end, String groupBy = 'day'}) async {
+    return asMapList(await _get('api/v2.1/admin/statistics/file-operations/', query: {'start': start, 'end': end, 'group_by': groupBy}));
+  }
+
+  Future<List<Map<String, dynamic>>> adminStatisticsStorage({required String start, required String end, String groupBy = 'day'}) async {
+    return asMapList(await _get('api/v2.1/admin/statistics/total-storage/', query: {'start': start, 'end': end, 'group_by': groupBy}));
+  }
+
+  Future<List<Map<String, dynamic>>> adminStatisticsActiveUsers({required String start, required String end, String groupBy = 'day'}) async {
+    return asMapList(await _get('api/v2.1/admin/statistics/active-users/', query: {'start': start, 'end': end, 'group_by': groupBy}));
+  }
+
+  Future<List<Map<String, dynamic>>> adminStatisticsTraffic({required String start, required String end, String groupBy = 'day'}) async {
+    return asMapList(await _get('api/v2.1/admin/statistics/system-traffic/', query: {'start': start, 'end': end, 'group_by': groupBy}));
+  }
+
+  Future<Map<String, dynamic>> adminStatisticsMetrics() async {
+    return asMap(await _get('api/v2.1/admin/statistics/system-metrics/'));
+  }
+
+  Future<Map<String, dynamic>> adminStatisticsAi({required String date, String groupBy = 'repo', int page = 1, int perPage = 25}) async {
+    return asMap(await _get('api/v2.1/admin/statistics/ai/', query: {
+      'date': date,
+      'group_by': groupBy,
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<Uint8List> adminStatisticsReport({required String kind, String? month}) async {
+    try {
+      final path = kind == 'user-traffic'
+          ? 'api/v2.1/admin/statistics/system-user-traffic/excel/'
+          : 'api/v2.1/admin/statistics/system-user-storage/excel/';
+      final response = await _api.get<List<int>>(
+        path,
+        queryParameters: {if (month != null) 'month': month},
+        options: Options(headers: _authHeaders, responseType: ResponseType.bytes),
+      );
+      return Uint8List.fromList(response.data ?? const []);
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<Map<String, dynamic>> adminLogsByType({
+    required String type,
+    required String start,
+    required String end,
+    int page = 1,
+    int perPage = 50,
+  }) async {
+    final path = switch (type) {
+      'login' => 'api/v2.1/admin/logs/login-logs/',
+      'file-access' => 'api/v2.1/admin/logs/file-access-logs/',
+      'file-update' => 'api/v2.1/admin/logs/file-update-logs/',
+      'share-permission' => 'api/v2.1/admin/logs/share-permission-logs/',
+      'repo-transfer' => 'api/v2.1/admin/logs/repo-transfer-logs/',
+      'group-member' => 'api/v2.1/admin/logs/group-member-audit/',
+      _ => 'api/v2.1/admin/logs/login-logs/',
+    };
+    return asMap(await _get(path, query: {
+      'start': start,
+      'end': end,
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<Map<String, dynamic>> adminAdminLoginLogs({int page = 1, int perPage = 50}) async {
+    return asMap(await _get('api/v2.1/admin/admin-login-logs/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<Map<String, dynamic>> adminUploadLinks({int page = 1, int perPage = 50}) async {
+    return asMap(await _get('api/v2.1/admin/upload-links/', query: {
+      'page': '$page',
+      'per_page': '$perPage',
+    }));
+  }
+
+  Future<void> deleteAdminUploadLink(String token) async {
+    await _delete('api/v2.1/admin/upload-links/${Uri.encodeComponent(token)}/');
+  }
+
+  Future<void> uploadAdminBrandAsset(String kind, String filePath) async {
+    final field = switch (kind) {
+      'logo' => ('api/v2.1/admin/logo/', 'logo'),
+      'favicon' => ('api/v2.1/admin/favicon/', 'favicon'),
+      _ => ('api/v2.1/admin/login-background-image/', 'login_bg_image'),
+    };
+    await _postMultipart(field.$1, field.$2, filePath);
+  }
+
+  Future<void> uploadAdminLicense(String filePath) async {
+    await _postMultipart('api/v2.1/admin/license/', 'license', filePath);
+  }
+
   // -------------------------------------------------------------------------
   // SeaDoc
 
@@ -1598,6 +1815,34 @@ class SeafileApi {
         data: form,
         queryParameters: query,
         options: Options(contentType: Headers.formUrlEncodedContentType, headers: _authHeaders),
+      );
+      return response.data;
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<dynamic> _putForm(String path, Map<String, dynamic> form) async {
+    try {
+      final response = await _api.put<dynamic>(
+        path,
+        data: form,
+        options: Options(contentType: Headers.formUrlEncodedContentType, headers: _authHeaders),
+      );
+      return response.data;
+    } on DioException catch (error) {
+      throw _mapError(error);
+    }
+  }
+
+  Future<dynamic> _postMultipart(String path, String field, String filePath) async {
+    try {
+      final response = await _api.post<dynamic>(
+        path,
+        data: FormData.fromMap({
+          field: await MultipartFile.fromFile(filePath),
+        }),
+        options: Options(headers: _authHeaders),
       );
       return response.data;
     } on DioException catch (error) {
