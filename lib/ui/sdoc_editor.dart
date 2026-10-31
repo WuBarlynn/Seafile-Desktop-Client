@@ -1718,6 +1718,10 @@ class SdocEditorState extends State<SdocEditor> {
                           unawaited(_insertImage());
                         case 'image_local':
                           unawaited(_insertLocalImage());
+                        case 'video_local':
+                          unawaited(_insertLocalVideo());
+                        case 'video_url':
+                          unawaited(_insertVideoLink());
                         case 'code_block':
                           _insertCodeBlock();
                         case 'formula':
@@ -1732,6 +1736,8 @@ class SdocEditorState extends State<SdocEditor> {
                       PopupMenuItem(value: 'table', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '表格' : 'Table', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'image', child: Row(children: [const Icon(Icons.image_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '网络图片' : 'Image URL', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'image_local', child: Row(children: [const Icon(Icons.upload_file, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '本地图片' : 'Local image', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'video_local', child: Row(children: [const Icon(Icons.video_file_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '本地视频' : 'Local video', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'video_url', child: Row(children: [const Icon(Icons.link, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '视频链接' : 'Video link', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'code_block', child: Row(children: [const Icon(Icons.data_object, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '代码块' : 'Code block', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'formula', child: Row(children: [const Icon(Icons.functions, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '公式' : 'Formula', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
@@ -1998,27 +2004,53 @@ class SdocEditorState extends State<SdocEditor> {
   }
 
   Future<void> _findInDocument() async {
-    final input = TextEditingController();
-    final query = await showDialog<String>(
+    final findController = TextEditingController();
+    final replaceController = TextEditingController();
+    final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(L10n.of(context).zh ? '查找' : 'Find'),
-        content: TextField(
-          controller: input,
-          autofocus: true,
-          decoration: InputDecoration(hintText: L10n.of(context).zh ? '输入要查找的文字' : 'Find text'),
-          onSubmitted: (value) => Navigator.pop(context, value),
+        title: Text(L10n.of(context).zh ? '查找和替换' : 'Find and replace'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: findController,
+              autofocus: true,
+              decoration: InputDecoration(hintText: L10n.of(context).zh ? '查找内容' : 'Find text'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: replaceController,
+              decoration: InputDecoration(hintText: L10n.of(context).zh ? '替换内容' : 'Replace with'),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: Text(L10n.of(context).cancel)),
-          FilledButton(onPressed: () => Navigator.pop(context, input.text), child: Text(L10n.of(context).zh ? '查找' : 'Find')),
+          TextButton(onPressed: () => Navigator.pop(context, 'find'), child: Text(L10n.of(context).zh ? '查找' : 'Find')),
+          TextButton(onPressed: () => Navigator.pop(context, 'replace'), child: Text(L10n.of(context).zh ? '替换' : 'Replace')),
+          FilledButton(onPressed: () => Navigator.pop(context, 'replace_all'), child: Text(L10n.of(context).zh ? '全部替换' : 'Replace all')),
         ],
       ),
     );
-    input.dispose();
-    if (!mounted || query == null || query.isEmpty) return;
+    final query = findController.text;
+    final replacement = replaceController.text;
+    findController.dispose();
+    replaceController.dispose();
+    if (!mounted || action == null || query.isEmpty) return;
+    switch (action) {
+      case 'find':
+        _findNext(query);
+      case 'replace':
+        _replaceCurrent(query, replacement);
+      case 'replace_all':
+        _replaceAll(query, replacement);
+    }
+  }
+
+  ({_SdocField field, int offset})? _locateMatch(String query) {
     final fields = _fields();
-    if (fields.isEmpty) return;
+    if (fields.isEmpty) return null;
     final activeField = _activeTextField();
     final startIndex = activeField == null ? 0 : fields.indexOf(activeField);
     final startOffset = activeField?.controller.selection.end ?? 0;
@@ -2028,16 +2060,78 @@ class SdocEditorState extends State<SdocEditor> {
       final field = fields[index];
       final text = field.controller.text.toLowerCase();
       final offset = text.indexOf(needle, step == 0 ? startOffset.clamp(0, text.length) : 0);
-      if (offset < 0) continue;
-      setState(() => _active = field.blockIndex);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        field.focus.requestFocus();
-        field.controller.selection = TextSelection(baseOffset: offset, extentOffset: offset + query.length);
-      });
+      if (offset >= 0) return (field: field, offset: offset);
+    }
+    return null;
+  }
+
+  void _findNext(String query) {
+    final match = _locateMatch(query);
+    if (match == null) {
+      showToast(context, L10n.of(context).zh ? '未找到匹配内容' : 'No match found', error: true);
       return;
     }
-    showToast(context, L10n.of(context).zh ? '未找到匹配内容' : 'No match found', error: true);
+    final field = match.field;
+    setState(() => _active = field.blockIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      field.focus.requestFocus();
+      field.controller.selection = TextSelection(baseOffset: match.offset, extentOffset: match.offset + query.length);
+    });
+  }
+
+  void _replaceCurrent(String query, String replacement) {
+    final active = _activeTextField();
+    final selection = active?.controller.selection;
+    var field = active;
+    var offset = 0;
+    if (active != null && selection != null && selection.isValid && !selection.isCollapsed && active.controller.text.substring(selection.start, selection.end).toLowerCase() == query.toLowerCase()) {
+      offset = selection.start;
+    } else {
+      final match = _locateMatch(query);
+      if (match == null) {
+        _findNext(query);
+        return;
+      }
+      field = match.field;
+      offset = match.offset;
+    }
+    final controller = field?.controller;
+    if (field == null || controller == null) return;
+    final value = controller.value;
+    controller.value = TextEditingValue(
+      text: value.text.replaceRange(offset, offset + query.length, replacement),
+      selection: TextSelection.collapsed(offset: offset + replacement.length),
+    );
+    setState(() {
+      _active = field!.blockIndex;
+      _changed();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      field!.focus.requestFocus();
+    });
+  }
+
+  void _replaceAll(String query, String replacement) {
+    final pattern = RegExp(RegExp.escape(query), caseSensitive: false);
+    var count = 0;
+    for (final field in _fields()) {
+      final text = field.controller.text;
+      final matches = pattern.allMatches(text).length;
+      if (matches == 0) continue;
+      count += matches;
+      field.controller.value = TextEditingValue(
+        text: text.replaceAll(pattern, replacement),
+        selection: TextSelection.collapsed(offset: text.replaceAll(pattern, replacement).length),
+      );
+    }
+    if (count == 0) {
+      showToast(context, L10n.of(context).zh ? '未找到匹配内容' : 'No match found', error: true);
+      return;
+    }
+    setState(_changed);
+    showToast(context, L10n.of(context).zh ? '已替换 $count 处' : 'Replaced $count matches');
   }
 
   Future<void> _setLink() async {
@@ -2247,6 +2341,59 @@ class SdocEditorState extends State<SdocEditor> {
     } catch (error) {
       if (mounted) showToast(context, friendlyError(context, error), error: true);
     }
+  }
+
+  Future<void> _insertLocalVideo() async {
+    final file = await openFile(acceptedTypeGroups: [
+      const XTypeGroup(label: 'Videos', extensions: ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv']),
+    ]);
+    if (file == null || !mounted) return;
+    try {
+      final relative = await context.read<AppSession>().api!.uploadSdocVideo(widget.repo.id, widget.entry.path, file.path);
+      if (!mounted) return;
+      final size = await File(file.path).length();
+      final id = 'video-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+      _insertNode(_SdocBlock({
+        'id': id,
+        'type': 'video',
+        'data': {'name': file.name, 'src': relative, 'size': size, 'is_embeddable_link': false},
+        'children': [
+          {'id': '$id-t', 'text': ''},
+        ],
+      }));
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _insertVideoLink() async {
+    final input = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(L10n.of(context).zh ? '插入视频链接' : 'Insert video link'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: InputDecoration(hintText: L10n.of(context).zh ? '视频地址' : 'Video address'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(L10n.of(context).cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, input.text.trim()), child: Text(L10n.of(context).confirm)),
+        ],
+      ),
+    );
+    input.dispose();
+    if (!mounted || url == null || url.isEmpty) return;
+    final id = 'video-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    _insertNode(_SdocBlock({
+      'id': id,
+      'type': 'video',
+      'data': {'name': url, 'src': url, 'size': 0, 'is_embeddable_link': true},
+      'children': [
+        {'id': '$id-t', 'text': ''},
+      ],
+    }));
   }
 
   Future<void> _insertFormula() async {
