@@ -21,8 +21,15 @@ class WikiPage extends StatefulWidget {
 
 class _WikiPageState extends State<WikiPage> {
   List<WikiInfo> _wikis = [];
+  final _query = TextEditingController();
   bool _loading = true;
   String? _error;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -128,11 +135,13 @@ class _WikiPageState extends State<WikiPage> {
   }
 
   List<MapEntry<String, List<WikiInfo>>> _sections(L10n l10n) {
-    final mine = _wikis.where((wiki) => !wiki.legacy && wiki.type == 'mine').toList();
-    final shared = _wikis.where((wiki) => !wiki.legacy && wiki.type == 'shared').toList();
-    final legacy = _wikis.where((wiki) => wiki.legacy).toList();
+    final query = _query.text.trim().toLowerCase();
+    final source = query.isEmpty ? _wikis : _wikis.where((wiki) => wiki.name.toLowerCase().contains(query)).toList();
+    final mine = source.where((wiki) => !wiki.legacy && wiki.type == 'mine').toList();
+    final shared = source.where((wiki) => !wiki.legacy && wiki.type == 'shared').toList();
+    final legacy = source.where((wiki) => wiki.legacy).toList();
     final groups = <String, List<WikiInfo>>{};
-    for (final wiki in _wikis.where((wiki) => !wiki.legacy && wiki.type == 'group')) {
+    for (final wiki in source.where((wiki) => !wiki.legacy && wiki.type == 'group')) {
       groups.putIfAbsent(wiki.groupName?.isNotEmpty == true ? wiki.groupName! : l10n.groupLibraries, () => []).add(wiki);
     }
     final sections = <MapEntry<String, List<WikiInfo>>>[];
@@ -161,6 +170,22 @@ class _WikiPageState extends State<WikiPage> {
               const SizedBox(width: 8),
               Text(l10n.wikis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
               const Spacer(),
+              SizedBox(
+                width: 220,
+                height: 32,
+                child: TextField(
+                  controller: _query,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(fontSize: 12.5),
+                  decoration: InputDecoration(
+                    hintText: l10n.zh ? '搜索知识库' : 'Search wikis',
+                    prefixIcon: const Padding(padding: EdgeInsets.all(8), child: WebIcon('search', size: 14)),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: _createWiki,
                 icon: const Icon(Icons.add, size: 15),
