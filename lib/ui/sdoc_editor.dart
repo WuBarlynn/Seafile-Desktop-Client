@@ -1722,6 +1722,12 @@ class SdocEditorState extends State<SdocEditor> {
                           unawaited(_insertLocalVideo());
                         case 'video_url':
                           unawaited(_insertVideoLink());
+                        case 'sdoc_link':
+                          unawaited(_insertEmbedLink('sdoc', '链接 sdoc', 'Link sdoc'));
+                        case 'file_link':
+                          unawaited(_insertEmbedLink('file', '文件链接', 'File link'));
+                        case 'whiteboard':
+                          unawaited(_insertEmbedLink('whiteboard', '白板', 'Whiteboard'));
                         case 'code_block':
                           _insertCodeBlock();
                         case 'formula':
@@ -1738,6 +1744,9 @@ class SdocEditorState extends State<SdocEditor> {
                       PopupMenuItem(value: 'image_local', child: Row(children: [const Icon(Icons.upload_file, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '本地图片' : 'Local image', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'video_local', child: Row(children: [const Icon(Icons.video_file_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '本地视频' : 'Local video', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'video_url', child: Row(children: [const Icon(Icons.link, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '视频链接' : 'Video link', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'whiteboard', child: Row(children: [const Icon(Icons.draw_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '白板' : 'Whiteboard', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'sdoc_link', child: Row(children: [const Icon(Icons.note_alt_outlined, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '链接 sdoc' : 'Link sdoc', style: const TextStyle(fontSize: 13))])),
+                      PopupMenuItem(value: 'file_link', child: Row(children: [const Icon(Icons.attach_file, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '文件链接' : 'File link', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'code_block', child: Row(children: [const Icon(Icons.data_object, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '代码块' : 'Code block', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'formula', child: Row(children: [const Icon(Icons.functions, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '公式' : 'Formula', style: const TextStyle(fontSize: 13))])),
                       PopupMenuItem(value: 'divider', child: Row(children: [const Icon(Icons.horizontal_rule, size: 16), const SizedBox(width: 8), Text(l10n.zh ? '分隔线' : 'Divider', style: const TextStyle(fontSize: 13))])),
@@ -2390,6 +2399,38 @@ class SdocEditorState extends State<SdocEditor> {
       'id': id,
       'type': 'video',
       'data': {'name': url, 'src': url, 'size': 0, 'is_embeddable_link': true},
+      'children': [
+        {'id': '$id-t', 'text': ''},
+      ],
+    }));
+  }
+
+  Future<void> _insertEmbedLink(String linkType, String titleZh, String titleEn) async {
+    final input = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(L10n.of(context).zh ? titleZh : titleEn),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: InputDecoration(hintText: L10n.of(context).zh ? '链接地址' : 'Link address'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(L10n.of(context).cancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, input.text.trim()), child: Text(L10n.of(context).confirm)),
+        ],
+      ),
+    );
+    input.dispose();
+    if (!mounted || url == null || url.isEmpty) return;
+    final target = url.startsWith('http://') || url.startsWith('https://') ? url : 'https://$url';
+    final id = 'embed-${DateTime.now().microsecondsSinceEpoch}-${_idSeed++}';
+    _insertNode(_SdocBlock({
+      'id': id,
+      'type': 'embed_link',
+      'link': target,
+      'link_type': linkType,
       'children': [
         {'id': '$id-t', 'text': ''},
       ],
