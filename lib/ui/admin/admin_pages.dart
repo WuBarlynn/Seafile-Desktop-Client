@@ -1071,6 +1071,121 @@ class _AdminDepartmentsPanelState extends State<AdminDepartmentsPanel> {
   }
 }
 
+class AdminUserDetailDialog extends StatefulWidget {
+  const AdminUserDetailDialog({super.key, required this.email});
+
+  final String email;
+
+  @override
+  State<AdminUserDetailDialog> createState() => _AdminUserDetailDialogState();
+}
+
+class _AdminUserDetailDialogState extends State<AdminUserDetailDialog> {
+  bool _loading = true;
+  Map<String, dynamic> _user = const {};
+  List<Map<String, dynamic>> _groups = const [];
+  List<Map<String, dynamic>> _links = const [];
+  List<Map<String, dynamic>> _uploads = const [];
+  List<Map<String, dynamic>> _libraries = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final api = context.read<AppSession>().api!;
+    try {
+      final results = await Future.wait([
+        api.adminUser(widget.email),
+        api.adminUserGroups(widget.email),
+        api.adminUserShareLinks(widget.email),
+        api.adminUserUploadLinks(widget.email),
+        api.adminLibraries(query: widget.email),
+      ]);
+      if (!mounted) return;
+      final libraries = (asMap(results[4])['repos'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const <Map<String, dynamic>>[];
+      setState(() {
+        _user = asMap(results[0]);
+        _groups = results[1] as List<Map<String, dynamic>>;
+        _links = results[2] as List<Map<String, dynamic>>;
+        _uploads = results[3] as List<Map<String, dynamic>>;
+        _libraries = libraries.where((item) => item['owner_email'] == widget.email || item['owner'] == widget.email).toList();
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = L10n.of(context);
+    final zh = l10n.zh;
+    return AlertDialog(
+      title: Text(zh ? '用户详情' : 'User details'),
+      content: SizedBox(
+        width: 680,
+        height: 520,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _row(zh ? '用户 ID' : 'User ID', widget.email),
+                    _row(l10n.name, '${_user['name'] ?? ''}'),
+                    _row(zh ? '角色' : 'Role', adminTruthy(_user['is_staff']) ? (zh ? '管理员' : 'Admin') : (zh ? '普通用户' : 'User')),
+                    _row(zh ? '状态' : 'Status', adminTruthy(_user['is_active']) ? (zh ? '启用' : 'Active') : (zh ? '禁用' : 'Disabled')),
+                    _row(zh ? '已用空间 / 容量' : 'Usage / quota', '${formatBytes((_user['quota_usage'] as num?)?.toInt() ?? 0)} / ${(_user['quota_total'] as num?)?.toInt() == -2 ? (zh ? '不限' : 'Unlimited') : formatBytes((_user['quota_total'] as num?)?.toInt() ?? 0)}'),
+                    _row(zh ? '创建时间' : 'Created', adminDateLabel(_user['create_time']?.toString())),
+                    _row(zh ? '最后登录' : 'Last login', adminDateLabel(_user['last_login']?.toString())),
+                    const SizedBox(height: 10),
+                    _section(zh ? '拥有的资料库' : 'Owned libraries', _libraries.map((item) => '${item['name'] ?? ''} · ${item['size_formatted'] ?? ''}').toList()),
+                    _section(zh ? '群组' : 'Groups', _groups.map((item) => '${item['name'] ?? ''} (${item['role'] ?? ''})').toList()),
+                    _section(zh ? '分享链接' : 'Share links', _links.map((item) => '${item['obj_name'] ?? ''} · ${item['view_cnt'] ?? 0} ${zh ? '次访问' : 'views'}').toList()),
+                    _section(zh ? '上传链接' : 'Upload links', _uploads.map((item) => '${item['obj_name'] ?? item['repo_name'] ?? ''}').toList()),
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(zh ? '关闭' : 'Close')),
+      ],
+    );
+  }
+
+  Widget _row(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        children: [
+          SizedBox(width: 150, child: Text(label, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary))),
+          Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, List<String> items) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 5),
+          for (final item in items) Text(item, style: const TextStyle(fontSize: 12.5, height: 1.6)),
+        ],
+      ),
+    );
+  }
+}
+
 class AdminMembersDialog extends StatefulWidget {
   const AdminMembersDialog({required this.departmentId, required this.departmentName, this.addressBook = true});
 

@@ -243,6 +243,25 @@ class SeafileApi {
     }));
   }
 
+  Future<Map<String, dynamic>> adminUser(String email) async {
+    return asMap(await _get('api/v2.1/admin/users/${Uri.encodeComponent(email)}/'));
+  }
+
+  Future<List<Map<String, dynamic>>> adminUserGroups(String email) async {
+    final data = asMap(await _get('api/v2.1/admin/users/${Uri.encodeComponent(email)}/groups/'));
+    return asMapList(data['group_list']);
+  }
+
+  Future<List<Map<String, dynamic>>> adminUserShareLinks(String email) async {
+    final data = asMap(await _get('api/v2.1/admin/users/${Uri.encodeComponent(email)}/share-links/'));
+    return asMapList(data['share_link_list']);
+  }
+
+  Future<List<Map<String, dynamic>>> adminUserUploadLinks(String email) async {
+    final data = asMap(await _get('api/v2.1/admin/users/${Uri.encodeComponent(email)}/upload-links/'));
+    return asMapList(data['upload_link_list']);
+  }
+
   Future<Map<String, dynamic>> adminLibraries({int page = 1, int perPage = 50, String query = ''}) async {
     return asMap(await _get('api/v2.1/admin/libraries/', query: {
       'page': '$page',

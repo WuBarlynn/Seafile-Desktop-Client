@@ -1278,6 +1278,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         side: const BorderSide(color: AppColors.border),
       ),
                 itemBuilder: (context) => [
+                  PopupMenuItem(value: 'details', child: Text(l10n.zh ? '查看详情' : 'View details', style: const TextStyle(fontSize: 13, color: AppColors.text))),
                   PopupMenuItem(value: 'edit', child: Text(l10n.zh ? '编辑用户' : 'Edit user', style: const TextStyle(fontSize: 13, color: AppColors.text))),
                   PopupMenuItem(value: 'role', child: Text(user['is_staff'] == true ? (l10n.zh ? '取消管理员' : 'Remove admin') : (l10n.zh ? '设为管理员' : 'Make admin'), style: const TextStyle(fontSize: 13, color: AppColors.text))),
                   PopupMenuItem(value: 'toggle', child: Text(active ? (l10n.zh ? '禁用账号' : 'Disable account') : (l10n.zh ? '启用账号' : 'Enable account'), style: const TextStyle(fontSize: 13, color: AppColors.text))),
@@ -1285,6 +1286,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                   if (!self) PopupMenuItem(value: 'delete', child: Text(l10n.zh ? '删除用户' : 'Delete user', style: const TextStyle(fontSize: 13, color: AppColors.danger))),
                 ],
                 onSelected: (value) {
+                  if (value == 'details') _showUserDetails(user);
                   if (value == 'edit') _editUser(user);
                   if (value == 'role') _toggleAdmin(user, user['is_staff'] != true);
                   if (value == 'toggle') _toggleUser(user, !active);
@@ -1300,6 +1302,15 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showUserDetails(Map<String, dynamic> user) async {
+    final email = '${user['email'] ?? ''}';
+    if (email.isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AdminUserDetailDialog(email: email),
     );
   }
 
