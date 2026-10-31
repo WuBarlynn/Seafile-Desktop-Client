@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../state/session.dart';
 import 'deleted_libraries_dialog.dart';
 import 'dialogs.dart';
+import 'group_dialog.dart';
 import 'repo_actions.dart';
 import 'sidebar.dart';
 import 'widgets.dart';
@@ -292,6 +293,7 @@ class _LibraryHomeState extends State<LibraryHome> {
           icon: 'group',
           repos: _sortRepos(groups[name]!),
           emptyMessage: l10n.noMatches,
+          groupId: groups[name]!.first.groupId,
         ));
       }
     }
@@ -452,6 +454,7 @@ class _LibraryHomeState extends State<LibraryHome> {
     required List<Repository> repos,
     required String emptyMessage,
     bool showNew = false,
+    int? groupId,
   }) {
     final l10n = L10n.of(context);
     final session = context.watch<AppSession>();
@@ -467,6 +470,15 @@ class _LibraryHomeState extends State<LibraryHome> {
                 WebIcon(icon, size: 17, color: AppColors.textSecondary),
                 const SizedBox(width: 7),
                 Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.text)),
+                if (groupId != null) ...[
+                  const SizedBox(width: 6),
+                  IconAction(
+                    icon: 'group',
+                    tooltip: l10n.zh ? '群组信息' : 'Group info',
+                    size: 15,
+                    onPressed: () => showGroupDialog(context, groupId: groupId, groupName: title, onChanged: session.refreshLibraries),
+                  ),
+                ],
                 if (showNew) ...[
                   const SizedBox(width: 7),
                   IconAction(icon: 'plus-sign', tooltip: l10n.newLibrary, size: 15, onPressed: _createLibrary),

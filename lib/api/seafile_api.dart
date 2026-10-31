@@ -331,6 +331,38 @@ class SeafileApi {
     return asMapList(data).map((item) => item).toList();
   }
 
+  Future<Map<String, dynamic>> userGroup(int id) async {
+    return asMap(await _get('api/v2.1/groups/$id/'));
+  }
+
+  Future<List<Map<String, dynamic>>> userGroupLibraries(int id) async {
+    return asMapList(await _get('api/v2.1/groups/$id/libraries/'));
+  }
+
+  Future<List<Map<String, dynamic>>> userGroupMembers(int id) async {
+    return asMapList(await _get('api/v2.1/groups/$id/members/'));
+  }
+
+  Future<void> addUserGroupMember(int id, String email) async {
+    await _postForm('api/v2.1/groups/$id/members/', {'email': email});
+  }
+
+  Future<void> removeUserGroupMember(int id, String email) async {
+    await _delete('api/v2.1/groups/$id/members/${Uri.encodeComponent(email)}/');
+  }
+
+  Future<Map<String, dynamic>> createUserGroupLibrary(int id, String name) async {
+    return asMap(await _postForm('api/v2.1/groups/$id/group-owned-libraries/', {'name': name, 'permission': 'rw'}));
+  }
+
+  Future<void> renameUserGroup(int id, String name) async {
+    await _putForm('api/v2.1/groups/$id/', {'name': name});
+  }
+
+  Future<void> deleteUserGroup(int id) async {
+    await _delete('api/v2.1/groups/$id/');
+  }
+
   Future<Map<String, dynamic>> createUserGroup(String name) async {
     return asMap(await _postForm('api/v2.1/groups/', {'name': name}));
   }
