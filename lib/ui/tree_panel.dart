@@ -160,13 +160,6 @@ class _TreePanelState extends State<TreePanel> {
                   ),
                   if (_othersExpanded) ...[
                     _SimpleRow(
-                      label: l10n.watchFileChanges,
-                      icon: 'notification',
-                      depth: 0,
-                      active: false,
-                      onTap: () => showToast(context, l10n.featureNotAvailable),
-                    ),
-                    _SimpleRow(
                       label: l10n.settings,
                       icon: 'settings',
                       depth: 0,

@@ -298,6 +298,14 @@ class SeafileApi {
     await _delete('api/v2.1/admin/share-links/$token/');
   }
 
+  Future<void> deleteAdminLibrary(String repoId) async {
+    await _delete('api/v2.1/admin/libraries/$repoId/');
+  }
+
+  Future<void> transferAdminLibrary(String repoId, String owner, {bool reshare = true}) async {
+    await _putForm('api/v2.1/admin/libraries/$repoId/', {'owner': owner, 'reshare': reshare.toString()});
+  }
+
   Future<Map<String, dynamic>> createAdminUser(Map<String, dynamic> values) async {
     return asMap(await _postJson('api/v2.1/admin/users/', values));
   }

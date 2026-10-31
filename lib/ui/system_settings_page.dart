@@ -446,11 +446,56 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                     ],
                 ],
               ),
+              if (_groups.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final group in _groups)
+                        OutlinedButton(
+                          onPressed: () => _deleteGroup(group),
+                          child: Text('${l10n.delete} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _deleteGroup(Map<String, dynamic> group) async {
+    final l10n = L10n.of(context);
+    final id = (group['id'] as num?)?.toInt();
+    if (id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '删除群组' : 'Delete group'),
+        content: Text(l10n.zh ? '确定删除 ${group['name']}？' : 'Delete ${group['name']}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<AppSession>().api!.deleteAdminGroup(id);
+      await _loadGroups();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Future<void> _createGroup() async {
@@ -699,11 +744,92 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                     ],
                 ],
               ),
+              if (_libraries.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final repo in _libraries) ...[
+                        OutlinedButton(
+                          onPressed: () => _transferLibrary(repo),
+                          child: Text('${l10n.zh ? '转让' : 'Transfer'} ${repo['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => _deleteLibrary(repo),
+                          child: Text('${l10n.delete} ${repo['name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _transferLibrary(Map<String, dynamic> repo) async {
+    final l10n = L10n.of(context);
+    final id = '${repo['id'] ?? ''}';
+    if (id.isEmpty) return;
+    final owner = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '转让资料库' : 'Transfer library'),
+        content: SizedBox(
+          width: 380,
+          child: TextField(controller: owner, autofocus: true, decoration: InputDecoration(labelText: l10n.zh ? '新所有者邮箱' : 'New owner email')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.zh ? '转让' : 'Transfer')),
+        ],
+      ),
+    );
+    final email = owner.text.trim();
+    owner.dispose();
+    if (result != true || email.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.transferAdminLibrary(id, email);
+      await _loadLibraries();
+      if (mounted) showToast(context, l10n.savedSuccessfully);
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _deleteLibrary(Map<String, dynamic> repo) async {
+    final l10n = L10n.of(context);
+    final id = '${repo['id'] ?? ''}';
+    if (id.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '删除资料库' : 'Delete library'),
+        content: Text(l10n.zh ? '确定删除 ${repo['name']}？此操作不可撤销。' : 'Delete ${repo['name']}? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<AppSession>().api!.deleteAdminLibrary(id);
+      await _loadLibraries();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Widget _userTable(L10n l10n) {
@@ -769,11 +895,15 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         side: const BorderSide(color: AppColors.border),
       ),
                 itemBuilder: (context) => [
+                  PopupMenuItem(value: 'edit', child: Text(l10n.zh ? '编辑用户' : 'Edit user', style: const TextStyle(fontSize: 13, color: AppColors.text))),
+                  PopupMenuItem(value: 'role', child: Text(user['is_staff'] == true ? (l10n.zh ? '取消管理员' : 'Remove admin') : (l10n.zh ? '设为管理员' : 'Make admin'), style: const TextStyle(fontSize: 13, color: AppColors.text))),
                   PopupMenuItem(value: 'toggle', child: Text(active ? (l10n.zh ? '禁用账号' : 'Disable account') : (l10n.zh ? '启用账号' : 'Enable account'), style: const TextStyle(fontSize: 13, color: AppColors.text))),
                   PopupMenuItem(value: 'password', child: Text(l10n.zh ? '重置密码' : 'Reset password', style: const TextStyle(fontSize: 13, color: AppColors.text))),
                   if (!self) PopupMenuItem(value: 'delete', child: Text(l10n.zh ? '删除用户' : 'Delete user', style: const TextStyle(fontSize: 13, color: AppColors.danger))),
                 ],
                 onSelected: (value) {
+                  if (value == 'edit') _editUser(user);
+                  if (value == 'role') _toggleAdmin(user, user['is_staff'] != true);
                   if (value == 'toggle') _toggleUser(user, !active);
                   if (value == 'password') _resetUserPassword(user);
                   if (value == 'delete') _deleteUser(user);
@@ -788,6 +918,63 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _toggleAdmin(Map<String, dynamic> user, bool staff) async {
+    final l10n = L10n.of(context);
+    try {
+      await context.read<AppSession>().api!.updateAdminUser('${user['email']}', {'is_staff': staff});
+      await _loadUsers();
+      if (mounted) showToast(context, staff ? (l10n.zh ? '已设为管理员' : 'Admin role granted') : (l10n.zh ? '已取消管理员' : 'Admin role removed'));
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _editUser(Map<String, dynamic> user) async {
+    final l10n = L10n.of(context);
+    final name = TextEditingController(text: '${user['name'] ?? ''}');
+    final quota = TextEditingController(text: ((user['quota_total'] as num?)?.toInt() ?? -2) > 0 ? '${((user['quota_total'] as num).toInt() / 1024 / 1024).round()}' : '');
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '编辑用户' : 'Edit user'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: name, autofocus: true, decoration: InputDecoration(labelText: l10n.zh ? '昵称' : 'Display name')),
+              const SizedBox(height: 12),
+              TextField(
+                controller: quota,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: l10n.zh ? '空间配额 (MB，留空不限制)' : 'Quota (MB, empty for unlimited)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.save)),
+        ],
+      ),
+    );
+    final displayName = name.text.trim();
+    final quotaText = quota.text.trim();
+    name.dispose();
+    quota.dispose();
+    if (result != true) return;
+    try {
+      await context.read<AppSession>().api!.updateAdminUser('${user['email']}', {
+        'name': displayName,
+        'quota_total': quotaText.isEmpty ? -2 : (int.tryParse(quotaText) ?? 0) * 1024 * 1024,
+      });
+      await _loadUsers();
+      if (mounted) showToast(context, l10n.savedSuccessfully);
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Future<void> _toggleUser(Map<String, dynamic> user, bool active) async {
