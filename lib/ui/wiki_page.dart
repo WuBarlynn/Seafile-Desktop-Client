@@ -91,6 +91,42 @@ class _WikiPageState extends State<WikiPage> {
     }
   }
 
+  Future<void> _renameWiki(WikiInfo wiki) async {
+    final l10n = L10n.of(context);
+    final name = await showTextPrompt(
+      context,
+      title: l10n.zh ? '重命名知识库' : 'Rename wiki',
+      label: l10n.name,
+      initialValue: wiki.name,
+      validator: (value) => value.trim().isEmpty ? l10n.name : null,
+    );
+    if (name == null || !mounted) return;
+    try {
+      await context.read<AppSession>().api!.updateWiki2(wiki.id, name: name.trim(), icon: wiki.icon ?? 'book-bookmark-fill', color: wiki.color ?? '#FF8000');
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _deleteWiki(WikiInfo wiki) async {
+    final l10n = L10n.of(context);
+    final confirmed = await showConfirmDialog(
+      context,
+      title: l10n.zh ? '删除知识库' : 'Delete wiki',
+      message: l10n.zh ? '确定删除 ${wiki.name}？' : 'Delete ${wiki.name}?',
+      danger: true,
+      confirmLabel: l10n.delete,
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      await context.read<AppSession>().api!.deleteWiki2(wiki.id);
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   List<MapEntry<String, List<WikiInfo>>> _sections(L10n l10n) {
     final mine = _wikis.where((wiki) => !wiki.legacy && wiki.type == 'mine').toList();
     final shared = _wikis.where((wiki) => !wiki.legacy && wiki.type == 'shared').toList();
@@ -158,7 +194,12 @@ class _WikiPageState extends State<WikiPage> {
                               Text(section.key, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                               const SizedBox(height: 10),
                               for (final wiki in section.value)
-                                _WikiRow(wiki: wiki, onTap: () => _open(wiki)),
+                                _WikiRow(
+                                  wiki: wiki,
+                                  onTap: () => _open(wiki),
+                                  onRename: wiki.legacy ? null : () => _renameWiki(wiki),
+                                  onDelete: wiki.legacy ? null : () => _deleteWiki(wiki),
+                                ),
                               const SizedBox(height: 20),
                             ],
                           ],
@@ -170,10 +211,12 @@ class _WikiPageState extends State<WikiPage> {
 }
 
 class _WikiRow extends StatefulWidget {
-  const _WikiRow({required this.wiki, required this.onTap});
+  const _WikiRow({required this.wiki, required this.onTap, this.onRename, this.onDelete});
 
   final WikiInfo wiki;
   final VoidCallback onTap;
+  final VoidCallback? onRename;
+  final VoidCallback? onDelete;
 
   @override
   State<_WikiRow> createState() => _WikiRowState();
@@ -242,7 +285,35 @@ class _WikiRowState extends State<_WikiRow> {
                   ],
                 ),
               ),
-              const WebIcon('open-in-new-tab', size: 14, color: AppColors.muted),
+              if (widget.onRename != null || widget.onDelete != null)
+                PopupMenuButton<String>(
+                  tooltip: '',
+                  color: Colors.white,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.border)),
+                  itemBuilder: (context) => [
+                    if (widget.onRename != null)
+                      PopupMenuItem(
+                        value: 'rename',
+                        child: Text(l10n.zh ? '重命名' : 'Rename', style: const TextStyle(fontSize: 13)),
+                      ),
+                    if (widget.onDelete != null)
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(l10n.delete, style: const TextStyle(fontSize: 13, color: AppColors.danger)),
+                      ),
+                  ],
+                  onSelected: (value) {
+                    if (value == 'rename') widget.onRename?.call();
+                    if (value == 'delete') widget.onDelete?.call();
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                    child: WebIcon('more-vertical', size: 15),
+                  ),
+                )
+              else
+                const WebIcon('open-in-new-tab', size: 14, color: AppColors.muted),
             ],
           ),
         ),

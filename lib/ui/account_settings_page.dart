@@ -194,6 +194,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                                 const SizedBox(height: 18),
                                 _profileForm(l10n),
                                 const SizedBox(height: 18),
+                                _languageCard(session, l10n),
+                                const SizedBox(height: 18),
                                 _passwordCard(l10n),
                                 const SizedBox(height: 18),
                                 _webdavCard(session, l10n),
@@ -347,6 +349,30 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 : const Icon(Icons.save_outlined, size: 16),
             label: Text(l10n.save, style: const TextStyle(fontSize: 13)),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _languageCard(AppSession session, L10n l10n) {
+    return _card(
+      title: l10n.zh ? '语言设置' : 'Language',
+      subtitle: l10n.zh ? '选择桌面客户端的显示语言。' : 'Choose the display language of the desktop client.',
+      children: [
+        Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('简体中文', style: TextStyle(fontSize: 12)),
+              selected: session.language != 'en',
+              onSelected: (_) => session.setLanguage('zh'),
+            ),
+            ChoiceChip(
+              label: const Text('English', style: TextStyle(fontSize: 12)),
+              selected: session.language == 'en',
+              onSelected: (_) => session.setLanguage('en'),
+            ),
+          ],
         ),
       ],
     );

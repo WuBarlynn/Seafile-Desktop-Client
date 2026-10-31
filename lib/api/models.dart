@@ -799,6 +799,8 @@ class WikiInfo {
     this.isPublished = false,
     this.groupName,
     this.legacy = false,
+    this.icon,
+    this.color,
   });
 
   final String id;
@@ -814,6 +816,8 @@ class WikiInfo {
   final bool isPublished;
   final String? groupName;
   final bool legacy;
+  final String? icon;
+  final String? color;
 
   bool get canEdit {
     final value = permission?.toLowerCase();
@@ -835,6 +839,8 @@ class WikiInfo {
       isPublished: legacy || asBool(json['is_published']),
       groupName: groupName,
       legacy: legacy,
+      icon: firstString(json, ['icon']),
+      color: firstString(json, ['color']),
     );
   }
 }

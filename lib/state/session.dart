@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_error.dart';
 import '../api/models.dart';
@@ -28,6 +29,7 @@ class AppSession extends ChangeNotifier {
   bool _expired = false;
   bool _handlingExpired = false;
   bool _disposed = false;
+  String _language = 'zh';
 
   final Set<String> _unlockedRepos = {};
 
@@ -42,6 +44,7 @@ class AppSession extends ChangeNotifier {
   bool get loadedLibraries => _loadedLibraries;
   bool get hasSession => _stored != null && _api != null;
   bool get expired => _expired;
+  String get language => _language;
   String get serverBase => _stored?.serverUrl ?? '';
   int get serverMajor => int.tryParse((_serverInfo?.version ?? '').split('.').first) ?? 14;
   bool get isV14 => serverMajor >= 14;
@@ -92,6 +95,10 @@ class AppSession extends ChangeNotifier {
   Future<void> restore() async {
     _restoring = true;
     _notify();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _language = prefs.getString('app.language') ?? _language;
+    } catch (_) {}
     final saved = await _store.readSession();
     if (_disposed) return;
     if (saved == null) {
@@ -104,6 +111,16 @@ class AppSession extends ChangeNotifier {
     _restoring = false;
     _notify();
     unawaited(_bootstrap());
+  }
+
+  Future<void> setLanguage(String language) async {
+    if (language == _language) return;
+    _language = language;
+    _notify();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('app.language', language);
+    } catch (_) {}
   }
 
   Future<void> _bootstrap() async {

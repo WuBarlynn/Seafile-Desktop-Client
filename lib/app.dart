@@ -14,8 +14,10 @@ class SeafileApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<AppSession>();
     return MaterialApp(
       title: 'Seafile',
+      locale: session.language == 'en' ? const Locale('en') : const Locale('zh', 'CN'),
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       supportedLocales: const [Locale('zh', 'CN'), Locale('en')],

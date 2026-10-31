@@ -1163,6 +1163,10 @@ class SeafileApi {
     }));
   }
 
+  Future<void> updateWiki2(String id, {required String name, String icon = 'book-bookmark-fill', String color = '#FF8000'}) async {
+    await _putJson('api/v2.1/wiki2/$id/', {'wiki_name': name, 'icon': icon, 'color': color});
+  }
+
   Future<void> deleteWiki2(String id) async {
     await _delete('api/v2.1/wiki2/$id/');
   }
