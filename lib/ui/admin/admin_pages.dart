@@ -1963,6 +1963,33 @@ class _AdminVirusPanelState extends State<AdminVirusPanel> {
     }
   }
 
+  Future<void> _processAll(String operation) async {
+    final l10n = L10n.of(context);
+    final zh = l10n.zh;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(operation == 'delete' ? (zh ? '删除全部病毒文件' : 'Delete all infected files') : (zh ? '忽略全部病毒文件' : 'Ignore all infected files')),
+        content: Text(zh ? '此操作会处理当前筛选范围内的所有病毒文件。' : 'This applies to every infected file in the current filter.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: operation == 'delete' ? AppColors.danger : null),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(zh ? '确定' : 'Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<AppSession>().api!.processAllVirusFiles(operation: operation, handled: false);
+      await _load();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
   Future<void> _ignore(Map<String, dynamic> file, bool ignore) async {
     final id = (file['id'] as num?)?.toInt();
     if (id == null) return;
@@ -2017,7 +2044,11 @@ class _AdminVirusPanelState extends State<AdminVirusPanel> {
             setState(() => _tab = index);
             _load();
           },
-          actions: [IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: _load)],
+          actions: [
+            TextButton(onPressed: () => _processAll('ignore'), child: Text(zh ? '全部忽略' : 'Ignore all', style: const TextStyle(fontSize: 12))),
+            TextButton(onPressed: () => _processAll('delete'), child: Text(zh ? '全部删除' : 'Delete all', style: const TextStyle(fontSize: 12, color: AppColors.danger))),
+            IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: _load),
+          ],
         ),
         Expanded(
           child: _loading

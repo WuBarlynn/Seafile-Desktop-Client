@@ -629,6 +629,14 @@ class SeafileApi {
     }));
   }
 
+  Future<void> processAllVirusFiles({required String operation, required bool handled}) async {
+    await _postForm('api/v2.1/admin/virus-files/batch/', {
+      'operation': operation,
+      'apply_to_all': 'true',
+      'has_handled': handled ? 'true' : 'false',
+    });
+  }
+
   Future<void> ignoreAdminVirusFile(int id, bool ignore) async {
     await _putForm('api/v2.1/admin/virus-files/$id/', {'ignore': ignore.toString()});
   }
