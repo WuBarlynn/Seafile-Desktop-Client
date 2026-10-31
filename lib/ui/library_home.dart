@@ -143,6 +143,7 @@ class _LibraryHomeState extends State<LibraryHome> {
       items: [
         PopupMenuItem(value: 'open', child: _menuRow('folder-open', l10n.open)),
         PopupMenuItem(value: 'star', child: _menuRow('starred', repo.starred ? (l10n.zh ? '取消星标' : 'Remove star') : (l10n.zh ? '添加星标' : 'Add star'))),
+        if (repo.kind == 'shared') PopupMenuItem(value: 'leave', child: _menuRow('share-with-me', l10n.zh ? '离开共享' : 'Leave share')),
         if (repo.isOwner) PopupMenuItem(value: 'rename', child: _menuRow('rename', l10n.rename)),
         if (repo.isOwner) PopupMenuItem(value: 'transfer', child: _menuRow('share-with-me', l10n.zh ? '转让' : 'Transfer')),
         if (repo.isOwner && repo.archiveStatus != null)
@@ -165,6 +166,21 @@ class _LibraryHomeState extends State<LibraryHome> {
     switch (selected) {
       case 'open':
         await _openRepo(repo);
+      case 'leave':
+        final confirmed = await showConfirmDialog(
+          context,
+          title: l10n.zh ? '离开共享' : 'Leave share',
+          message: l10n.zh ? '确定离开 ${repo.name}？' : 'Leave ${repo.name}?',
+          danger: true,
+          confirmLabel: l10n.zh ? '离开' : 'Leave',
+        );
+        if (!confirmed || !mounted) return;
+        try {
+          await context.read<AppSession>().api!.leaveSharedLibrary(repo.id);
+          await context.read<AppSession>().refreshLibraries();
+        } catch (error) {
+          if (mounted) showToast(context, friendlyError(context, error), error: true);
+        }
       case 'star':
         try {
           await context.read<AppSession>().api!.setStarred(repoId: repo.id, path: '/', starred: !repo.starred);

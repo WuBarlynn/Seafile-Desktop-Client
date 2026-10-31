@@ -398,6 +398,10 @@ class SeafileApi {
     await _postJson('api/v2.1/repos/$repoId/archive/', {'op_type': archive ? 'archive' : 'unarchive'});
   }
 
+  Future<void> leaveSharedLibrary(String repoId) async {
+    await _delete('api2/beshared-repos/$repoId/');
+  }
+
   Future<void> transferLibrary(String repoId, String owner, {bool reshare = true}) async {
     try {
       await _api.put<dynamic>(
