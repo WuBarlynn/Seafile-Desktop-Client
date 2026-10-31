@@ -109,6 +109,48 @@ class _SdocTextStyle {
     );
   }
 
+  _SdocTextStyle withFont(String? value) => _SdocTextStyle(
+        bold: bold,
+        italic: italic,
+        underline: underline,
+        strikethrough: strikethrough,
+        code: code,
+        superscript: superscript,
+        subscript: subscript,
+        color: color,
+        highlight: highlight,
+        fontSize: fontSize,
+        font: value,
+      );
+
+  _SdocTextStyle withColor(String? value) => _SdocTextStyle(
+        bold: bold,
+        italic: italic,
+        underline: underline,
+        strikethrough: strikethrough,
+        code: code,
+        superscript: superscript,
+        subscript: subscript,
+        color: value,
+        highlight: highlight,
+        fontSize: fontSize,
+        font: font,
+      );
+
+  _SdocTextStyle withHighlight(String? value) => _SdocTextStyle(
+        bold: bold,
+        italic: italic,
+        underline: underline,
+        strikethrough: strikethrough,
+        code: code,
+        superscript: superscript,
+        subscript: subscript,
+        color: color,
+        highlight: value,
+        fontSize: fontSize,
+        font: font,
+      );
+
   factory _SdocTextStyle.fromLeaf(Map node) {
     double? size;
     final rawSize = node['font_size'];
@@ -1627,9 +1669,11 @@ class SdocEditorState extends State<SdocEditor> {
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
-              child: Row(
-                children: [
-                  _ToolbarButton(icon: Icons.undo, tooltip: l10n.zh ? '撤销' : 'Undo', onTap: canUndo ? _undo : null),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _ToolbarButton(icon: Icons.undo, tooltip: l10n.zh ? '撤销' : 'Undo', onTap: canUndo ? _undo : null),
                   _ToolbarButton(icon: Icons.redo, tooltip: l10n.zh ? '重做' : 'Redo', onTap: canRedo ? _redo : null),
                   _toolDivider(),
                   PopupMenuButton<String>(
@@ -1731,6 +1775,31 @@ class SdocEditorState extends State<SdocEditor> {
                     ),
                   ),
                   const SizedBox(width: 6),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '字体' : 'Font',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: (value) => _setFontFamily(value.isEmpty ? null : value),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: '', child: Text(l10n.zh ? '默认字体' : 'Default font', style: const TextStyle(fontSize: 13))),
+                      for (final font in const ['Arial', 'Times New Roman', 'Courier New', 'Georgia', 'PingFang SC', 'Songti SC', 'Kaiti SC', 'Menlo'])
+                        PopupMenuItem(value: font, child: Text(font, style: TextStyle(fontSize: 13, fontFamily: font))),
+                    ],
+                    child: Container(
+                      height: 30,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(4)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(l10n.zh ? '字体' : 'Font', style: const TextStyle(fontSize: 12.5)),
+                          const Icon(Icons.arrow_drop_down, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   PopupMenuButton<double>(
                     tooltip: l10n.zh ? '字号' : 'Font size',
                     offset: const Offset(0, 32),
@@ -1753,6 +1822,39 @@ class SdocEditorState extends State<SdocEditor> {
                         ],
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 6),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '字体颜色' : 'Font color',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: (value) => _setTextColor(value.isEmpty ? null : value),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: '', child: Text(l10n.zh ? '默认' : 'Default', style: const TextStyle(fontSize: 13))),
+                      for (final color in const ['#000000', '#6b7280', '#d93025', '#e8710a', '#188038', '#1a73e8', '#9334e6'])
+                        PopupMenuItem(
+                          value: color,
+                          child: Row(children: [Container(width: 14, height: 14, decoration: BoxDecoration(color: _SdocTextStyle._parseHexColor(color), borderRadius: BorderRadius.circular(7))), const SizedBox(width: 8), Text(color, style: const TextStyle(fontSize: 12))]),
+                        ),
+                    ],
+                    child: const SizedBox(width: 30, height: 30, child: Icon(Icons.format_color_text, size: 17, color: AppColors.textSecondary)),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: l10n.zh ? '高亮颜色' : 'Highlight color',
+                    offset: const Offset(0, 32),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    onSelected: (value) => _setHighlightColor(value.isEmpty ? null : value),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: '', child: Text(l10n.zh ? '无高亮' : 'No highlight', style: const TextStyle(fontSize: 13))),
+                      for (final color in const ['#fff2a8', '#d7f7d7', '#d7e9ff', '#ffd7e7', '#eeeeee'])
+                        PopupMenuItem(
+                          value: color,
+                          child: Row(children: [Container(width: 14, height: 14, decoration: BoxDecoration(color: _SdocTextStyle._parseHexColor(color), borderRadius: BorderRadius.circular(7), border: Border.all(color: AppColors.border))), const SizedBox(width: 8), Text(color, style: const TextStyle(fontSize: 12))]),
+                        ),
+                    ],
+                    child: const SizedBox(width: 30, height: 30, child: Icon(Icons.format_color_fill, size: 17, color: AppColors.textSecondary)),
                   ),
                   const SizedBox(width: 6),
                   PopupMenuButton<TextAlign>(
@@ -1797,9 +1899,9 @@ class SdocEditorState extends State<SdocEditor> {
                   _ToolbarButton(icon: Icons.format_list_bulleted, tooltip: l10n.zh ? '无序列表' : 'Bulleted list', onTap: () => _changeType('unordered_list')),
                   _ToolbarButton(icon: Icons.format_list_numbered, tooltip: l10n.zh ? '有序列表' : 'Numbered list', onTap: () => _changeType('ordered_list')),
                   _ToolbarButton(icon: Icons.checklist, tooltip: l10n.zh ? '任务列表' : 'Checklist', onTap: () => _changeType('check_list_item')),
-                  _ToolbarButton(icon: Icons.format_quote, tooltip: l10n.zh ? '引用' : 'Quote', onTap: () => _changeType('quote')),
-                  const Spacer(),
-                ],
+                    _ToolbarButton(icon: Icons.format_quote, tooltip: l10n.zh ? '引用' : 'Quote', onTap: () => _changeType('quote')),
+                  ],
+                ),
               ),
             ),
         ],
@@ -1844,6 +1946,18 @@ class SdocEditorState extends State<SdocEditor> {
   void _adjustFontSize(int delta) {
     final base = _activeFontSize;
     _toggleInlineMark((style) => style.copyWith(fontSize: ((style.fontSize ?? base) + delta).clamp(8, 72)), allIfCollapsed: true);
+  }
+
+  void _setFontFamily(String? font) {
+    _toggleInlineMark((style) => style.withFont(font), allIfCollapsed: true);
+  }
+
+  void _setTextColor(String? color) {
+    _toggleInlineMark((style) => style.withColor(color), allIfCollapsed: true);
+  }
+
+  void _setHighlightColor(String? color) {
+    _toggleInlineMark((style) => style.withHighlight(color), allIfCollapsed: true);
   }
 
   void _clearFormatting() {

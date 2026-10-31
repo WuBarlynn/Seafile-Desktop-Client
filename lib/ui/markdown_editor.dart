@@ -507,9 +507,11 @@ class MarkdownEditorState extends State<MarkdownEditor> {
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: AppColors.border))),
-              child: Row(
-                children: [
-                  _button(Icons.undo, l10n.zh ? '撤销' : 'Undo', canUndo ? _undo : null),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _button(Icons.undo, l10n.zh ? '撤销' : 'Undo', canUndo ? _undo : null),
                   _button(Icons.redo, l10n.zh ? '重做' : 'Redo', canRedo ? _redo : null),
                   _divider(),
                   _button(Icons.notes, l10n.zh ? '正文' : 'Paragraph', () => _changeType(_MdType.paragraph)),
@@ -528,8 +530,9 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                   _button(Icons.format_list_numbered, l10n.zh ? '有序列表' : 'Numbered list', () => _changeType(_MdType.numbered)),
                   _button(Icons.checklist, l10n.zh ? '任务列表' : 'Checklist', () => _changeType(_MdType.check)),
                   _button(Icons.format_quote, l10n.zh ? '引用' : 'Quote', () => _changeType(_MdType.quote)),
-                  _button(Icons.data_object, l10n.zh ? '代码块' : 'Code block', () => _changeType(_MdType.code)),
-                ],
+                    _button(Icons.data_object, l10n.zh ? '代码块' : 'Code block', () => _changeType(_MdType.code)),
+                  ],
+                ),
               ),
             ),
           Expanded(

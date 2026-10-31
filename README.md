@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.1.12 — web-style editing toolbars. Every iteration is published to this repository.
+> **Status:** 1.1.13 — complete SeaDoc formatting toolbar. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -22,7 +22,7 @@ A native desktop client for Seafile, built with Flutter for macOS and Windows. T
 - **Tabbed workspace** with a pinned Home tab; single-clicking a library or file opens a new tab immediately to the right of the active tab, other tabs can be dragged to reorder them, and sidebar sections switch inside Home without spawning tabs. Clicking the `File` breadcrumb returns to Home without clearing or closing the library tab
 - **In-place editors** — opening a file never pushes a new page. Images/PDF, text, Markdown, SeaDoc, Office, Excalidraw and media all render inside the file tab
 - Native text editor and **block-based Markdown editor**: headings, lists, checklists, quotes and code blocks render as content (no `#`/`-` markers), with a formatting toolbar, save button, full-width canvas and unsaved-change prompt. Enter splits at the caret and continues lists/quotes, Backspace merges blocks or removes an empty one, Delete merges the next block, arrow keys cross block boundaries, Cmd/Ctrl+B/I apply emphasis, Cmd/Ctrl+Z/Y undo and redo, and IME composition is never intercepted. Add-row and delete-row toolbar buttons have been removed
-- Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab. It autosaves two seconds after the last change, shows the last saved time next to the filename, provides undo/redo buttons and Cmd/Ctrl+Z/Y, and exposes a right-click menu with cut, copy, paste, delete and select-all. The toolbar now follows the web layout with an Insert menu (table, code block, formula, divider, callout), a block-type menu (paragraph, headings 1–6, quote, lists, check list, code), inline bold/italic/underline/strikethrough/inline-code/clear-format controls, font size, alignment and superscript/subscript controls. Inline styles are stored in SeaDoc text runs and survive autosave and reload. Enter creates the next paragraph, list item, check item, callout paragraph or toggle content with web-style behavior, Backspace merges into the previous block or exits an empty list, Delete merges forward, and IME composition remains untouched. Add-row and delete-row toolbar buttons have been removed
+- Native **SeaDoc** editor backed by the SeaDoc sync API: headings, paragraphs, lists, checklists, quotes, callouts, code blocks and editable tables, saved back without leaving the tab. It autosaves two seconds after the last change, shows the last saved time next to the filename, provides undo/redo buttons and Cmd/Ctrl+Z/Y, and exposes a right-click menu with cut, copy, paste, delete and select-all. The toolbar now follows the web layout with an Insert menu (table, code block, formula, divider, callout), a block-type menu (paragraph, headings 1–6, quote, lists, check list, code), inline bold/italic/underline/strikethrough/inline-code/clear-format controls, font family, font size, text and highlight colours, alignment and superscript/subscript controls, all horizontally scrollable on narrow windows. Inline styles are stored in SeaDoc text runs and survive autosave and reload. Enter creates the next paragraph, list item, check item, callout paragraph or toggle content with web-style behavior, Backspace merges into the previous block or exits an empty list, Delete merges forward, and IME composition remains untouched. Add-row and delete-row toolbar buttons have been removed
 - Inline web editors for OnlyOffice documents, Excalidraw drawings, audio/video and the full web app; the embedded page is auto-fitted to the tab
 - Native **account settings** (profile, contact details, password) and **system settings** (overview, users with enable/reset/delete, libraries, server switches) for administrators; the complete admin console also opens in a tab
 - Native account/system pages replace the previous web hop that failed permission checks
@@ -90,6 +90,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.1.13
+
+Tagged `v1.1.13`. Completes the SeaDoc formatting toolbar with font-family, font-colour and highlight-colour menus, and makes both editor toolbars horizontally scrollable so every control remains reachable on narrow windows. Inline font, colour and highlight attributes are saved as SeaDoc text runs and restored on reload. All 1.1.12 insert/block/inline controls and 1.1.11 autosave, undo/redo, context-menu and keyboard behavior remain.
 
 ## Release 1.1.12
 
