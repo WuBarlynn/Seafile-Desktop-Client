@@ -29,11 +29,19 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   List<Map<String, dynamic>> _groups = const [];
   List<Map<String, dynamic>> _shareLinks = const [];
   List<Map<String, dynamic>> _uploadLinks = const [];
+  List<Map<String, dynamic>> _wikis = const [];
+  List<Map<String, dynamic>> _trashLibraries = const [];
+  Map<String, dynamic> _systemLibrary = const {};
+  int _libraryTab = 0;
   int _shareTab = 0;
   int _reloadTick = 0;
   final _userQuery = TextEditingController();
+  final _libraryQuery = TextEditingController();
   bool _loadingUsers = false;
   bool _loadingLibraries = false;
+  bool _loadingWikis = false;
+  bool _loadingTrashLibraries = false;
+  bool _loadingSystemLibrary = false;
   bool _loadingGroups = false;
   bool _loadingShareLinks = false;
   bool _loadingUploadLinks = false;
@@ -47,6 +55,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   @override
   void dispose() {
     _userQuery.dispose();
+    _libraryQuery.dispose();
     super.dispose();
   }
 
@@ -90,7 +99,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   Future<void> _loadLibraries() async {
     setState(() => _loadingLibraries = true);
     try {
-      final data = await context.read<AppSession>().api!.adminLibraries();
+      final data = await context.read<AppSession>().api!.adminLibraries(query: _libraryQuery.text.trim());
       if (!mounted) return;
       setState(() {
         _libraries = (data['repos'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
@@ -99,6 +108,54 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _loadingLibraries = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _loadWikis() async {
+    setState(() => _loadingWikis = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminWikis();
+      if (!mounted) return;
+      setState(() {
+        _wikis = (data['wikis'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
+        _loadingWikis = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingWikis = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _loadTrashLibraries() async {
+    setState(() => _loadingTrashLibraries = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminTrashLibraries();
+      if (!mounted) return;
+      setState(() {
+        _trashLibraries = (data['repos'] as List?)?.whereType<Map>().map((item) => item.cast<String, dynamic>()).toList() ?? const [];
+        _loadingTrashLibraries = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingTrashLibraries = false);
+      showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _loadSystemLibrary() async {
+    setState(() => _loadingSystemLibrary = true);
+    try {
+      final data = await context.read<AppSession>().api!.adminSystemLibrary();
+      if (!mounted) return;
+      setState(() {
+        _systemLibrary = data;
+        _loadingSystemLibrary = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loadingSystemLibrary = false);
       showToast(context, friendlyError(context, error), error: true);
     }
   }
@@ -151,9 +208,22 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
+  void _loadLibraryTab() {
+    switch (_libraryTab) {
+      case 0:
+        _loadLibraries();
+      case 1:
+        _loadWikis();
+      case 2:
+        _loadSystemLibrary();
+      case 3:
+        _loadTrashLibraries();
+    }
+  }
+
   void _selectTab(int tab) {
     setState(() => _tab = tab);
-    if (tab == 4 && _libraries.isEmpty) _loadLibraries();
+    if (tab == 4) _loadLibraryTab();
     if (tab == 5 && _users.isEmpty) _loadUsers();
     if (tab == 6 && _groups.isEmpty) _loadGroups();
     if (tab == 9) {
@@ -185,7 +255,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               IconAction(icon: 'refresh', tooltip: l10n.refresh, onPressed: () {
                 _loadOverview();
                 setState(() => _reloadTick++);
-                if (_tab == 4) _loadLibraries();
+                if (_tab == 4) _loadLibraryTab();
                 if (_tab == 5) _loadUsers();
                 if (_tab == 6) _loadGroups();
                 if (_tab == 9) {
@@ -716,61 +786,222 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   }
 
   Widget _librariesView(L10n l10n) {
+    final tabLabels = l10n.zh ? const ['全部', '知识库', '系统', '回收站'] : const ['All', 'Wikis', 'System', 'Trash'];
+    final rows = switch (_libraryTab) {
+      0 => _libraries,
+      1 => _wikis,
+      3 => _trashLibraries,
+      _ => const <Map<String, dynamic>>[],
+    };
+    final loading = switch (_libraryTab) {
+      0 => _loadingLibraries,
+      1 => _loadingWikis,
+      2 => _loadingSystemLibrary,
+      _ => _loadingTrashLibraries,
+    };
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
+          constraints: const BoxConstraints(maxWidth: 1180),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
-                  Text(l10n.zh ? '所有资料库' : 'All libraries', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  Text(l10n.zh ? '资料库' : 'Libraries', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   const Spacer(),
-                  if (_loadingLibraries) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  if (loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (var index = 0; index < tabLabels.length; index++)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _libraryTab = index);
+                          _loadLibraryTab();
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _libraryTab == index ? AppColors.primarySoft : Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _libraryTab == index ? AppColors.primary.withValues(alpha: 0.45) : AppColors.border),
+                          ),
+                          child: Text(
+                            tabLabels[index],
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: _libraryTab == index ? AppColors.primaryDark : AppColors.textSecondary,
+                              fontWeight: _libraryTab == index ? FontWeight.w500 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
+                  if (_libraryTab == 0) ...[
+                    SizedBox(
+                      width: 240,
+                      height: 32,
+                      child: TextField(
+                        controller: _libraryQuery,
+                        onSubmitted: (_) => _loadLibraries(),
+                        style: const TextStyle(fontSize: 12.5),
+                        decoration: InputDecoration(
+                          hintText: l10n.zh ? '搜索名称或 ID' : 'Search name or ID',
+                          prefixIcon: const Padding(padding: EdgeInsets.all(8), child: WebIcon('search', size: 14)),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: _createLibrary,
+                      icon: const Icon(Icons.add, size: 15),
+                      label: Text(l10n.zh ? '新建资料库' : 'New library', style: const TextStyle(fontSize: 12)),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 14),
-              _table(
-                headers: [l10n.name, l10n.zh ? '所有者' : 'Owner', l10n.fileSize, l10n.zh ? '文件数' : 'Files', l10n.modified],
-                rows: [
-                  for (final repo in _libraries)
-                    [
-                      '${repo['name'] ?? ''}',
-                      '${repo['owner_name'] ?? repo['owner_email'] ?? ''}',
-                      '${repo['size_formatted'] ?? formatBytes((repo['size'] as num?)?.toInt() ?? 0)}',
-                      '${repo['file_count'] ?? 0}',
-                      '${repo['last_modified'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
-                    ],
-                ],
-              ),
-              if (_libraries.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+              if (_libraryTab == 2)
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final repo in _libraries) ...[
-                        OutlinedButton(
-                          onPressed: () => _transferLibrary(repo),
-                          child: Text('${l10n.zh ? '转让' : 'Transfer'} ${repo['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _deleteLibrary(repo),
-                          child: Text('${l10n.delete} ${repo['name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
-                        ),
-                      ],
+                      Text('${_systemLibrary['name'] ?? ''}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 10),
+                      _row('ID', '${_systemLibrary['id'] ?? ''}'),
+                      _row(l10n.zh ? '描述' : 'Description', '${_systemLibrary['description'] ?? ''}'),
                     ],
                   ),
+                )
+              else ...[
+                _table(
+                  headers: _libraryTab == 0
+                      ? [l10n.name, l10n.zh ? '所有者' : 'Owner', l10n.fileSize, l10n.zh ? '文件数' : 'Files', l10n.modified]
+                      : _libraryTab == 1
+                          ? [l10n.name, l10n.zh ? '所有者' : 'Owner', l10n.fileSize, l10n.zh ? '文件数' : 'Files', l10n.modified]
+                          : [l10n.name, l10n.zh ? '所有者' : 'Owner', l10n.fileSize, l10n.zh ? '删除时间' : 'Deleted'],
+                  rows: [
+                    for (final repo in rows)
+                      [
+                        '${repo['name'] ?? repo['repo_name'] ?? ''}',
+                        '${repo['owner_name'] ?? repo['owner_email'] ?? repo['owner'] ?? ''}',
+                        '${repo['size_formatted'] ?? formatBytes((repo['size'] as num?)?.toInt() ?? 0)}',
+                        _libraryTab == 3
+                            ? '${repo['delete_time'] ?? repo['deleted_at'] ?? '—'}'.replaceFirst('T', ' ').split('+').first
+                            : '${repo['file_count'] ?? 0}',
+                        if (_libraryTab != 3) '${repo['last_modified'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
+                      ],
+                  ],
                 ),
+                if (rows.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final repo in rows) ...[
+                          if (_libraryTab != 3)
+                            OutlinedButton(
+                              onPressed: () => _transferLibrary(repo),
+                              child: Text('${l10n.zh ? '转让' : 'Transfer'} ${repo['name'] ?? repo['repo_name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
+                            ),
+                          OutlinedButton(
+                            onPressed: () => _libraryTab == 3 ? _deleteTrashLibrary(repo) : _deleteLibrary(repo),
+                            child: Text('${l10n.delete} ${repo['name'] ?? repo['repo_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _createLibrary() async {
+    final l10n = L10n.of(context);
+    final name = TextEditingController();
+    final owner = TextEditingController(text: context.read<AppSession>().username);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '新建资料库' : 'New library'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: name, autofocus: true, decoration: InputDecoration(labelText: l10n.name)),
+              const SizedBox(height: 12),
+              TextField(controller: owner, decoration: InputDecoration(labelText: l10n.zh ? '所有者邮箱' : 'Owner email')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(l10n.create)),
+        ],
+      ),
+    );
+    final libraryName = name.text.trim();
+    final ownerEmail = owner.text.trim();
+    name.dispose();
+    owner.dispose();
+    if (result != true || libraryName.isEmpty) return;
+    try {
+      await context.read<AppSession>().api!.createAdminLibrary(libraryName, ownerEmail);
+      await _loadLibraries();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
+  }
+
+  Future<void> _deleteTrashLibrary(Map<String, dynamic> repo) async {
+    final l10n = L10n.of(context);
+    final id = '${repo['id'] ?? ''}';
+    if (id.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.zh ? '永久删除资料库' : 'Delete library permanently'),
+        content: Text(l10n.zh ? '确定永久删除 ${repo['name']}？' : 'Permanently delete ${repo['name']}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(l10n.cancel)),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<AppSession>().api!.deleteAdminTrashLibrary(id);
+      await _loadTrashLibraries();
+    } catch (error) {
+      if (mounted) showToast(context, friendlyError(context, error), error: true);
+    }
   }
 
   Future<void> _transferLibrary(Map<String, dynamic> repo) async {

@@ -306,6 +306,26 @@ class SeafileApi {
     await _putForm('api/v2.1/admin/libraries/$repoId/', {'owner': owner, 'reshare': reshare.toString()});
   }
 
+  Future<Map<String, dynamic>> createAdminLibrary(String name, String owner) async {
+    return asMap(await _postForm('api/v2.1/admin/libraries/', {'name': name, 'owner': owner}));
+  }
+
+  Future<Map<String, dynamic>> adminWikis({int page = 1, int perPage = 50}) async {
+    return asMap(await _get('api/v2.1/admin/wikis/', query: {'page': '$page', 'per_page': '$perPage'}));
+  }
+
+  Future<Map<String, dynamic>> adminTrashLibraries({int page = 1, int perPage = 100}) async {
+    return asMap(await _get('api/v2.1/admin/trash-libraries/', query: {'page': '$page', 'per_page': '$perPage'}));
+  }
+
+  Future<void> deleteAdminTrashLibrary(String repoId) async {
+    await _delete('api/v2.1/admin/trash-libraries/$repoId/');
+  }
+
+  Future<Map<String, dynamic>> adminSystemLibrary() async {
+    return asMap(await _get('api/v2.1/admin/system-library/'));
+  }
+
   Future<Map<String, dynamic>> createAdminUser(Map<String, dynamic> values) async {
     return asMap(await _postJson('api/v2.1/admin/users/', values));
   }
@@ -369,7 +389,10 @@ class SeafileApi {
   }
 
   Future<void> addAdminDepartmentMember(int id, String email, {bool isAdmin = false}) async {
-    await _putForm('api/v2.1/admin/groups/$id/members/${Uri.encodeComponent(email)}/', {'is_admin': isAdmin.toString()});
+    await _postForm('api/v2.1/admin/groups/$id/members/', {'email': email});
+    if (isAdmin) {
+      await _putForm('api/v2.1/admin/groups/$id/members/${Uri.encodeComponent(email)}/', {'is_admin': 'true'});
+    }
   }
 
   Future<void> removeAdminDepartmentMember(int id, String email) async {
