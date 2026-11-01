@@ -360,6 +360,7 @@ class _FileAreaState extends State<FileArea> {
                   itemBuilder: (context, index) {
                     final entry = entries[index];
                     return _FileRow(
+                      key: ValueKey(entry.path),
                       repo: repo,
                       entry: entry,
                       index: index,
@@ -399,6 +400,7 @@ class _FileAreaState extends State<FileArea> {
           itemBuilder: (context, index) {
             final entry = entries[index];
             return _FileGridCard(
+              key: ValueKey(entry.path),
               repo: repo,
               entry: entry,
               selected: workspace.isSelected(entry),
@@ -473,6 +475,7 @@ class _SortHeader extends StatelessWidget {
 
 class _FileRow extends StatefulWidget {
   const _FileRow({
+    super.key,
     required this.repo,
     required this.entry,
     required this.index,
@@ -612,6 +615,7 @@ class _FileRowState extends State<_FileRow> {
 
 class _FileGridCard extends StatefulWidget {
   const _FileGridCard({
+    super.key,
     required this.repo,
     required this.entry,
     required this.selected,

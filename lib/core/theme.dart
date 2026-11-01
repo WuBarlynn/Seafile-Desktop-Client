@@ -16,8 +16,8 @@ abstract final class AppColors {
   static const borderStrong = Color(0xFFD9DEE7);
   static const sidebar = Color(0xFFFFFFFF);
   static const canvas = Color(0xFFFFFFFF);
-  static const hover = Color(0xFFF8F8F9);
-  static const hoverPressed = Color(0xFFF1F2F3);
+  static const hover = Color(0xFFF4F5F7);
+  static const hoverPressed = Color(0xFFECEEF2);
   static const selected = Color(0xFFFFF4EA);
   static const tableHeader = Color(0xFFFAFAFA);
   static const folder = Color(0xFFFFB42D);

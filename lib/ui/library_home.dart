@@ -585,6 +585,7 @@ class _LibraryHomeState extends State<LibraryHome> {
           ),
           for (var index = 0; index < repos.length; index++)
             _RepositoryRow(
+              key: ValueKey(repos[index].id),
               repo: repos[index],
               session: session,
               last: index == repos.length - 1,
@@ -613,6 +614,7 @@ class _LibraryHomeState extends State<LibraryHome> {
           itemBuilder: (context, index) {
             final repo = repos[index];
             return _RepositoryGridCard(
+              key: ValueKey(repo.id),
               repo: repo,
               session: session,
               onTap: () => _openRepo(repo),
@@ -629,6 +631,7 @@ class _LibraryHomeState extends State<LibraryHome> {
 
 class _RepositoryRow extends StatefulWidget {
   const _RepositoryRow({
+    super.key,
     required this.repo,
     required this.session,
     required this.last,
@@ -727,6 +730,7 @@ class _RepositoryRowState extends State<_RepositoryRow> {
 
 class _RepositoryGridCard extends StatefulWidget {
   const _RepositoryGridCard({
+    super.key,
     required this.repo,
     required this.session,
     required this.onTap,

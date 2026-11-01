@@ -66,6 +66,22 @@ String joinRepoPath(String parent, String name) {
   return base == '/' ? '/$name' : '$base/$name';
 }
 
+String decodeRepoPath(String path) {
+  final normalized = normalizeRepoPath(path);
+  if (!normalized.contains('%')) return normalized;
+  final decoded = normalized
+      .split('/')
+      .map((segment) {
+        try {
+          return Uri.decodeComponent(segment);
+        } catch (_) {
+          return segment;
+        }
+      })
+      .join('/');
+  return normalizeRepoPath(decoded);
+}
+
 String parentRepoPath(String path) {
   final normalized = normalizeRepoPath(path);
   if (normalized == '/') return '/';

@@ -19,6 +19,7 @@ import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
 import 'code_viewer.dart';
+import 'csv_viewer.dart';
 import 'file_actions.dart';
 import 'inline_web_editor.dart';
 import 'markdown_editor.dart';
@@ -398,6 +399,7 @@ class FileStudioState extends State<FileStudio> {
     final controller = _controller;
     final file = _file;
     if (controller == null || file == null) return const SizedBox.shrink();
+    final isCsv = widget.entry.name.toLowerCase().endsWith('.csv');
     return Container(
       color: const Color(0xFFF4F5F7),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -417,7 +419,9 @@ class FileStudioState extends State<FileStudio> {
                       fileName: widget.entry.name,
                       onChanged: (_) => _onChanged(),
                     )
-                  : CodeViewer(text: controller.text, fileName: widget.entry.name, scrollController: _scroll),
+                  : isCsv
+                      ? CsvTableView(text: controller.text)
+                      : CodeViewer(text: controller.text, fileName: widget.entry.name, scrollController: _scroll),
             ),
             Container(
               height: 28,
@@ -428,7 +432,7 @@ class FileStudioState extends State<FileStudio> {
               ),
               child: Row(
                 children: [
-                  const Text('Text', style: TextStyle(fontSize: 11, color: AppColors.muted)),
+                  Text(isCsv ? 'CSV' : 'Text', style: const TextStyle(fontSize: 11, color: AppColors.muted)),
                   const Spacer(),
                   if (_dirty)
                     Text(

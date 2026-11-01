@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../api/api_error.dart';
 import '../api/models.dart';
 import '../core/format.dart';
 import '../core/l10n.dart';
@@ -208,13 +209,22 @@ class _AppShellState extends State<AppShell> {
   Future<void> _openFileByPath(Repository repo, String path) async {
     try {
       final api = context.read<AppSession>().api!;
-      final detail = await api.fileDetail(repo.id, path);
+      var resolved = normalizeRepoPath(path);
+      FileDetail detail;
+      try {
+        detail = await api.fileDetail(repo.id, resolved);
+      } on ApiException catch (error) {
+        final decoded = decodeRepoPath(resolved);
+        if (error.status != 404 || decoded == resolved) rethrow;
+        resolved = decoded;
+        detail = await api.fileDetail(repo.id, resolved);
+      }
       if (!mounted) return;
       _openFile(
         repo,
         Dirent(
-          name: p.basename(path),
-          path: path,
+          name: p.basename(resolved),
+          path: resolved,
           isDir: false,
           size: detail.size ?? 0,
           mtime: detail.mtime,
@@ -469,7 +479,7 @@ class _AppShellState extends State<AppShell> {
                               Expanded(
                                 child: IndexedStack(
                                   index: _activeIndex,
-                                  children: [for (final tab in _tabs) _tabContent(tab)],
+                                  children: [for (final tab in _tabs) KeyedSubtree(key: ObjectKey(tab), child: _tabContent(tab))],
                                 ),
                               ),
                             ],
@@ -559,16 +569,34 @@ class _TabStrip extends StatefulWidget {
 class _TabStripState extends State<_TabStrip> {
   final _scroll = ScrollController();
   final Map<Object, GlobalKey> _tabKeys = {};
+  int? _fittedCount;
+  Timer? _fitTimer;
 
   GlobalKey _keyFor(_AppTab tab) => _tabKeys.putIfAbsent(tab, () => GlobalKey());
+
+  @override
+  void initState() {
+    super.initState();
+    _fittedCount = widget.tabs.length;
+  }
 
   @override
   void didUpdateWidget(covariant _TabStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     _tabKeys.removeWhere((tab, _) => !widget.tabs.contains(tab));
     if (oldWidget.activeIndex != widget.activeIndex || oldWidget.tabs.length != widget.tabs.length) {
+      _restartFitTimer();
       WidgetsBinding.instance.addPostFrameCallback((_) => _revealActive());
     }
+  }
+
+  void _restartFitTimer() {
+    _fitTimer?.cancel();
+    _fitTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      final next = widget.tabs.length;
+      if (_fittedCount != next) setState(() => _fittedCount = next);
+    });
   }
 
   void _revealActive() {
@@ -597,6 +625,7 @@ class _TabStripState extends State<_TabStrip> {
 
   @override
   void dispose() {
+    _fitTimer?.cancel();
     _scroll.dispose();
     super.dispose();
   }
@@ -613,10 +642,13 @@ class _TabStripState extends State<_TabStrip> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final count = widget.tabs.length;
-          final needsScroll = count > 0 && constraints.maxWidth / count < 104;
+          final fitted = _fittedCount ?? count;
+          final needsScroll = count > 0 && constraints.maxWidth / fitted < 104;
           final usable = constraints.maxWidth - (needsScroll ? 48 : 0);
-          final tabWidth = count == 0 ? 104.0 : (usable / count).clamp(104.0, 230.0);
-          return Row(
+          final tabWidth = fitted == 0 ? 104.0 : (usable / fitted).clamp(104.0, 230.0);
+          return Listener(
+            onPointerDown: (_) => _restartFitTimer(),
+            child: Row(
             children: [
               Expanded(
                 child: Listener(
@@ -663,6 +695,7 @@ class _TabStripState extends State<_TabStrip> {
               if (needsScroll) _scrollButton(Icons.chevron_left, () => _nudge(-1), l10n.zh ? '向左滚动标签' : 'Scroll tabs left'),
               if (needsScroll) _scrollButton(Icons.chevron_right, () => _nudge(1), l10n.zh ? '向右滚动标签' : 'Scroll tabs right'),
             ],
+            ),
           );
         },
       ),

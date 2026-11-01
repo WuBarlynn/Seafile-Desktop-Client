@@ -20,6 +20,7 @@ import '../state/session.dart';
 import '../state/workspace.dart';
 import 'file_actions.dart';
 import 'code_viewer.dart';
+import 'csv_viewer.dart';
 import 'online_editor_window.dart';
 import 'text_editor_page.dart';
 import 'web_handoff.dart';
@@ -326,7 +327,9 @@ class _PreviewPageState extends State<PreviewPage> {
             child: Text(l10n.textPreviewTruncated, style: const TextStyle(fontSize: 12)),
           ),
         Expanded(
-          child: CodeViewer(text: _text ?? '', fileName: widget.entry.name),
+          child: widget.entry.name.toLowerCase().endsWith('.csv')
+              ? CsvTableView(text: _text ?? '')
+              : CodeViewer(text: _text ?? '', fileName: widget.entry.name),
         ),
       ],
     );

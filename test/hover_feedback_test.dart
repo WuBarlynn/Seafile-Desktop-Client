@@ -49,6 +49,8 @@ void main() {
       expect(style.overlayColor!.resolve({WidgetState.hovered}), AppColors.hover);
       expect(style.animationDuration, AppMotion.hover);
     }
-    expect(AppColors.hover.computeLuminance(), greaterThan(const Color(0xFFF5F5F5).computeLuminance()));
+    final luminance = AppColors.hover.computeLuminance();
+    expect(luminance, greaterThan(0.88));
+    expect(luminance, lessThan(0.96));
   });
 }

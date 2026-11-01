@@ -131,11 +131,11 @@ class _TreePanelState extends State<TreePanel> {
                     expanded: _filesExpanded,
                     onToggle: () => setState(() => _filesExpanded = !_filesExpanded),
                     onTitleTap: () => ws.enterPath('/'),
-                    active: workspace.mode == BrowseMode.files && workspace.path == '/' && workspace.selectedTagId == null,
                   ),
                   if (_filesExpanded && root != null)
                     for (final node in root.children)
                       _TreeNodeWidget(
+                        key: ValueKey(node.path),
                         node: node,
                         depth: 0,
                         workspace: workspace,
@@ -153,6 +153,7 @@ class _TreePanelState extends State<TreePanel> {
                   ),
                   if (_viewsExpanded)
                     _SimpleRow(
+                      key: ValueKey('simple-${l10n.allFiles}'),
                       label: l10n.allFiles,
                       icon: 'table',
                       depth: 0,
@@ -167,6 +168,7 @@ class _TreePanelState extends State<TreePanel> {
                     ),
                     if (_tagsExpanded) ...[
                       _SimpleRow(
+                        key: ValueKey('simple-${l10n.allTags}'),
                         label: l10n.allTags,
                         icon: 'tag-stroked',
                         depth: 0,
@@ -175,6 +177,7 @@ class _TreePanelState extends State<TreePanel> {
                       ),
                       for (final tag in workspace.tags)
                         _TagRow(
+                          key: ValueKey('tag-${tag.id}'),
                           name: tag.name,
                           color: tag.color,
                           active: workspace.selectedTagId == tag.id,
@@ -190,6 +193,7 @@ class _TreePanelState extends State<TreePanel> {
                   ),
                   if (_othersExpanded) ...[
                     _SimpleRow(
+                      key: ValueKey('simple-watch'),
                       label: (_watching ?? ws.repo?.monitored ?? false) ? l10n.unwatchFileChanges : l10n.watchFileChanges,
                       icon: 'notification',
                       depth: 0,
@@ -197,6 +201,7 @@ class _TreePanelState extends State<TreePanel> {
                       onTap: _toggleWatch,
                     ),
                     _SimpleRow(
+                      key: ValueKey('simple-${l10n.settings}'),
                       label: l10n.settings,
                       icon: 'settings',
                       depth: 0,
@@ -204,6 +209,7 @@ class _TreePanelState extends State<TreePanel> {
                       onTap: workspace.openSettings,
                     ),
                     _SimpleRow(
+                      key: ValueKey('simple-${l10n.trash}'),
                       label: l10n.trash,
                       icon: 'trash',
                       depth: 0,
@@ -211,6 +217,7 @@ class _TreePanelState extends State<TreePanel> {
                       onTap: workspace.openTrash,
                     ),
                     _SimpleRow(
+                      key: ValueKey('simple-${l10n.historyNav}'),
                       label: l10n.historyNav,
                       icon: 'history',
                       depth: 0,
@@ -242,14 +249,12 @@ class _SectionHeader extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     this.onTitleTap,
-    this.active = false,
   });
 
   final String title;
   final bool expanded;
   final VoidCallback onToggle;
   final VoidCallback? onTitleTap;
-  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +268,7 @@ class _SectionHeader extends StatelessWidget {
           curve: AppMotion.curve,
           height: 34,
           padding: const EdgeInsets.fromLTRB(14, 0, 8, 0),
-          color: active ? AppColors.hoverPressed : (hovered ? AppColors.hover : Colors.transparent),
+          color: hovered ? AppColors.hover : Colors.transparent,
           child: Row(
             children: [
               Expanded(
@@ -292,7 +297,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _TreeNodeWidget extends StatefulWidget {
-  const _TreeNodeWidget({required this.node, required this.depth, required this.workspace});
+  const _TreeNodeWidget({super.key, required this.node, required this.depth, required this.workspace});
 
   final TreeNode node;
   final int depth;
@@ -366,7 +371,7 @@ class _TreeNodeWidgetState extends State<_TreeNodeWidget> {
         ),
         if (node.expanded)
           for (final child in node.children)
-            _TreeNodeWidget(node: child, depth: widget.depth + 1, workspace: workspace),
+            _TreeNodeWidget(key: ValueKey(child.path), node: child, depth: widget.depth + 1, workspace: workspace),
       ],
     );
   }
@@ -374,6 +379,7 @@ class _TreeNodeWidgetState extends State<_TreeNodeWidget> {
 
 class _SimpleRow extends StatefulWidget {
   const _SimpleRow({
+    super.key,
     required this.label,
     required this.icon,
     required this.depth,
@@ -433,7 +439,7 @@ class _SimpleRowState extends State<_SimpleRow> {
 }
 
 class _TagRow extends StatefulWidget {
-  const _TagRow({required this.name, required this.color, required this.active, required this.onTap});
+  const _TagRow({super.key, required this.name, required this.color, required this.active, required this.onTap});
 
   final String name;
   final String color;

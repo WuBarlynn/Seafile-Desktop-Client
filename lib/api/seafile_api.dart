@@ -788,14 +788,67 @@ class SeafileApi {
     return null;
   }
 
+  Future<Map<String, dynamic>> _sdocAccessToken(String repoId, String path) async {
+    return asMap(await _get('api/v2.1/seadoc/access-token/$repoId/', query: {'p': path}));
+  }
+
   Future<(String token, String fileUuid, String serverUrl)> _seadocSession(String repoId, String path) async {
     final key = '$repoId|$path';
     final cached = _sdocSessions[key];
     if (cached != null && DateTime.now().difference(cached.at) < const Duration(minutes: 10)) {
       return (cached.token, cached.fileUuid, _sdocServerCandidates.first);
     }
-    final data = asMap(await _get('api/v2.1/seadoc/access-token/$repoId/', query: {'p': path}));
-    final token = firstString(data, ['access_token']) ?? '';
+    final normalized = normalizeRepoPath(path);
+    Map<String, dynamic>? data;
+    try {
+      data = await _sdocAccessToken(repoId, normalized);
+    } on ApiException catch (error) {
+      if (error.status != 404 && error.status != 400) rethrow;
+      final decoded = decodeRepoPath(normalized);
+      if (decoded != normalized) {
+        try {
+          data = await _sdocAccessToken(repoId, decoded);
+        } on ApiException {
+          data = null;
+        }
+      }
+      if (data == null) {
+        final parent = parentRepoPath(normalized);
+        final name = normalized.substring(normalized.lastIndexOf('/') + 1);
+        try {
+          final entries = await listDir(repoId, parent);
+          for (final entry in entries) {
+            if (!entry.isDir && entry.name.toLowerCase() == name.toLowerCase() && entry.path != normalized) {
+              try {
+                data = await _sdocAccessToken(repoId, entry.path);
+              } on ApiException {
+                data = null;
+              }
+              if (data != null) break;
+            }
+          }
+        } catch (_) {}
+      }
+      if (data == null) {
+        final name = normalized.substring(normalized.lastIndexOf('/') + 1);
+        try {
+          final results = await searchInRepo(repoId, name);
+          for (final result in results) {
+            if (baseName(result.path).toLowerCase() == name.toLowerCase()) {
+              try {
+                data = await _sdocAccessToken(repoId, result.path);
+              } on ApiException {
+                data = null;
+              }
+              if (data != null) break;
+            }
+          }
+        } catch (_) {}
+      }
+      if (data == null) rethrow;
+    }
+    final resolved = data;
+    final token = firstString(resolved, ['access_token']) ?? '';
     if (token.isEmpty) throw ApiException(ApiErrorKind.decoding);
     String fileUuid = '';
     try {
