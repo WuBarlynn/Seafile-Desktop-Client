@@ -832,15 +832,14 @@ class SeafileApi {
       if (data == null) {
         final name = normalized.substring(normalized.lastIndexOf('/') + 1);
         try {
-          final results = await searchInRepo(repoId, name);
-          for (final result in results) {
-            if (baseName(result.path).toLowerCase() == name.toLowerCase()) {
-              try {
-                data = await _sdocAccessToken(repoId, result.path);
-              } on ApiException {
-                data = null;
-              }
-              if (data != null) break;
+          final matches = (await searchInRepo(repoId, name))
+              .where((result) => baseName(result.path).toLowerCase() == name.toLowerCase())
+              .toList();
+          if (matches.length == 1) {
+            try {
+              data = await _sdocAccessToken(repoId, matches.single.path);
+            } on ApiException {
+              data = null;
             }
           }
         } catch (_) {}
