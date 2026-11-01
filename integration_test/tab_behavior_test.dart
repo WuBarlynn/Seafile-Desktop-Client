@@ -53,6 +53,11 @@ void main() {
 
     expect(tester.getCenter(_tab('native-test.md')).dx, lessThan(tester.getCenter(_tab('native-test.sdoc')).dx));
 
+    final tabRect = tester.getRect(_tab('native-test.md'));
+    final closeRect = tester.getRect(find.descendant(of: _tab('native-test.md'), matching: find.byIcon(Icons.close)));
+    expect(closeRect.center.dx, greaterThan(tabRect.right - 32));
+    expect((closeRect.center.dy - tabRect.center.dy).abs(), lessThan(2));
+
     final from = tester.getCenter(_tab('native-test.md'));
     final to = tester.getCenter(_tab('native-test.sdoc')) + const Offset(80, 0);
     await tester.timedDrag(_tab('native-test.md'), to - from, const Duration(milliseconds: 800));
