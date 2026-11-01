@@ -63,7 +63,8 @@ class _EditorMenuTriggerState extends State<EditorMenuTrigger> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 90),
+        duration: AppMotion.hover,
+        curve: AppMotion.curve,
         height: 30,
         margin: const EdgeInsets.symmetric(horizontal: 1),
         padding: const EdgeInsets.symmetric(horizontal: 7),

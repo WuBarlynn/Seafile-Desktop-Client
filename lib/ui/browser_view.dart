@@ -356,7 +356,9 @@ class _BrowserViewState extends State<BrowserView> {
               ),
               color: Colors.white,
               child: HoverBuilder(
-                builder: (context, hovered) => Container(
+                builder: (context, hovered) => AnimatedContainer(
+                  duration: AppMotion.hover,
+                  curve: AppMotion.curve,
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: hovered ? AppColors.hover : Colors.transparent,
@@ -475,7 +477,8 @@ class _BrowserViewState extends State<BrowserView> {
         hoverColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           margin: const EdgeInsets.symmetric(horizontal: 1),
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
           decoration: BoxDecoration(

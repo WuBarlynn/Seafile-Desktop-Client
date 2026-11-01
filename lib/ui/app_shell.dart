@@ -736,12 +736,13 @@ class _TabChipState extends State<_TabChip> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           width: widget.width,
           height: 38,
           padding: const EdgeInsets.only(left: 10, right: 4),
           decoration: BoxDecoration(
-            color: widget.active ? Colors.white : (_hovered ? const Color(0xFFF7F8FA) : Colors.transparent),
+            color: widget.active ? Colors.white : (_hovered ? AppColors.hover : Colors.transparent),
             border: Border(
               right: const BorderSide(color: AppColors.border),
               top: BorderSide(color: widget.active ? AppColors.primary : Colors.transparent, width: 2),
@@ -778,14 +779,16 @@ class _TabChipState extends State<_TabChip> {
                     onTap: widget.onClose,
                     child: AnimatedScale(
                       scale: _closePressed ? 0.85 : 1,
-                      duration: const Duration(milliseconds: 90),
+                      duration: AppMotion.press,
+                      curve: AppMotion.curve,
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
+                        duration: AppMotion.hover,
+                        curve: AppMotion.curve,
                         width: 18,
                         height: 18,
                         decoration: BoxDecoration(
                           color: _closePressed
-                              ? AppColors.primary.withValues(alpha: 0.14)
+                              ? AppColors.primary.withValues(alpha: 0.08)
                               : _closeHovered
                                   ? AppColors.hover
                                   : Colors.transparent,
@@ -960,7 +963,9 @@ class _GlobalHeader extends StatelessWidget {
                       if (value == 'logout') onLogout();
                     },
                     child: HoverBuilder(
-                      builder: (context, hovered) => Container(
+                      builder: (context, hovered) => AnimatedContainer(
+                        duration: AppMotion.hover,
+                        curve: AppMotion.curve,
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
@@ -998,12 +1003,14 @@ class _SearchButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         hoverColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           width: 320,
           height: 32,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            border: Border.all(color: hovered ? AppColors.primary : AppColors.borderStrong),
+            border: Border.all(color: AppColors.borderStrong),
             borderRadius: BorderRadius.circular(4),
             color: hovered ? AppColors.hover : Colors.white,
           ),

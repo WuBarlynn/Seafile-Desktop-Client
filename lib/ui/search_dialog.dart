@@ -257,7 +257,9 @@ class _SearchResultRowState extends State<_SearchResultRow> {
       child: InkWell(
         onTap: widget.onTap,
         hoverColor: Colors.transparent,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 50,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           color: _hovered ? AppColors.hover : Colors.transparent,

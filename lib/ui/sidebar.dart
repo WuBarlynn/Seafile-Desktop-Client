@@ -192,7 +192,9 @@ class _NavItem extends StatelessWidget {
       builder: (context, hovered) => InkWell(
         onTap: onTap,
         hoverColor: Colors.transparent,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 40,
           decoration: BoxDecoration(
             color: active ? const Color(0xFFF2F2F2) : (hovered ? AppColors.hover : Colors.transparent),
@@ -253,7 +255,9 @@ class _SubNavItem extends StatelessWidget {
         onTap: onTap,
         hoverColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 32,
           color: active ? const Color(0xFFF2F2F2) : (hovered ? AppColors.hover : Colors.transparent),
           padding: const EdgeInsets.only(left: 47, right: 16),
@@ -295,7 +299,9 @@ class _CollapseButton extends StatelessWidget {
         onTap: onTap,
         hoverColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 44,
           color: hovered ? AppColors.hover : Colors.transparent,
           padding: EdgeInsets.only(left: collapsed ? 0 : 18, right: collapsed ? 0 : 14),

@@ -259,7 +259,9 @@ class _WikiRowState extends State<_WikiRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 56,
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14),

@@ -188,11 +188,13 @@ class _TrashRowState extends State<_TrashRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Container(
+      child: AnimatedContainer(
+        duration: AppMotion.hover,
+        curve: AppMotion.curve,
         height: 46,
         padding: const EdgeInsets.only(left: 8, right: 16),
         decoration: BoxDecoration(
-          color: widget.selected ? AppColors.selected : (_hovered ? const Color(0xFFF9F9F9) : Colors.white),
+          color: widget.selected ? AppColors.selected : (_hovered ? AppColors.hover : Colors.white),
           border: const Border(bottom: BorderSide(color: AppColors.border)),
         ),
         child: Row(

@@ -121,7 +121,8 @@ class NewMenuButton extends StatelessWidget {
             mouseCursor: SystemMouseCursors.click,
             child: child != null
                 ? AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
+                    duration: AppMotion.hover,
+                    curve: AppMotion.curve,
                     padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
                     decoration: BoxDecoration(
                       color: hovered ? AppColors.hover : Colors.transparent,
@@ -130,11 +131,12 @@ class NewMenuButton extends StatelessWidget {
                     child: child,
                   )
                 : AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
+                  duration: AppMotion.hover,
+                  curve: AppMotion.curve,
                   height: 32,
                   decoration: BoxDecoration(
                     color: hovered ? AppColors.hover : Colors.transparent,
-                    border: Border.all(color: hovered ? AppColors.primary : AppColors.borderStrong),
+                    border: Border.all(color: AppColors.borderStrong),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(

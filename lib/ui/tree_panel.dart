@@ -258,10 +258,12 @@ class _SectionHeader extends StatelessWidget {
         onTap: onTitleTap,
         hoverColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 34,
           padding: const EdgeInsets.fromLTRB(14, 0, 8, 0),
-          color: active ? AppColors.hover : (hovered ? AppColors.hover : Colors.transparent),
+          color: active ? AppColors.hoverPressed : (hovered ? AppColors.hover : Colors.transparent),
           child: Row(
             children: [
               Expanded(
@@ -318,9 +320,11 @@ class _TreeNodeWidgetState extends State<_TreeNodeWidget> {
           child: InkWell(
             onTap: () => workspace.enterPath(node.path),
             hoverColor: Colors.transparent,
-            child: Container(
+            child: AnimatedContainer(
+              duration: AppMotion.hover,
+              curve: AppMotion.curve,
               height: 32,
-              color: active ? AppColors.hover : (_hovered ? AppColors.hover : Colors.transparent),
+              color: active ? AppColors.hoverPressed : (_hovered ? AppColors.hover : Colors.transparent),
               padding: EdgeInsets.only(left: 14.0 + widget.depth * 15, right: 8),
               child: Row(
                 children: [
@@ -399,9 +403,11 @@ class _SimpleRowState extends State<_SimpleRow> {
       child: InkWell(
         onTap: widget.onTap,
         hoverColor: Colors.transparent,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 32,
-          color: widget.active ? AppColors.hover : (_hovered ? AppColors.hover : Colors.transparent),
+          color: widget.active ? AppColors.hoverPressed : (_hovered ? AppColors.hover : Colors.transparent),
           padding: EdgeInsets.only(left: 34.0 + widget.depth * 15, right: 12),
           child: Row(
             children: [
@@ -456,9 +462,11 @@ class _TagRowState extends State<_TagRow> {
       child: InkWell(
         onTap: widget.onTap,
         hoverColor: Colors.transparent,
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 30,
-          color: widget.active ? AppColors.hover : (_hovered ? AppColors.hover : Colors.transparent),
+          color: widget.active ? AppColors.hoverPressed : (_hovered ? AppColors.hover : Colors.transparent),
           padding: const EdgeInsets.only(left: 35, right: 12),
           child: Row(
             children: [
@@ -528,7 +536,9 @@ class _MoreRow extends StatelessWidget {
         }
       },
       child: HoverBuilder(
-        builder: (context, hovered) => Container(
+        builder: (context, hovered) => AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 32,
           padding: const EdgeInsets.only(left: 35, right: 12),
           color: hovered ? AppColors.hover : Colors.transparent,

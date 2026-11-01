@@ -121,7 +121,9 @@ class _StarredPageState extends State<StarredPage> {
                                 onTap: () => _open(item),
                                 hoverColor: Colors.transparent,
                                 mouseCursor: SystemMouseCursors.click,
-                                child: Container(
+                                child: AnimatedContainer(
+                                  duration: AppMotion.hover,
+                                  curve: AppMotion.curve,
                                   height: 54,
                                   padding: const EdgeInsets.symmetric(horizontal: 18),
                                   color: hovered ? AppColors.hover : Colors.transparent,

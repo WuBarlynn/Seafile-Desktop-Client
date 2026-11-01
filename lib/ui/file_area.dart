@@ -436,10 +436,12 @@ class _SortHeader extends StatelessWidget {
         hoverColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
         borderRadius: BorderRadius.circular(3),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
           decoration: BoxDecoration(
-            color: hovered ? const Color(0xFFF0F1F3) : Colors.transparent,
+            color: hovered ? AppColors.hover : Colors.transparent,
             borderRadius: BorderRadius.circular(3),
           ),
           child: Row(
@@ -513,11 +515,13 @@ class _FileRowState extends State<_FileRow> {
       child: GestureDetector(
         onTap: widget.onTap,
         onSecondaryTapDown: (details) => widget.onContextMenu(details.globalPosition),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 46,
           padding: const EdgeInsets.only(left: 8, right: 12),
           decoration: BoxDecoration(
-            color: widget.selected ? AppColors.selected : (_hovered ? const Color(0xFFF9F9F9) : Colors.white),
+            color: widget.selected ? AppColors.selected : (_hovered ? AppColors.hover : Colors.white),
             border: const Border(bottom: BorderSide(color: AppColors.border)),
           ),
           child: Row(
@@ -642,9 +646,11 @@ class _FileGridCardState extends State<_FileGridCard> {
       child: GestureDetector(
         onTap: widget.onTap,
         onSecondaryTapDown: (details) => widget.onContextMenu(details.globalPosition),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           decoration: BoxDecoration(
-            color: widget.selected ? AppColors.selected : (_hovered ? const Color(0xFFF9F9F9) : Colors.white),
+            color: widget.selected ? AppColors.selected : (_hovered ? AppColors.hover : Colors.white),
             border: Border.all(color: widget.selected ? AppColors.primary : AppColors.border),
             borderRadius: BorderRadius.circular(6),
           ),

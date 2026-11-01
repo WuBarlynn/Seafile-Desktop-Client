@@ -250,7 +250,8 @@ class _NotificationBellState extends State<NotificationBell> {
             hoverColor: Colors.transparent,
             mouseCursor: SystemMouseCursors.click,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
+              duration: AppMotion.hover,
+              curve: AppMotion.curve,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: hovered ? AppColors.hover : Colors.transparent,

@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.2.27 — close-to-tray background running with Dock and tray restore; sidebar and panel resize handles now follow the pointer 1:1. Every iteration is published to this repository.
+> **Status:** 1.2.28 — close-to-tray background running with Dock and tray restore; hover feedback is lighter and fades smoothly; sidebar and panel resize handles follow the pointer 1:1. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -90,6 +90,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.2.28
+
+Tagged `v1.2.28`. Hover feedback across buttons, tabs, sidebar rows, file rows and toolbars is now lighter and consistent: surfaces use a near-white neutral gray, backgrounds fade over 160 ms instead of snapping on and off, hover remains for as long as the pointer rests on the control, and outlined buttons no longer turn orange on hover. Button motion is centralized in `AppMotion`.
 
 ## Release 1.2.27
 

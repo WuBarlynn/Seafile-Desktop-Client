@@ -152,12 +152,15 @@ class _LibrarySettingsViewState extends State<LibrarySettingsView> {
         onTap: () => setState(() => _tab = index),
         hoverColor: Colors.transparent,
         mouseCursor: SystemMouseCursors.click,
-        child: Container(
-        height: 40,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: selected ? AppColors.primary : Colors.transparent, width: 2)),
-        ),
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
+          height: 40,
+          alignment: Alignment.center,
+          color: hovered ? AppColors.hover : Colors.transparent,
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: selected ? AppColors.primary : Colors.transparent, width: 2)),
+          ),
         child: Text(
           label,
           style: TextStyle(

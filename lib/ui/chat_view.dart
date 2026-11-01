@@ -177,7 +177,9 @@ class _ChatViewState extends State<ChatView> {
             onSelected: (session) => chat.selectSession(session),
             color: Colors.white,
             child: HoverBuilder(
-              builder: (context, hovered) => Container(
+              builder: (context, hovered) => AnimatedContainer(
+                duration: AppMotion.hover,
+                curve: AppMotion.curve,
                 padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
                   color: hovered ? AppColors.hover : Colors.transparent,

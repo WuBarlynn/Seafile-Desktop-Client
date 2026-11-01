@@ -205,7 +205,9 @@ class _DestinationPickerDialogState extends State<_DestinationPickerDialog> {
                                 builder: (context, hovered) => InkWell(
                                   onTap: _moving ? null : () => _load(folder.path),
                                   hoverColor: Colors.transparent,
-                                  child: Container(
+                                  child: AnimatedContainer(
+                                    duration: AppMotion.hover,
+                                    curve: AppMotion.curve,
                                     height: 38,
                                     padding: const EdgeInsets.symmetric(horizontal: 12),
                                     color: hovered ? AppColors.hover : Colors.transparent,

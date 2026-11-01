@@ -177,7 +177,9 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                                 onTap: () => _open(event),
                                 hoverColor: Colors.transparent,
                                 mouseCursor: SystemMouseCursors.click,
-                                child: Container(
+                                child: AnimatedContainer(
+                                  duration: AppMotion.hover,
+                                  curve: AppMotion.curve,
                                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
                                   color: hovered ? AppColors.hover : Colors.transparent,
                                   child: Row(

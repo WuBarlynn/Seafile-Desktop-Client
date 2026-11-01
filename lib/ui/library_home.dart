@@ -434,7 +434,9 @@ class _LibraryHomeState extends State<LibraryHome> {
               _ => _LibrarySort.name,
             }),
             child: HoverBuilder(
-              builder: (context, hovered) => Container(
+              builder: (context, hovered) => AnimatedContainer(
+                duration: AppMotion.hover,
+                curve: AppMotion.curve,
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: hovered ? AppColors.hover : Colors.transparent,
@@ -462,7 +464,9 @@ class _LibraryHomeState extends State<LibraryHome> {
               if (value == 'create') _createLibrary();
             },
             child: HoverBuilder(
-              builder: (context, hovered) => Container(
+              builder: (context, hovered) => AnimatedContainer(
+                duration: AppMotion.hover,
+                curve: AppMotion.curve,
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: hovered ? AppColors.hover : Colors.transparent,
@@ -656,7 +660,9 @@ class _RepositoryRowState extends State<_RepositoryRow> {
       child: GestureDetector(
         onTap: widget.onTap,
         onSecondaryTapDown: (details) => widget.onContextMenu(details.globalPosition),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 18),
           decoration: BoxDecoration(
@@ -746,7 +752,9 @@ class _RepositoryGridCardState extends State<_RepositoryGridCard> {
       child: GestureDetector(
         onTap: widget.onTap,
         onSecondaryTapDown: (details) => widget.onContextMenu(details.globalPosition),
-        child: Container(
+        child: AnimatedContainer(
+          duration: AppMotion.hover,
+          curve: AppMotion.curve,
           height: 72,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(

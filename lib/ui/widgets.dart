@@ -217,7 +217,7 @@ class _IconActionState extends State<IconAction> {
     final background = !enabled
         ? Colors.transparent
         : _pressed
-            ? AppColors.primary.withValues(alpha: 0.12)
+            ? AppColors.primary.withValues(alpha: 0.08)
             : _hovered
                 ? AppColors.hover
                 : Colors.transparent;
@@ -238,11 +238,11 @@ class _IconActionState extends State<IconAction> {
           onTap: widget.onPressed,
           child: AnimatedScale(
             scale: _pressed ? 0.92 : 1,
-            duration: const Duration(milliseconds: 90),
-            curve: Curves.easeOut,
+            duration: AppMotion.press,
+            curve: AppMotion.curve,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              curve: Curves.easeOut,
+              duration: AppMotion.hover,
+              curve: AppMotion.curve,
               padding: widget.padding,
               decoration: BoxDecoration(
                 color: background,

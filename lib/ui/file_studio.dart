@@ -570,7 +570,9 @@ class _ToolButtonState extends State<_ToolButton> {
         onExit: (_) => setState(() => _hovered = false),
         child: GestureDetector(
           onTap: widget.onTap,
-          child: Container(
+          child: AnimatedContainer(
+            duration: AppMotion.hover,
+            curve: AppMotion.curve,
             width: 30,
             height: 30,
             margin: const EdgeInsets.symmetric(horizontal: 1),

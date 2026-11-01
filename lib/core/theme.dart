@@ -16,10 +16,17 @@ abstract final class AppColors {
   static const borderStrong = Color(0xFFD9DEE7);
   static const sidebar = Color(0xFFFFFFFF);
   static const canvas = Color(0xFFFFFFFF);
-  static const hover = Color(0xFFF5F5F5);
+  static const hover = Color(0xFFF8F8F9);
+  static const hoverPressed = Color(0xFFF1F2F3);
   static const selected = Color(0xFFFFF4EA);
   static const tableHeader = Color(0xFFFAFAFA);
   static const folder = Color(0xFFFFB42D);
+}
+
+abstract final class AppMotion {
+  static const hover = Duration(milliseconds: 160);
+  static const press = Duration(milliseconds: 90);
+  static const curve = Curves.easeOutCubic;
 }
 
 ThemeData buildAppTheme() {
@@ -105,11 +112,11 @@ ThemeData buildAppTheme() {
         elevation: 0,
       ).copyWith(
         overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.pressed)) return Colors.white.withValues(alpha: 0.22);
-          if (states.contains(WidgetState.hovered)) return Colors.white.withValues(alpha: 0.12);
+          if (states.contains(WidgetState.pressed)) return Colors.white.withValues(alpha: 0.18);
+          if (states.contains(WidgetState.hovered)) return Colors.white.withValues(alpha: 0.10);
           return null;
         }),
-        animationDuration: const Duration(milliseconds: 120),
+        animationDuration: AppMotion.hover,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -122,16 +129,15 @@ ThemeData buildAppTheme() {
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
       ).copyWith(
         overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.pressed)) return AppColors.primary.withValues(alpha: 0.16);
-          if (states.contains(WidgetState.hovered)) return AppColors.primarySoft;
+          if (states.contains(WidgetState.pressed)) return AppColors.primary.withValues(alpha: 0.10);
+          if (states.contains(WidgetState.hovered)) return AppColors.hover;
           return null;
         }),
         side: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.pressed)) return const BorderSide(color: AppColors.primary);
-          if (states.contains(WidgetState.hovered)) return BorderSide(color: AppColors.primary.withValues(alpha: 0.55));
           return const BorderSide(color: AppColors.borderStrong);
         }),
-        animationDuration: const Duration(milliseconds: 120),
+        animationDuration: AppMotion.hover,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -143,11 +149,11 @@ ThemeData buildAppTheme() {
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
       ).copyWith(
         overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.pressed)) return AppColors.primary.withValues(alpha: 0.12);
+          if (states.contains(WidgetState.pressed)) return AppColors.primary.withValues(alpha: 0.08);
           if (states.contains(WidgetState.hovered)) return AppColors.hover;
           return null;
         }),
-        animationDuration: const Duration(milliseconds: 120),
+        animationDuration: AppMotion.hover,
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
@@ -158,11 +164,11 @@ ThemeData buildAppTheme() {
         iconSize: 19,
       ).copyWith(
         overlayColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.pressed)) return AppColors.primary.withValues(alpha: 0.14);
+          if (states.contains(WidgetState.pressed)) return AppColors.primary.withValues(alpha: 0.10);
           if (states.contains(WidgetState.hovered)) return AppColors.hover;
           return null;
         }),
-        animationDuration: const Duration(milliseconds: 120),
+        animationDuration: AppMotion.hover,
         shape: const WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(4)))),
       ),
     ),
