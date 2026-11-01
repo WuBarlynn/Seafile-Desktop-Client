@@ -9,12 +9,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../api/models.dart';
+import '../core/code_highlight.dart';
 import '../core/file_kind.dart';
 import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
+import 'code_viewer.dart';
 import 'widgets.dart';
 
 Future<bool?> openTextEditor(BuildContext context, Repository repo, Dirent entry) {
@@ -34,7 +36,7 @@ class TextEditorPage extends StatefulWidget {
 }
 
 class _TextEditorPageState extends State<TextEditorPage> {
-  final _controller = TextEditingController();
+  late final TextEditingController _controller;
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
   late final bool _isMarkdown = FileKind.of(widget.entry.name) == FileKind.markdown;
@@ -50,6 +52,9 @@ class _TextEditorPageState extends State<TextEditorPage> {
   @override
   void initState() {
     super.initState();
+    _controller = _isMarkdown
+        ? TextEditingController()
+        : CodeEditingController(fileName: widget.entry.name);
     _load();
   }
 
@@ -322,25 +327,32 @@ class _TextEditorPageState extends State<TextEditorPage> {
     return Column(
       children: [
         Expanded(
-          child: Scrollbar(
-            controller: _scrollController,
-            child: TextField(
-              controller: _controller,
-              focusNode: _focusNode,
-              scrollController: _scrollController,
-              maxLines: null,
-              expands: true,
-              textAlignVertical: TextAlignVertical.top,
-              style: const TextStyle(fontFamily: 'Menlo', fontSize: 13, height: 1.65),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.fromLTRB(24, 18, 24, 24),
-              ),
-              onChanged: (_) => _syncCounts(),
-            ),
-          ),
+          child: _isMarkdown
+              ? Scrollbar(
+                  controller: _scrollController,
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    scrollController: _scrollController,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    style: const TextStyle(fontFamily: 'Menlo', fontSize: 13, height: 1.65),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.fromLTRB(24, 18, 24, 24),
+                    ),
+                    onChanged: (_) => _syncCounts(),
+                  ),
+                )
+              : CodeEditor(
+                  controller: _controller,
+                  fileName: widget.entry.name,
+                  focusNode: _focusNode,
+                  onChanged: (_) => _syncCounts(),
+                ),
         ),
         Container(
           width: double.infinity,

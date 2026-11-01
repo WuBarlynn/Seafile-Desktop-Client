@@ -12,6 +12,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../api/models.dart';
 import '../core/file_kind.dart';
+import '../core/code_highlight.dart';
 import '../core/format.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
@@ -118,7 +119,7 @@ class FileStudioState extends State<FileStudio> {
           _markdownInitial = text;
         } else {
           _original = text;
-          _controller = TextEditingController(text: text);
+          _controller = CodeEditingController(fileName: widget.entry.name, text: text);
           _controller!.addListener(_onChanged);
         }
       }
@@ -411,24 +412,9 @@ class FileStudioState extends State<FileStudio> {
           children: [
             Expanded(
               child: _codeEditing && !_readOnly
-                  ? TextField(
+                  ? CodeEditor(
                       controller: controller,
-                      scrollController: _scroll,
-                      maxLines: null,
-                      expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                      style: const TextStyle(
-                        fontFamily: 'Menlo',
-                        fontSize: 13,
-                        height: 1.65,
-                        color: AppColors.text,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        contentPadding: EdgeInsets.fromLTRB(32, 24, 32, 32),
-                      ),
+                      fileName: widget.entry.name,
                       onChanged: (_) => _onChanged(),
                     )
                   : CodeViewer(text: controller.text, fileName: widget.entry.name, scrollController: _scroll),

@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.2.29 — close-to-tray background running; faster menus; stable Markdown editing and tables; reliable SeaDoc loading with compact aligned checkboxes. Every iteration is published to this repository.
+> **Status:** 1.2.30 — close-to-tray background running; code preview and editing with line numbers for every listed text format, full-file syntax highlighting and large-file support; faster menus; stable Markdown editing. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -90,6 +90,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.2.30
+
+Tagged `v1.2.30`. Code files now show line numbers in both preview and edit modes for every supported text extension, with no 5,000-line cutoff: the preview uses a virtualized gutter/code list and the editor uses a live syntax-highlighting controller with a synchronized gutter. Added language-aware highlighting for shell, batch, C/C++/C#, Java, JavaScript/TypeScript, Go, Rust, Swift, Kotlin, Scala, Groovy, PHP, Python, Ruby, Perl, SQL, JSON, YAML, properties/INI/TOML, Make, CMake, Autoconf/Automake, Emacs Lisp, Vim script, CSS/LESS, HTML/XML, LaTeX, Org, reStructuredText, diff/patch, log and CSV; `txt`/`text` keep line numbers with plain styling. The legacy preview and text-editor routes use the same renderer.
 
 ## Release 1.2.29
 

@@ -19,6 +19,7 @@ import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
 import 'file_actions.dart';
+import 'code_viewer.dart';
 import 'online_editor_window.dart';
 import 'text_editor_page.dart';
 import 'web_handoff.dart';
@@ -92,9 +93,14 @@ class _PreviewPageState extends State<PreviewPage> {
           return;
         }
         final allBytes = await file.readAsBytes();
-        _truncated = allBytes.length > 2 * 1024 * 1024;
-        final bytes = _truncated ? allBytes.sublist(0, 2 * 1024 * 1024) : allBytes;
-        _text = _decodeText(bytes);
+        if (_kind == FileKind.text) {
+          _truncated = false;
+          _text = _decodeText(allBytes);
+        } else {
+          _truncated = allBytes.length > 2 * 1024 * 1024;
+          final bytes = _truncated ? allBytes.sublist(0, 2 * 1024 * 1024) : allBytes;
+          _text = _decodeText(bytes);
+        }
       }
       setState(() {
         _file = file;
@@ -320,15 +326,7 @@ class _PreviewPageState extends State<PreviewPage> {
             child: Text(l10n.textPreviewTruncated, style: const TextStyle(fontSize: 12)),
           ),
         Expanded(
-          child: Scrollbar(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: SelectableText(
-                _text ?? '',
-                style: const TextStyle(fontFamily: 'Menlo', fontSize: 12.5, height: 1.65),
-              ),
-            ),
-          ),
+          child: CodeViewer(text: _text ?? '', fileName: widget.entry.name),
         ),
       ],
     );
