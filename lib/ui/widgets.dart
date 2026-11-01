@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -353,16 +354,23 @@ class _ResizeHandleState extends State<ResizeHandle> {
     return MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
       onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _dragging = false;
-      }),
-      child: GestureDetector(
+      onExit: (_) => setState(() => _hovered = false),
+      child: Listener(
         behavior: HitTestBehavior.opaque,
-        onHorizontalDragStart: (_) => setState(() => _dragging = true),
-        onHorizontalDragUpdate: (details) => widget.onDrag(details.delta.dx),
-        onHorizontalDragEnd: (_) => setState(() => _dragging = false),
-        onHorizontalDragCancel: () => setState(() => _dragging = false),
+        onPointerDown: (event) {
+          if (event.buttons & kPrimaryButton == 0) return;
+          setState(() => _dragging = true);
+        },
+        onPointerMove: (event) {
+          if (!_dragging) return;
+          if (event.buttons & kPrimaryButton == 0) {
+            setState(() => _dragging = false);
+            return;
+          }
+          if (event.delta.dx != 0) widget.onDrag(event.delta.dx);
+        },
+        onPointerUp: (_) => setState(() => _dragging = false),
+        onPointerCancel: (_) => setState(() => _dragging = false),
         child: SizedBox(
           width: widget.width,
           child: Center(

@@ -451,7 +451,7 @@ class _AppShellState extends State<AppShell> {
                         if (!_collapsed)
                           ResizeHandle(
                             onDrag: (delta) => setState(() {
-                              _sidebarWidth = (sidebarWidth + delta).clamp(200.0, (constraints.maxWidth * 0.4).clamp(240.0, 460.0));
+                              _sidebarWidth = ((_sidebarWidth ?? defaultWidth) + delta).clamp(200.0, (constraints.maxWidth * 0.4).clamp(240.0, 460.0));
                             }),
                           )
                         else
