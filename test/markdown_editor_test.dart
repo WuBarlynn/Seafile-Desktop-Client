@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:seafile_desktop/core/l10n.dart';
+import 'package:seafile_desktop/core/theme.dart';
 import 'package:seafile_desktop/ui/markdown_editor.dart';
 
 void main() {
@@ -54,6 +55,9 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
+    final toolbarMenus = tester.widgetList<PopupMenuButton<String>>(find.byType(PopupMenuButton<String>));
+    expect(toolbarMenus, isNotEmpty);
+    expect(toolbarMenus.every((menu) => menu.popUpAnimationStyle?.duration == AppMotion.menu), isTrue);
     await tester.tap(find.byTooltip('Insert'));
     await tester.pumpAndSettle();
     expect(find.text('Table'), findsWidgets);
@@ -153,5 +157,52 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
     expect(key.currentState!.text, '你');
+  });
+
+  testWidgets('editing a block keeps its line height and position', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [L10nDelegate()],
+      supportedLocales: const [Locale('en')],
+      home: Scaffold(
+        body: MarkdownEditor(initialText: 'alpha', readOnly: false),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final display = find.byWidgetPredicate((widget) => widget is RichText && widget.text.toPlainText() == 'alpha');
+    final beforeSize = tester.getSize(display);
+    final beforeTop = tester.getTopLeft(display);
+
+    await tester.tap(display);
+    await tester.pump();
+
+    final field = find.byType(TextField).first;
+    final afterSize = tester.getSize(field);
+    final afterTop = tester.getTopLeft(field);
+    expect((afterSize.height - beforeSize.height).abs(), lessThan(1.0));
+    expect((afterTop.dy - beforeTop.dy).abs(), lessThan(1.0));
+  });
+
+  testWidgets('table rows stretch every cell to the tallest content', (tester) async {
+    final longText = List.filled(14, 'long cell').join(' ');
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: const [L10nDelegate()],
+      supportedLocales: const [Locale('en')],
+      home: Scaffold(
+        body: MarkdownEditor(
+          initialText: '| A | B |\n| --- | --- |\n| $longText | short |',
+          readOnly: false,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    double height(int row, int column) => tester.getSize(find.byKey(ValueKey('md-table-$row-$column'))).height;
+
+    expect((height(0, 0) - height(0, 1)).abs(), lessThan(0.5));
+    expect((height(1, 0) - height(1, 1)).abs(), lessThan(0.5));
+    expect(height(1, 0), greaterThan(36));
+    final grid = tester.widget<Container>(find.byKey(const ValueKey('md-table-grid')));
+    expect((grid.decoration as BoxDecoration).border, isA<Border>());
   });
 }

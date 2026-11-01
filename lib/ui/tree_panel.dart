@@ -505,6 +505,7 @@ class _MoreRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = L10n.of(context);
     return PopupMenuButton<String>(
+      popUpAnimationStyle: AppMotion.menuAnimation,
       tooltip: '',
       offset: const Offset(0, 32),
       color: Colors.white,

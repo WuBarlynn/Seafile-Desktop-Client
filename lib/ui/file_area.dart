@@ -107,6 +107,7 @@ class _FileAreaState extends State<FileArea> {
       if (canWrite) PopupMenuItem(value: 'delete', child: _row('delete', l10n.delete, danger: true)),
     ];
     final selectedValue = await showMenu<String>(
+      popUpAnimationStyle: AppMotion.menuAnimation,
       context: context,
       position: RelativeRect.fromRect(position & const Size(1, 1), Offset.zero & overlay.size),
       items: items,

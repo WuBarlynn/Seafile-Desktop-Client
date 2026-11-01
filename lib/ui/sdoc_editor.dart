@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 
+import '../api/api_error.dart';
 import '../api/models.dart';
 import '../core/format.dart';
 import '../core/l10n.dart';
@@ -3589,19 +3590,22 @@ class SdocEditorState extends State<SdocEditor> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Checkbox(
-            value: checked,
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onChanged: _readOnly
-                ? null
-                : (value) {
-                    setState(() {
-                      block.element['checked'] = value == true;
-                      _changed();
-                    });
-                  },
+          padding: const EdgeInsets.only(top: 3),
+          child: SizedBox(
+            height: 24,
+            child: Center(
+              child: CompactCheckbox(
+                value: checked,
+                onChanged: _readOnly
+                    ? null
+                    : (value) {
+                        setState(() {
+                          block.element['checked'] = value;
+                          _changed();
+                        });
+                      },
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 4),
@@ -4135,11 +4139,18 @@ class SdocEditorState extends State<SdocEditor> {
     }
     final future = _imageCache.putIfAbsent(
       value,
-      () => context.read<AppSession>().api!.loadSdocImage(
-        widget.repo.id,
-        widget.entry.path,
-        value,
-      ),
+      () async {
+        try {
+          return await context.read<AppSession>().api!.loadSdocImage(
+            widget.repo.id,
+            widget.entry.path,
+            value,
+          );
+        } catch (_) {
+          _imageCache.remove(value);
+          rethrow;
+        }
+      },
     );
     return FutureBuilder<Uint8List>(
       future: future,
@@ -4150,8 +4161,13 @@ class SdocEditorState extends State<SdocEditor> {
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           );
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _mediaPlaceholder('图片加载失败', 'Image unavailable');
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          final missing = snapshot.error is ApiException && (snapshot.error! as ApiException).status == 404;
+          return _mediaPlaceholder(
+            missing ? '图片文件缺失' : '图片加载失败',
+            missing ? 'Image file is missing' : 'Image unavailable',
+            onRetry: () => setState(() {}),
+          );
         }
         return ClipRRect(
           borderRadius: BorderRadius.circular(5),
@@ -4170,18 +4186,32 @@ class SdocEditorState extends State<SdocEditor> {
     });
   }
 
-  Widget _mediaPlaceholder(String zh, String en) {
-    final label = L10n.of(context).zh ? zh : en;
+  Widget _mediaPlaceholder(String zh, String en, {VoidCallback? onRetry}) {
+    final l10n = L10n.of(context);
+    final label = l10n.zh ? zh : en;
     return Container(
-      height: 80,
+      constraints: const BoxConstraints(minHeight: 80),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: AppColors.hover,
         borderRadius: BorderRadius.circular(5),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 13, color: AppColors.muted),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: AppColors.muted),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(minimumSize: const Size(0, 28), padding: const EdgeInsets.symmetric(horizontal: 10)),
+              child: Text(l10n.zh ? '重试' : 'Retry', style: const TextStyle(fontSize: 12)),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -59,6 +59,7 @@ class SeafileApi {
   late final Dio _transfer;
   int serverMajorVersion = 14;
   String? _fileServerRoot;
+  final Map<String, ({String token, String fileUuid, DateTime at})> _sdocSessions = {};
 
   String get serverBase {
     var value = serverUri.toString();
@@ -771,7 +772,28 @@ class SeafileApi {
   // -------------------------------------------------------------------------
   // SeaDoc
 
+  List<String> get _sdocServerCandidates {
+    final base = serverBase;
+    return ['$base/sdoc-server', base];
+  }
+
+  Map<String, dynamic>? _jsonMap(dynamic data) {
+    if (data is Map) return data.cast<String, dynamic>();
+    if (data is String && data.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is Map) return decoded.cast<String, dynamic>();
+      } catch (_) {}
+    }
+    return null;
+  }
+
   Future<(String token, String fileUuid, String serverUrl)> _seadocSession(String repoId, String path) async {
+    final key = '$repoId|$path';
+    final cached = _sdocSessions[key];
+    if (cached != null && DateTime.now().difference(cached.at) < const Duration(minutes: 10)) {
+      return (cached.token, cached.fileUuid, _sdocServerCandidates.first);
+    }
     final data = asMap(await _get('api/v2.1/seadoc/access-token/$repoId/', query: {'p': path}));
     final token = firstString(data, ['access_token']) ?? '';
     if (token.isEmpty) throw ApiException(ApiErrorKind.decoding);
@@ -785,22 +807,8 @@ class SeafileApi {
       }
     } catch (_) {}
     if (fileUuid.isEmpty) throw ApiException(ApiErrorKind.decoding);
-
-    final base = _baseUrl.replaceFirst(RegExp(r'/+$'), '');
-    final candidates = ['$base/sdoc-server', base];
-    for (final candidate in candidates) {
-      try {
-        final response = await _transfer.get<dynamic>(
-          '${candidate.replaceFirst(RegExp(r'/+$'), '')}/api/v1/docs/$fileUuid/',
-          options: Options(
-            headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
-            validateStatus: (status) => status != null && status >= 200 && status < 500,
-          ),
-        );
-        if (response.statusCode == 200) return (token, fileUuid, candidate);
-      } catch (_) {}
-    }
-    throw ApiException(ApiErrorKind.server, serverMessage: 'SeaDoc server unavailable');
+    _sdocSessions[key] = (token: token, fileUuid: fileUuid, at: DateTime.now());
+    return (token, fileUuid, _sdocServerCandidates.first);
   }
 
   Future<String> uploadSdocImage(String repoId, String path, String filePath) async {
@@ -853,12 +861,28 @@ class SeafileApi {
     try {
       final response = await _api.get<List<int>>(
         'api/v2.1/seadoc/download-image/$fileUuid/${Uri.encodeComponent(name)}',
-        options: Options(responseType: ResponseType.bytes, headers: _authHeaders),
+        options: Options(responseType: ResponseType.bytes, headers: {..._authHeaders, 'Accept': '*/*'}),
       );
-      return Uint8List.fromList(response.data ?? const []);
+      final bytes = Uint8List.fromList(response.data ?? const []);
+      if (bytes.isNotEmpty) return bytes;
     } on DioException catch (error) {
-      throw _mapError(error);
+      if (error.response?.statusCode != 404) throw _mapError(error);
     }
+    try {
+      final response = await _api.get<List<int>>(
+        'api2/repos/$repoId/file/',
+        queryParameters: {'p': '/images/sdoc/$fileUuid/$name'},
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {..._authHeaders, 'Accept': '*/*'},
+        ),
+      );
+      final bytes = Uint8List.fromList(response.data ?? const []);
+      if (bytes.isNotEmpty) return bytes;
+    } on DioException catch (error) {
+      if (error.response?.statusCode != 404) throw _mapError(error);
+    }
+    throw ApiException(ApiErrorKind.notFound, status: 404, serverMessage: '图片文件缺失 / Image file is missing');
   }
 
   Future<Map<String, dynamic>> seadocComments(String repoId, String path) async {
@@ -940,33 +964,86 @@ class SeafileApi {
     try {
       final response = await _api.get<List<int>>(
         'api/v2.1/seadoc/download-video/$fileUuid/${Uri.encodeComponent(name)}',
-        options: Options(responseType: ResponseType.bytes, headers: _authHeaders, receiveTimeout: const Duration(minutes: 10)),
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(minutes: 10),
+          headers: {..._authHeaders, 'Accept': '*/*'},
+        ),
       );
       return Uint8List.fromList(response.data ?? const []);
     } on DioException catch (error) {
+      if (error.response?.statusCode == 404) {
+        throw ApiException(ApiErrorKind.notFound, status: 404, serverMessage: '视频文件缺失 / Video file is missing');
+      }
       throw _mapError(error);
     }
   }
 
   Future<Map<String, dynamic>> loadSdocDocument(String repoId, String path) async {
-    final (token, fileUuid, serverUrl) = await _seadocSession(repoId, path);
-    try {
-      final response = await _transfer.get<dynamic>(
-        '${serverUrl.replaceFirst(RegExp(r'/+$'), '')}/api/v1/docs/$fileUuid/',
-        options: Options(headers: {'Authorization': 'Token $token', 'Accept': 'application/json'}),
-      );
-      final data = response.data;
-      if (data is Map) return data.cast<String, dynamic>();
-      if (data is String) return asMap(jsonDecode(data));
-      throw ApiException(ApiErrorKind.decoding);
-    } on DioException catch (error) {
-      throw _mapError(error);
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    var allNotFound = true;
+    for (final candidate in _sdocServerCandidates) {
+      final base = candidate.replaceFirst(RegExp(r'/+$'), '');
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final response = await _transfer.get<dynamic>(
+            '$base/api/v1/docs/$fileUuid/',
+            options: Options(
+              headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
+              validateStatus: (status) => status != null && status >= 200 && status < 600,
+            ),
+          );
+          final status = response.statusCode ?? 0;
+          if (status == 200) {
+            final data = _jsonMap(response.data);
+            if (data != null) return data;
+            throw ApiException(ApiErrorKind.decoding);
+          }
+          final body = _jsonMap(response.data);
+          final errorType = body?['error_type']?.toString() ?? '';
+          if (errorType == 'content_invalid') {
+            throw ApiException(
+              ApiErrorKind.server,
+              status: status,
+              serverMessage: 'SeaDoc 文档内容无效，无法加载 / SeaDoc document content is invalid',
+            );
+          }
+          if (status == 401 || status == 403) {
+            throw ApiException(ApiErrorKind.forbidden, status: status);
+          }
+          if (status == 404) break;
+          allNotFound = false;
+          if (status >= 500 && attempt == 0) {
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+            continue;
+          }
+          break;
+        } on DioException catch (error) {
+          allNotFound = false;
+          if (attempt == 0) {
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+            continue;
+          }
+          if (error.response?.statusCode == 401 || error.response?.statusCode == 403) {
+            throw _mapError(error);
+          }
+          break;
+        }
+      }
     }
+    if (allNotFound) {
+      throw ApiException(
+        ApiErrorKind.notFound,
+        status: 404,
+        serverMessage: 'SeaDoc 文档不存在 / SeaDoc document not found',
+      );
+    }
+    throw ApiException(ApiErrorKind.server, serverMessage: 'SeaDoc server unavailable');
   }
 
   Future<void> saveSdocDocument(String repoId, String path, Map<String, dynamic> document) async {
-    final (token, fileUuid, serverUrl) = await _seadocSession(repoId, path);
-    final base = _baseUrl.replaceFirst(RegExp(r'/+$'), '');
+    final (token, fileUuid, _) = await _seadocSession(repoId, path);
+    final base = serverBase;
     final name = path.split('/').last;
     try {
       await _transfer.post<dynamic>(
@@ -979,17 +1056,27 @@ class SeafileApi {
         }),
         options: Options(headers: {'Authorization': 'Token $token', 'Accept': 'application/json'}),
       );
-      await _transfer.post<dynamic>(
-        '${serverUrl.replaceFirst(RegExp(r'/+$'), '')}/api/v1/docs/$fileUuid/replace/',
-        data: {'doc_name': name},
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-          headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
-        ),
-      );
     } on DioException catch (error) {
       throw _mapError(error);
     }
+    for (final candidate in _sdocServerCandidates) {
+      final server = candidate.replaceFirst(RegExp(r'/+$'), '');
+      try {
+        await _transfer.post<dynamic>(
+          '$server/api/v1/docs/$fileUuid/replace/',
+          data: {'doc_name': name},
+          options: Options(
+            contentType: Headers.formUrlEncodedContentType,
+            headers: {'Authorization': 'Token $token', 'Accept': 'application/json'},
+          ),
+        );
+        return;
+      } on DioException catch (error) {
+        final status = error.response?.statusCode;
+        if (status != null && status < 500) throw _mapError(error);
+      }
+    }
+    throw ApiException(ApiErrorKind.server, serverMessage: 'SeaDoc server unavailable');
   }
 
   // -------------------------------------------------------------------------

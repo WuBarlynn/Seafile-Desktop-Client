@@ -562,6 +562,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
 
   Widget _groupRowMenu(Map<String, dynamic> group, L10n l10n) {
     return PopupMenuButton<String>(
+      popUpAnimationStyle: AppMotion.menuAnimation,
       tooltip: l10n.zh ? '群组操作' : 'Group actions',
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
@@ -1128,6 +1129,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
 
   Widget _libraryRowMenu(Map<String, dynamic> repo, L10n l10n) {
     return PopupMenuButton<String>(
+      popUpAnimationStyle: AppMotion.menuAnimation,
       tooltip: l10n.zh ? '资料库操作' : 'Library actions',
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
@@ -1331,6 +1333,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: PopupMenuButton<String>(
+                popUpAnimationStyle: AppMotion.menuAnimation,
                 tooltip: '',
                 color: Colors.white,
                 surfaceTintColor: Colors.transparent,

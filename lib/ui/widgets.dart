@@ -291,6 +291,56 @@ class EmptyState extends StatelessWidget {
   }
 }
 
+class CompactCheckbox extends StatefulWidget {
+  const CompactCheckbox({super.key, required this.value, this.onChanged, this.size = 16});
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final double size;
+
+  @override
+  State<CompactCheckbox> createState() => _CompactCheckboxState();
+}
+
+class _CompactCheckboxState extends State<CompactCheckbox> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onChanged != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? () => widget.onChanged!(!widget.value) : null,
+        child: AnimatedContainer(
+          duration: AppMotion.press,
+          curve: AppMotion.curve,
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            color: widget.value
+                ? AppColors.primary
+                : (_hovered && enabled ? AppColors.hover : Colors.white),
+            border: Border.all(
+              color: widget.value
+                  ? AppColors.primary
+                  : !enabled
+                      ? AppColors.border
+                      : (_hovered ? AppColors.primary.withValues(alpha: 0.55) : AppColors.borderStrong),
+              width: 1.4,
+            ),
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: widget.value ? Icon(Icons.check, size: widget.size * 0.75, color: Colors.white) : null,
+        ),
+      ),
+    );
+  }
+}
+
 class CompactSwitch extends StatelessWidget {
   const CompactSwitch({super.key, required this.value, required this.onChanged});
 

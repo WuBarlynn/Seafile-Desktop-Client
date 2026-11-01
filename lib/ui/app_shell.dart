@@ -902,6 +902,7 @@ class _GlobalHeader extends StatelessWidget {
                   NotificationBell(onOpen: onOpenNotification),
                   const SizedBox(width: 8),
                   PopupMenuButton<String>(
+                    popUpAnimationStyle: AppMotion.menuAnimation,
                     tooltip: '',
                     position: PopupMenuPosition.under,
                     offset: const Offset(0, 8),

@@ -14,6 +14,7 @@ PopupMenuButton<T> editorPopupMenu<T>({
   double minWidth = 180,
 }) {
   return PopupMenuButton<T>(
+    popUpAnimationStyle: AppMotion.menuAnimation,
     tooltip: tooltip,
     offset: const Offset(0, 4),
     position: PopupMenuPosition.under,
@@ -173,6 +174,7 @@ Future<void> showEditorContextMenu({
   final selection = controller.selection;
   final hasSelection = selection.isValid && !selection.isCollapsed;
   final action = await showMenu<String>(
+    popUpAnimationStyle: AppMotion.menuAnimation,
     context: context,
     position: RelativeRect.fromLTRB(
       position.dx,

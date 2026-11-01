@@ -8,6 +8,7 @@ import 'package:flutter_math_fork/flutter_math.dart';
 import '../core/l10n.dart';
 import '../core/theme.dart';
 import 'editor_menus.dart';
+import 'widgets.dart';
 
 enum _MdType {
   paragraph,
@@ -992,71 +993,71 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     if (block.tableCells.isEmpty) return const SizedBox.shrink();
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var r = 0; r < block.tableCells.length; r++)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var c = 0; c < block.tableCells[r].length; c++)
-                    Container(
-                      width: 170,
-                      decoration: BoxDecoration(
-                        color: r == 0 ? const Color(0xFFF6F8FA) : Colors.white,
-                        border: Border(
-                          right: c < block.tableCells[r].length - 1
-                              ? const BorderSide(color: AppColors.border)
-                              : BorderSide.none,
-                          bottom: r < block.tableCells.length - 1
-                              ? const BorderSide(color: AppColors.border)
-                              : BorderSide.none,
-                        ),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      child: Listener(
-                        onPointerDown: (event) {
-                          if (event.buttons == kSecondaryMouseButton) {
-                            unawaited(showEditorContextMenu(
-                              context: context,
-                              position: event.position,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          key: const ValueKey('md-table-grid'),
+          decoration: BoxDecoration(border: Border.all(color: AppColors.border)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var r = 0; r < block.tableCells.length; r++)
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var c = 0; c < block.tableCells[r].length; c++)
+                        Container(
+                          key: ValueKey('md-table-$r-$c'),
+                          width: 170,
+                          constraints: const BoxConstraints(minHeight: 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: r == 0 ? const Color(0xFFF6F8FA) : Colors.white,
+                            border: Border(
+                              right: c < block.tableCells[r].length - 1
+                                  ? const BorderSide(color: AppColors.border)
+                                  : BorderSide.none,
+                              bottom: r < block.tableCells.length - 1
+                                  ? const BorderSide(color: AppColors.border)
+                                  : BorderSide.none,
+                            ),
+                          ),
+                          child: Listener(
+                            onPointerDown: (event) {
+                              if (event.buttons == kSecondaryMouseButton) {
+                                unawaited(showEditorContextMenu(
+                                  context: context,
+                                  position: event.position,
+                                  controller: block.tableCells[r][c],
+                                ));
+                              }
+                            },
+                            child: TextField(
                               controller: block.tableCells[r][c],
-                            ));
-                          }
-                        },
-                        child: TextField(
-                          controller: block.tableCells[r][c],
-                          onTap: () => setState(() => _active = index),
-                          maxLines: null,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: r == 0
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                          ),
-                          contextMenuBuilder: (context, editableTextState) =>
-                              const SizedBox.shrink(),
-                          decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
+                              onTap: () => setState(() => _active = index),
+                              maxLines: null,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: r == 0 ? FontWeight.w600 : FontWeight.w400,
+                              ),
+                              contextMenuBuilder: (context, editableTextState) =>
+                                  const SizedBox.shrink(),
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                isCollapsed: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
-              ),
-          ],
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1329,19 +1330,22 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         children: [
           if (block.indent > 0) SizedBox(width: block.indent * 20),
           Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Checkbox(
-              value: block.checked,
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              onChanged: widget.readOnly
-                  ? null
-                  : (value) {
-                      _pushUndo();
-                      setState(() => block.checked = value == true);
-                      _settleHistory();
-                      widget.onChanged?.call(isDirty);
-                    },
+            padding: const EdgeInsets.only(top: 3),
+            child: SizedBox(
+              height: 24,
+              child: Center(
+                child: CompactCheckbox(
+                  value: block.checked,
+                  onChanged: widget.readOnly
+                      ? null
+                      : (value) {
+                          _pushUndo();
+                          setState(() => block.checked = value);
+                          _settleHistory();
+                          widget.onChanged?.call(isDirty);
+                        },
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 4),
@@ -1426,6 +1430,12 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       fontFamily: monospace ? 'Menlo' : null,
       color: color ?? AppColors.text,
     );
+    final strut = StrutStyle(
+      fontSize: size,
+      height: monospace ? 1.6 : 1.55,
+      fontFamily: monospace ? 'Menlo' : null,
+      forceStrutHeight: true,
+    );
     if (!widget.readOnly && _editing != index) {
       return Listener(
         onPointerDown: (event) {
@@ -1449,6 +1459,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
                 block.controller.text,
                 style,
                 monospace: monospace,
+                strutStyle: strut,
               ),
             ),
           ),
@@ -1465,31 +1476,36 @@ class MarkdownEditorState extends State<MarkdownEditor> {
         canRequestFocus: false,
         skipTraversal: true,
         onKeyEvent: (node, event) => _onKey(block, index, event),
-        child: TextField(
-          controller: block.controller,
-          focusNode: block.focus,
-          autofocus: _editing == index,
-          enabled: !widget.readOnly,
-          onTap: () => _setActive(index),
-          maxLines: null,
-          style: style,
-          contextMenuBuilder: (context, editableTextState) =>
-              const SizedBox.shrink(),
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(vertical: 3),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: TextField(
+            controller: block.controller,
+            focusNode: block.focus,
+            autofocus: _editing == index,
+            enabled: !widget.readOnly,
+            onTap: () => _setActive(index),
+            maxLines: null,
+            style: style,
+            strutStyle: strut,
+            textAlignVertical: TextAlignVertical.top,
+            contextMenuBuilder: (context, editableTextState) =>
+                const SizedBox.shrink(),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              isCollapsed: true,
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _richText(String text, TextStyle base, {bool monospace = false}) {
+  Widget _richText(String text, TextStyle base, {bool monospace = false, StrutStyle? strutStyle}) {
     if (monospace) {
-      return Text(text.isEmpty ? ' ' : text, style: base);
+      return Text(text.isEmpty ? ' ' : text, style: base, strutStyle: strutStyle);
     }
     final spans = <TextSpan>[];
     var start = 0;
@@ -1539,6 +1555,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
     return Text.rich(
       TextSpan(style: base, children: spans),
       style: base,
+      strutStyle: strutStyle,
     );
   }
 

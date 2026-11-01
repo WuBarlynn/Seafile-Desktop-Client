@@ -313,6 +313,7 @@ class _WikiRowState extends State<_WikiRow> {
               ),
               if (widget.onRename != null || widget.onDelete != null)
                 PopupMenuButton<String>(
+                  popUpAnimationStyle: AppMotion.menuAnimation,
                   tooltip: '',
                   color: Colors.white,
                   surfaceTintColor: Colors.transparent,

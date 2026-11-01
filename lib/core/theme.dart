@@ -26,7 +26,15 @@ abstract final class AppColors {
 abstract final class AppMotion {
   static const hover = Duration(milliseconds: 160);
   static const press = Duration(milliseconds: 90);
+  static const menu = Duration(milliseconds: 130);
+  static const menuClose = Duration(milliseconds: 90);
   static const curve = Curves.easeOutCubic;
+  static const menuAnimation = AnimationStyle(
+    duration: menu,
+    reverseDuration: menuClose,
+    curve: curve,
+    reverseCurve: Curves.easeInCubic,
+  );
 }
 
 ThemeData buildAppTheme() {

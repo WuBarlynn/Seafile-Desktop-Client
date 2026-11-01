@@ -151,6 +151,7 @@ class _ChatViewState extends State<ChatView> {
           ),
           const SizedBox(width: 2),
           PopupMenuButton<AiChatSession>(
+            popUpAnimationStyle: AppMotion.menuAnimation,
             tooltip: l10n.chatHistory,
             offset: const Offset(0, 34),
             shape: RoundedRectangleBorder(

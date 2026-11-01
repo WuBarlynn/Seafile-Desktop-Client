@@ -140,6 +140,7 @@ class _LibraryHomeState extends State<LibraryHome> {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
     final selected = await showMenu<String>(
+      popUpAnimationStyle: AppMotion.menuAnimation,
       context: context,
       position: RelativeRect.fromRect(position & const Size(1, 1), Offset.zero & overlay.size),
       items: [
@@ -416,6 +417,7 @@ class _LibraryHomeState extends State<LibraryHome> {
           ),
           const SizedBox(width: 4),
           PopupMenuButton<String>(
+            popUpAnimationStyle: AppMotion.menuAnimation,
             tooltip: l10n.sortBy,
             offset: const Offset(0, 34),
             color: Colors.white,
@@ -448,6 +450,7 @@ class _LibraryHomeState extends State<LibraryHome> {
           ),
           const SizedBox(width: 4),
           PopupMenuButton<String>(
+            popUpAnimationStyle: AppMotion.menuAnimation,
             tooltip: l10n.more,
             offset: const Offset(0, 34),
             color: Colors.white,

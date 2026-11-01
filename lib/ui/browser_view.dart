@@ -336,6 +336,7 @@ class _BrowserViewState extends State<BrowserView> {
             ),
             const SizedBox(width: 2),
             PopupMenuButton<String>(
+              popUpAnimationStyle: AppMotion.menuAnimation,
               tooltip: l10n.sortBy,
               offset: const Offset(0, 34),
               shape: RoundedRectangleBorder(
