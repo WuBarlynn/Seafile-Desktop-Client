@@ -774,7 +774,14 @@ class SeafileApi {
 
   List<String> get _sdocServerCandidates {
     final base = serverBase;
-    return ['$base/sdoc-server', base];
+    final origin = '${serverUri.scheme}://${serverUri.host}${serverUri.hasPort ? ':${serverUri.port}' : ''}';
+    return <String>{
+      '$base/sdoc-server',
+      '$origin/seadoc',
+      '$origin/sdoc-server',
+      '$base/seadoc',
+      base,
+    }.toList();
   }
 
   Map<String, dynamic>? _jsonMap(dynamic data) {
