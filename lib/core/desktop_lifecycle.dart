@@ -40,8 +40,9 @@ class DesktopLifecycle with WindowListener, TrayListener, WidgetsBindingObserver
         ),
       ]));
       trayManager.addListener(this);
-    } catch (_) {
-      // The window-close-to-background behavior still works when a tray is unavailable.
+      stderr.writeln('[tray] initialized');
+    } catch (error, stack) {
+      stderr.writeln('[tray] initialization failed: $error\n$stack');
     }
   }
 
@@ -67,6 +68,7 @@ class DesktopLifecycle with WindowListener, TrayListener, WidgetsBindingObserver
 
   @override
   void onWindowClose() {
+    stderr.writeln('[lifecycle] close requested, hiding to background');
     if (!_quitting) unawaited(windowManager.hide());
   }
 

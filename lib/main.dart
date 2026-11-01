@@ -26,7 +26,7 @@ Future<void> main() async {
     ),
   );
   await Future<void>.delayed(const Duration(milliseconds: 350));
-  await DesktopLifecycle.instance.initialize();
   await windowManager.show();
   await windowManager.focus();
+  await DesktopLifecycle.instance.initialize();
 }
