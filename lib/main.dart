@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'core/desktop_lifecycle.dart';
 import 'state/session.dart';
 import 'state/transfer_manager.dart';
 import 'state/workspace.dart';
@@ -25,6 +26,7 @@ Future<void> main() async {
     ),
   );
   await Future<void>.delayed(const Duration(milliseconds: 350));
+  await DesktopLifecycle.instance.initialize();
   await windowManager.show();
   await windowManager.focus();
 }

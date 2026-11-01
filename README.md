@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.2.24 — account switching, inline web header trimming, per-row admin menus, statistics charts, brand previews and line-numbered syntax previews. Every iteration is published to this repository.
+> **Status:** 1.2.25 — close-to-tray background running on macOS and Windows, with Dock and tray restore. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -90,6 +90,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.2.25
+
+Tagged `v1.2.25`. Closing the window now hides Seafile to the system tray instead of quitting. macOS keeps its Dock icon and reopens the window from the Dock or tray; Windows keeps a tray icon with Open and Quit actions. All 1.2.24 account, admin, statistics and editor-preview work remains.
 
 ## Release 1.2.24
 
