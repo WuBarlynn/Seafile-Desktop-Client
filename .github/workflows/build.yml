@@ -21,12 +21,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS
+          - name: macOS universal
             os: macos-latest
-            artifact: Seafile-macos
-          - name: Windows
+            artifact: Seafile-macos-universal
+            package_path: Seafile-*-macos-universal.dmg
+          - name: Windows x64
             os: windows-latest
-            artifact: Seafile-windows
+            artifact: Seafile-windows-x64
+            package_path: dist/*
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +44,22 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install nuget.commandline -y --no-progress
 
+      - name: Install Inno Setup
+        if: runner.os == 'Windows'
+        run: choco install innosetup -y --no-progress
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "$GITHUB_REF_NAME" ]; then
+            VERSION="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)"
+          fi
+          BUILD="$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -53,26 +71,60 @@ jobs:
 
       - name: Build macOS
         if: runner.os == 'macOS'
-        run: flutter build macos --release
+        run: flutter build macos --release --build-name=${{ steps.version.outputs.version }} --build-number=${{ steps.version.outputs.build }}
 
-      - name: Package macOS
+      - name: Verify macOS architecture
         if: runner.os == 'macOS'
-        run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/Seafile.app Seafile-macos.zip
+        run: |
+          BIN="build/macos/Build/Products/Release/Seafile.app/Contents/MacOS/Seafile"
+          lipo -info "$BIN"
+          lipo -info "$BIN" | grep -q "x86_64"
+          lipo -info "$BIN" | grep -q "arm64"
+
+      - name: Package macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          APP="build/macos/Build/Products/Release/Seafile.app"
+          STAGE="$RUNNER_TEMP/seafile-dmg"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          ditto "$APP" "$STAGE/Seafile.app"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create -volname "Seafile $VERSION" -srcfolder "$STAGE" -ov -format UDZO "Seafile-$VERSION-macos-universal.dmg"
+          ls -lh "Seafile-$VERSION-macos-universal.dmg"
 
       - name: Build Windows
         if: runner.os == 'Windows'
-        run: flutter build windows --release
+        run: flutter build windows --release --build-name=${{ steps.version.outputs.version }} --build-number=${{ steps.version.outputs.build }}
 
-      - name: Package Windows
+      - name: Package Windows installer and portable zip
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath Seafile-windows.zip
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $releaseDir = (Resolve-Path "build\windows\x64\runner\Release").Path
+          $dist = Join-Path $PWD "dist"
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+
+          Compress-Archive -Path (Join-Path $releaseDir "*") -DestinationPath (Join-Path $dist "Seafile-$version-windows-x64.zip") -Force
+
+          $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) {
+            $iscc = Get-ChildItem "C:\Program Files\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if (-not $iscc) { throw "Inno Setup ISCC.exe was not found" }
+          & $iscc.FullName "/DMyAppVersion=$version" "/DMyAppArch=x64" "/DSourceDir=$releaseDir" "/DOutputDir=$dist" "packaging\windows\seafile.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+
+          Get-ChildItem $dist | Format-Table Name, Length
 
       - name: Upload packaged client
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: Seafile-*.zip
+          path: ${{ matrix.package_path }}
           if-no-files-found: error
           retention-days: 30
 
@@ -89,14 +141,28 @@ jobs:
         with:
           path: artifacts
 
-      - name: Collect installers
+      - name: Collect release assets and notes
+        shell: bash
         run: |
-          mkdir -p release
-          cp artifacts/Seafile-macos/Seafile-macos.zip release/
-          cp artifacts/Seafile-windows/Seafile-windows.zip release/
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p release-assets
+          find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.zip' \) -exec cp {} release-assets/ \;
+          ls -lh release-assets
+          cat > release-notes.md <<EOF
+          ## Seafile Desktop ${GITHUB_REF_NAME}
+
+          | Platform | Architecture | Package |
+          | --- | --- | --- |
+          | macOS | Universal (arm64 + x64) | \`Seafile-${VERSION}-macos-universal.dmg\` |
+          | Windows | x64 | \`Seafile-${VERSION}-windows-x64-setup.exe\` (installer) |
+          | Windows | x64 | \`Seafile-${VERSION}-windows-x64.zip\` (portable) |
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/commits/${GITHUB_REF_NAME}
+          EOF
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.zip
-          generate_release_notes: true
+          name: Seafile Desktop ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: release-assets/*

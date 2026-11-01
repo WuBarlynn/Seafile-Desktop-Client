@@ -2,7 +2,19 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.2.35 — close-to-tray background running; SeaDoc works on /seadoc servers; stable hover and tab rendering; CSV tables; code line numbers/highlighting. Every iteration is published to this repository.
+> **Status:** 1.2.36 — every release ships a versioned universal macOS DMG and a versioned Windows x64 installer; SeaDoc /seadoc support, stable hover/tabs, CSV tables and code highlighting remain. Every iteration is published to this repository.
+
+## Downloads
+
+Every GitHub release carries the version and target architecture in each file name:
+
+| Platform | Architecture | Package |
+| --- | --- | --- |
+| macOS | Universal (arm64 + x64) | `Seafile-<version>-macos-universal.dmg` |
+| Windows | x64 | `Seafile-<version>-windows-x64-setup.exe` (installer) |
+| Windows | x64 | `Seafile-<version>-windows-x64.zip` (portable) |
+
+The macOS DMG contains the app and an Applications shortcut. The Windows installer creates Start Menu and optional desktop shortcuts and registers an uninstaller.
 
 ## Design goals
 
@@ -90,6 +102,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.2.36
+
+Tagged `v1.2.36`. Packaging now uses the version and architecture in every artifact: a universal macOS DMG (`arm64` + `x64`) built with an architecture check, a Windows x64 Inno Setup installer, and a versioned portable Windows zip. Release notes list the exact package for each platform.
 
 ## Release 1.2.35
 
