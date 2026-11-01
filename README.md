@@ -2,7 +2,7 @@
 
 A native desktop client for Seafile, built with Flutter for macOS and Windows. The goal is to match the everyday experience of the SeaHub 13/14 web UI. The shell uses a browser-style tab bar: Home stays pinned while libraries, files, account settings, system settings and web-only pages open in their own tabs. Text, Markdown and SeaDoc editing is native; Office, Excalidraw, media, wiki editing, invitations and the full web app run in an inline authenticated WebView inside the tab, never in a detached popup.
 
-> **Status:** 1.2.30 — close-to-tray background running; code preview and editing with line numbers for every listed text format, full-file syntax highlighting and large-file support; faster menus; stable Markdown editing. Every iteration is published to this repository.
+> **Status:** 1.2.31 — close-to-tray background running; code preview and editing with line numbers for every listed text format, full-file syntax highlighting, CJK-aware gutter alignment and large-file support; faster menus. Every iteration is published to this repository.
 
 ## Design goals
 
@@ -90,6 +90,10 @@ lib/
                 trash, history, settings and auxiliary pages
 assets/web/     SeaHub-compatible SVG/PNG icons and brand assets
 ```
+
+## Release 1.2.31
+
+Tagged `v1.2.31`. Refines the code viewer/editor work: the editor measures wide CJK lines when sizing the code field so the gutter stays aligned on Chinese comments and strings, and block-comment tracking ignores `/*` or `<!--` sequences that appear inside quoted strings. Adds regression tests for both cases alongside the existing large-file, all-extension highlighting and gutter tests.
 
 ## Release 1.2.30
 

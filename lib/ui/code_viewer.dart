@@ -183,13 +183,27 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   double _contentWidth(String text) {
-    var longest = '';
+    var widest = '';
+    var widestScore = 0.0;
     for (final line in text.split('\n')) {
-      if (line.length > longest.length) longest = line;
+      var score = 0.0;
+      for (final rune in line.runes) {
+        if (rune == 9) {
+          score += 8 * 7.8;
+        } else if (rune >= 0x2E80) {
+          score += 13.0;
+        } else {
+          score += 7.8;
+        }
+      }
+      if (score > widestScore) {
+        widestScore = score;
+        widest = line;
+      }
     }
-    if (longest.isEmpty) return 0;
+    if (widest.isEmpty) return 0;
     final painter = TextPainter(
-      text: TextSpan(text: longest, style: CodeHighlighter.codeStyle),
+      text: TextSpan(text: widest, style: CodeHighlighter.codeStyle),
       textDirection: TextDirection.ltr,
       maxLines: 1,
     )..layout();

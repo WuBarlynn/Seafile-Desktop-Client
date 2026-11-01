@@ -136,18 +136,36 @@ class CodeHighlighter {
     for (final line in lines) {
       result.add(inBlock);
       var index = 0;
+      var quote = '';
       while (index < line.length) {
         if (inBlock) {
           final close = line.indexOf(end, index);
           if (close < 0) break;
           inBlock = false;
           index = close + end.length;
-        } else {
-          final open = line.indexOf(start, index);
-          if (open < 0) break;
-          inBlock = true;
-          index = open + start.length;
+          continue;
         }
+        final char = line[index];
+        if (quote.isNotEmpty) {
+          if (char == '\\') {
+            index += 2;
+            continue;
+          }
+          if (char == quote) quote = '';
+          index++;
+          continue;
+        }
+        if (char == '"' || char == "'") {
+          quote = char;
+          index++;
+          continue;
+        }
+        if (line.startsWith(start, index)) {
+          inBlock = true;
+          index += start.length;
+          continue;
+        }
+        index++;
       }
     }
     return result;

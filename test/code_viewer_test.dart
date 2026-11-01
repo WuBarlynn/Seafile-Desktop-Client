@@ -88,6 +88,15 @@ void main() {
     }
   });
 
+  test('block comment state ignores delimiters inside strings', () {
+    final highlighter = CodeHighlighter(CodeLanguage.c);
+    expect(highlighter.blockCommentStarts(['var s = "/*";', 'int x;']), [false, false]);
+    expect(
+      highlighter.blockCommentStarts(['/*', ' * comment', ' */', 'int x;']),
+      [false, true, true, false],
+    );
+  });
+
   testWidgets('code viewer shows line numbers and highlighted text', (tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: buildAppTheme(),
@@ -150,6 +159,27 @@ void main() {
       withComposing: false,
     );
     expect(_hasNonBaseColor(span.children ?? const []), isTrue);
+    final gutterHeight = tester.getSize(find.byKey(const ValueKey('code-editor-gutter'))).height;
+    final fieldHeight = tester.getSize(find.byKey(const ValueKey('code-editor-field'))).height;
+    expect((gutterHeight - fieldHeight).abs(), lessThan(2.0));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('wide CJK lines do not break editor line-number alignment', (tester) async {
+    final text = '${List.filled(40, '中文注释').join()} value = 1;\nshort';
+    final controller = CodeEditingController(fileName: 'sample.py', text: text);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MaterialApp(
+      theme: buildAppTheme(),
+      home: Scaffold(
+        body: SizedBox(
+          width: 640,
+          height: 320,
+          child: CodeEditor(controller: controller, fileName: 'sample.py'),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
     final gutterHeight = tester.getSize(find.byKey(const ValueKey('code-editor-gutter'))).height;
     final fieldHeight = tester.getSize(find.byKey(const ValueKey('code-editor-field'))).height;
     expect((gutterHeight - fieldHeight).abs(), lessThan(2.0));
