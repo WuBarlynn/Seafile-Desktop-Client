@@ -23,7 +23,7 @@ enum FileKind {
       'mp3' || 'wav' || 'aac' || 'm4a' || 'flac' || 'ogg' || 'opus' || 'aiff' => FileKind.audio,
       'pdf' => FileKind.pdf,
       'md' || 'markdown' || 'mdown' => FileKind.markdown,
-      'txt' || 'log' || 'csv' || 'json' || 'xml' || 'html' || 'htm' || 'yaml' || 'yml' || 'toml' || 'ini' || 'conf' || 'sh' || 'swift' || 'm' || 'h' || 'c' || 'cpp' || 'js' || 'ts' || 'py' || 'rb' || 'go' || 'rs' || 'java' || 'kt' || 'css' => FileKind.text,
+      'ac' || 'am' || 'bat' || 'c' || 'cc' || 'cmake' || 'cpp' || 'cs' || 'css' || 'diff' || 'el' || 'h' || 'html' || 'htm' || 'java' || 'js' || 'json' || 'less' || 'make' || 'org' || 'php' || 'pl' || 'properties' || 'py' || 'rb' || 'scala' || 'script' || 'sh' || 'sql' || 'txt' || 'text' || 'tex' || 'vi' || 'vim' || 'xhtml' || 'xml' || 'log' || 'csv' || 'groovy' || 'rst' || 'patch' || 'go' || 'yml' || 'yaml' || 'toml' || 'ini' || 'conf' || 'swift' || 'm' || 'ts' || 'rs' || 'kt' => FileKind.text,
       'doc' || 'docx' || 'xls' || 'xlsx' || 'ppt' || 'pptx' || 'pages' || 'numbers' || 'key' || 'rtf' => FileKind.officeDocument,
       'sdoc' => FileKind.sdoc,
       'zip' || 'rar' || '7z' || 'tar' || 'gz' || 'bz2' || 'xz' => FileKind.archive,

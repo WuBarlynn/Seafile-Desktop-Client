@@ -91,6 +91,8 @@ class SessionStore {
 
   Future<File> _sessionFile() async => File(p.join((await _directory()).path, 'session.json'));
 
+  Future<File> _accountsFile() async => File(p.join((await _directory()).path, 'accounts.json'));
+
   Future<File> _secretsFile() async => File(p.join((await _directory()).path, 'repo_secrets.json'));
 
   Future<Map<String, dynamic>> _readSecrets() async {
@@ -135,6 +137,7 @@ class SessionStore {
   }
 
   Future<void> writeSession(StoredSession session) async {
+    await upsertAccount(session);
     if (_fileStore) {
       final file = await _sessionFile();
       await file.writeAsString(jsonEncode(session.toJson()), flush: true);
@@ -142,6 +145,68 @@ class SessionStore {
       return;
     }
     await _secure.write(key: 'seafile.desktop.session', value: jsonEncode(session.toJson()));
+  }
+
+  Future<List<StoredSession>> readAccounts() async {
+    try {
+      List<dynamic> raw = const [];
+      if (_fileStore) {
+        final file = await _accountsFile();
+        if (await file.exists()) {
+          final decoded = jsonDecode(await file.readAsString());
+          if (decoded is List) raw = decoded;
+        }
+      } else {
+        final encoded = await _secure.read(key: 'seafile.desktop.accounts');
+        if (encoded != null && encoded.isNotEmpty) {
+          final decoded = jsonDecode(encoded);
+          if (decoded is List) raw = decoded;
+        }
+      }
+      final seen = <String>{};
+      final accounts = <StoredSession>[];
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final account = StoredSession.fromJson(item.cast<String, dynamic>());
+        if (account == null || !seen.add(account.accountId)) continue;
+        accounts.add(account);
+      }
+      if (accounts.isEmpty) {
+        final active = await readSession();
+        if (active != null) accounts.add(active);
+      }
+      return accounts;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> writeAccounts(List<StoredSession> accounts) async {
+    final seen = <String>{};
+    final values = [
+      for (final account in accounts)
+        if (seen.add(account.accountId)) account.toJson(),
+    ];
+    if (_fileStore) {
+      final file = await _accountsFile();
+      await file.writeAsString(jsonEncode(values), flush: true);
+      await _restrictPermissions(file);
+      return;
+    }
+    await _secure.write(key: 'seafile.desktop.accounts', value: jsonEncode(values));
+  }
+
+  Future<void> upsertAccount(StoredSession session) async {
+    final accounts = await readAccounts();
+    accounts.removeWhere((account) => account.accountId == session.accountId);
+    accounts.insert(0, session);
+    await writeAccounts(accounts);
+  }
+
+  Future<void> removeAccount(String accountId) async {
+    final accounts = await readAccounts();
+    accounts.removeWhere((account) => account.accountId == accountId);
+    await writeAccounts(accounts);
   }
 
   Future<void> clearSession() async {
@@ -220,7 +285,7 @@ class SessionStore {
   Future<void> clearAll() async {
     try {
       if (_fileStore) {
-        for (final file in [await _sessionFile(), await _secretsFile()]) {
+        for (final file in [await _sessionFile(), await _accountsFile(), await _secretsFile()]) {
           if (await file.exists()) await file.delete();
         }
         return;

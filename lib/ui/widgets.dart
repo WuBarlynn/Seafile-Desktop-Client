@@ -208,27 +208,47 @@ class IconAction extends StatefulWidget {
 
 class _IconActionState extends State<IconAction> {
   bool _hovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
+    final background = !enabled
+        ? Colors.transparent
+        : _pressed
+            ? AppColors.primary.withValues(alpha: 0.12)
+            : _hovered
+                ? AppColors.hover
+                : Colors.transparent;
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
         cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         onEnter: (_) => enabled ? setState(() => _hovered = true) : null,
-        onExit: (_) => setState(() => _hovered = false),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+          onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
+          onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
           onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: widget.padding,
-            decoration: BoxDecoration(
-              color: enabled && _hovered ? AppColors.hover : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+          child: AnimatedScale(
+            scale: _pressed ? 0.92 : 1,
+            duration: const Duration(milliseconds: 90),
+            curve: Curves.easeOut,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              padding: widget.padding,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: WebIcon(widget.icon, size: widget.size, color: enabled ? widget.color : AppColors.muted),
             ),
-            child: WebIcon(widget.icon, size: widget.size, color: enabled ? widget.color : AppColors.muted),
           ),
         ),
       ),

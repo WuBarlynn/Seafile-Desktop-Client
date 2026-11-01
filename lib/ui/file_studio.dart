@@ -17,6 +17,7 @@ import '../core/l10n.dart';
 import '../core/theme.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
+import 'code_viewer.dart';
 import 'file_actions.dart';
 import 'inline_web_editor.dart';
 import 'markdown_editor.dart';
@@ -47,6 +48,7 @@ class FileStudioState extends State<FileStudio> {
   bool _dirty = false;
   String _original = '';
   int _lineCount = 1;
+  bool _codeEditing = false;
 
   late final FileKind _kind = FileKind.of(widget.entry.name);
 
@@ -306,9 +308,15 @@ class FileStudioState extends State<FileStudio> {
       decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
       child: Row(
         children: [
+          if (!_readOnly)
+            TextButton.icon(
+              onPressed: () => setState(() => _codeEditing = !_codeEditing),
+              icon: Icon(_codeEditing ? Icons.visibility_outlined : Icons.edit_outlined, size: 15),
+              label: Text(_codeEditing ? (l10n.zh ? '预览' : 'Preview') : (l10n.zh ? '编辑' : 'Edit'), style: const TextStyle(fontSize: 12)),
+            ),
           const Spacer(),
           Text(
-            '${_readOnly ? l10n.readOnly : 'Text'} · ${_lineCount} ${l10n.zh ? '行' : 'lines'}',
+            '${_readOnly ? l10n.readOnly : (_codeEditing ? 'Text' : 'Preview')} · ${_lineCount} ${l10n.zh ? '行' : 'lines'}',
             style: const TextStyle(fontSize: 11, color: AppColors.muted),
           ),
         ],
@@ -402,26 +410,28 @@ class FileStudioState extends State<FileStudio> {
         child: Column(
           children: [
             Expanded(
-              child: TextField(
-                controller: controller,
-                scrollController: _scroll,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                style: const TextStyle(
-                  fontFamily: 'Menlo',
-                  fontSize: 13,
-                  height: 1.65,
-                  color: AppColors.text,
-                ),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.fromLTRB(32, 24, 32, 32),
-                ),
-                onChanged: (_) => _onChanged(),
-              ),
+              child: _codeEditing && !_readOnly
+                  ? TextField(
+                      controller: controller,
+                      scrollController: _scroll,
+                      maxLines: null,
+                      expands: true,
+                      textAlignVertical: TextAlignVertical.top,
+                      style: const TextStyle(
+                        fontFamily: 'Menlo',
+                        fontSize: 13,
+                        height: 1.65,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.fromLTRB(32, 24, 32, 32),
+                      ),
+                      onChanged: (_) => _onChanged(),
+                    )
+                  : CodeViewer(text: controller.text, fileName: widget.entry.name, scrollController: _scroll),
             ),
             Container(
               height: 28,

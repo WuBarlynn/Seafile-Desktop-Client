@@ -47,7 +47,7 @@ class _RootGate extends StatelessWidget {
     final session = context.watch<AppSession>();
     if (session.restoring) return const _SplashScreen();
     if (!session.hasSession) return LoginPage(expiredMessage: session.expired);
-    return const AppShell();
+    return AppShell(key: ValueKey(session.stored?.accountId));
   }
 }
 

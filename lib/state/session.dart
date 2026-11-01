@@ -30,6 +30,7 @@ class AppSession extends ChangeNotifier {
   bool _handlingExpired = false;
   bool _disposed = false;
   String _language = 'zh';
+  List<StoredSession> _accounts = const [];
 
   final Set<String> _unlockedRepos = {};
 
@@ -45,6 +46,7 @@ class AppSession extends ChangeNotifier {
   bool get hasSession => _stored != null && _api != null;
   bool get expired => _expired;
   String get language => _language;
+  List<StoredSession> get accounts => _accounts;
   String get serverBase => _stored?.serverUrl ?? '';
   int get serverMajor => int.tryParse((_serverInfo?.version ?? '').split('.').first) ?? 14;
   bool get isV14 => serverMajor >= 14;
@@ -100,6 +102,7 @@ class AppSession extends ChangeNotifier {
       _language = prefs.getString('app.language') ?? _language;
     } catch (_) {}
     final saved = await _store.readSession();
+    _accounts = await _store.readAccounts();
     if (_disposed) return;
     if (saved == null) {
       _restoring = false;
@@ -111,6 +114,58 @@ class AppSession extends ChangeNotifier {
     _restoring = false;
     _notify();
     unawaited(_bootstrap());
+  }
+
+  Future<void> _reloadAccounts() async {
+    _accounts = await _store.readAccounts();
+    if (_stored != null && _accounts.every((account) => account.accountId != _stored!.accountId)) {
+      _accounts = [_stored!, ..._accounts];
+    }
+  }
+
+  Future<void> switchAccount(StoredSession account) async {
+    if (account.accountId == _stored?.accountId) return;
+    _api?.close();
+    _api = _createApi(account);
+    _stored = account;
+    _accountInfo = null;
+    _serverInfo = null;
+    _repositories = const [];
+    _librariesError = null;
+    _loadedLibraries = false;
+    _expired = false;
+    _unlockedRepos.clear();
+    await _store.writeSession(account);
+    await SessionStore.saveLastLogin(account.serverUrl, account.username);
+    await _reloadAccounts();
+    _notify();
+    await _bootstrap();
+  }
+
+  Future<void> addAccount() async {
+    _api?.close();
+    _api = null;
+    _stored = null;
+    _accountInfo = null;
+    _serverInfo = null;
+    _repositories = const [];
+    _librariesError = null;
+    _loadedLibraries = false;
+    _expired = false;
+    _unlockedRepos.clear();
+    await _store.clearSession();
+    await _reloadAccounts();
+    _notify();
+  }
+
+  Future<void> removeAccount(StoredSession account) async {
+    await _store.removeAccount(account.accountId);
+    if (account.accountId == _stored?.accountId) {
+      await addAccount();
+      return;
+    }
+    await _reloadAccounts();
+    _notify();
   }
 
   Future<void> setLanguage(String language) async {
@@ -190,6 +245,7 @@ class AppSession extends ChangeNotifier {
       await _store.clearSession();
     }
     await SessionStore.saveLastLogin(target, username);
+    await _reloadAccounts();
     _notify();
     await _bootstrap();
   }
@@ -257,6 +313,7 @@ class AppSession extends ChangeNotifier {
       await _store.clearSession();
     }
     await SessionStore.saveLastLogin(target, username.trim());
+    await _reloadAccounts();
     _notify();
     unawaited(_loadServerInfo());
     await refreshLibraries();
@@ -316,6 +373,9 @@ class AppSession extends ChangeNotifier {
       displayName: info.name ?? stored.displayName,
       email: info.email ?? stored.email,
     );
+    unawaited(_store.upsertAccount(_stored!).then((_) => _reloadAccounts()).then((_) {
+      if (!_disposed) _notify();
+    }));
   }
 
   void _onUnauthorized() {
@@ -336,6 +396,9 @@ class AppSession extends ChangeNotifier {
       _loadedLibraries = false;
       _unlockedRepos.clear();
       await _store.clearSession();
+      final accountId = _stored?.accountId;
+      if (accountId != null) await _store.removeAccount(accountId);
+      await _reloadAccounts();
       _expired = true;
       _notify();
     } finally {
@@ -356,9 +419,11 @@ class AppSession extends ChangeNotifier {
     _unlockedRepos.clear();
     _expired = false;
     await _store.clearSession();
-    if (forgetRepoPasswords && accountId != null) {
-      await _store.deleteAllRepoPasswords(accountId);
+    if (accountId != null) {
+      await _store.removeAccount(accountId);
+      if (forgetRepoPasswords) await _store.deleteAllRepoPasswords(accountId);
     }
+    await _reloadAccounts();
     _notify();
   }
 

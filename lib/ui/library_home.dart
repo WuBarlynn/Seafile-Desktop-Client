@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../state/session.dart';
 import 'deleted_libraries_dialog.dart';
 import 'dialogs.dart';
+import 'share_people_dialog.dart';
 import 'group_dialog.dart';
 import 'repo_actions.dart';
 import 'sidebar.dart';
@@ -143,6 +144,7 @@ class _LibraryHomeState extends State<LibraryHome> {
       position: RelativeRect.fromRect(position & const Size(1, 1), Offset.zero & overlay.size),
       items: [
         PopupMenuItem(value: 'open', child: _menuRow('folder-open', l10n.open)),
+        PopupMenuItem(value: 'share', child: _menuRow('share', l10n.share)),
         PopupMenuItem(value: 'star', child: _menuRow('starred', repo.starred ? (l10n.zh ? '取消星标' : 'Remove star') : (l10n.zh ? '添加星标' : 'Add star'))),
         if (repo.kind == 'shared') PopupMenuItem(value: 'leave', child: _menuRow('share-with-me', l10n.zh ? '离开共享' : 'Leave share')),
         if (repo.isOwner) PopupMenuItem(value: 'rename', child: _menuRow('rename', l10n.rename)),
@@ -152,7 +154,8 @@ class _LibraryHomeState extends State<LibraryHome> {
             value: 'archive',
             child: _menuRow('archive', repo.archiveStatus == 'archived' ? (l10n.zh ? '取消归档' : 'Unarchive') : (l10n.zh ? '归档' : 'Archive')),
           ),
-        if (repo.isOwner) const PopupMenuDivider(),
+        const PopupMenuDivider(),
+        PopupMenuItem(value: 'details', child: _menuRow('info', l10n.details)),
         if (repo.isOwner) PopupMenuItem(value: 'delete', child: _menuRow('delete', l10n.delete, danger: true)),
       ],
       color: Colors.white,
@@ -182,6 +185,10 @@ class _LibraryHomeState extends State<LibraryHome> {
         } catch (error) {
           if (mounted) showToast(context, friendlyError(context, error), error: true);
         }
+      case 'share':
+        await showPeopleShareDialog(context, repo: repo, path: '/', title: repo.name);
+      case 'details':
+        await _showRepoDetails(repo);
       case 'star':
         try {
           await context.read<AppSession>().api!.setStarred(repoId: repo.id, path: '/', starred: !repo.starred);
@@ -204,6 +211,45 @@ class _LibraryHomeState extends State<LibraryHome> {
       case 'delete':
         await _deleteLibrary(repo);
     }
+  }
+
+  Future<void> _showRepoDetails(Repository repo) async {
+    final l10n = L10n.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(repo.name),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow(l10n.zh ? 'ID' : 'ID', repo.id),
+              _detailRow(l10n.zh ? '所有者' : 'Owner', repo.ownerDisplay.isEmpty ? repo.owner ?? '' : repo.ownerDisplay),
+              _detailRow(l10n.fileSize, formatBytes(repo.size)),
+              _detailRow(l10n.zh ? '文件数' : 'Files', '${repo.fileCount}'),
+              _detailRow(l10n.modified, formatDateTime(repo.mtime)),
+              _detailRow(l10n.zh ? '加密' : 'Encrypted', repo.encrypted ? (l10n.zh ? '是' : 'Yes') : (l10n.zh ? '否' : 'No')),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.close))],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 110, child: Text(label, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary))),
+          Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    );
   }
 
   Widget _menuRow(String icon, String label, {bool danger = false}) {
@@ -323,7 +369,7 @@ class _LibraryHomeState extends State<LibraryHome> {
                       onRefresh: session.refreshLibraries,
                       color: AppColors.primary,
                       child: ListView(
-                        padding: const EdgeInsets.fromLTRB(28, 20, 28, 40),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
                         children: [
                           if (session.librariesError != null)
                             _ErrorBanner(
@@ -459,7 +505,7 @@ class _LibraryHomeState extends State<LibraryHome> {
     final l10n = L10n.of(context);
     final session = context.watch<AppSession>();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 26),
+      padding: const EdgeInsets.only(bottom: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -634,6 +680,10 @@ class _RepositoryRowState extends State<_RepositoryRow> {
                         style: const TextStyle(fontSize: 14, color: AppColors.primary),
                       ),
                     ),
+                    if (repo.starred) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.star_rounded, size: 15, color: AppColors.warning),
+                    ],
                     if (repo.encrypted) ...[
                       const SizedBox(width: 6),
                       const WebIcon('lock', size: 13, color: AppColors.muted),
@@ -713,11 +763,21 @@ class _RepositoryGridCardState extends State<_RepositoryGridCard> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      widget.repo.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, color: AppColors.primary),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            widget.repo.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14, color: AppColors.primary),
+                          ),
+                        ),
+                        if (widget.repo.starred) ...[
+                          const SizedBox(width: 5),
+                          const Icon(Icons.star_rounded, size: 15, color: AppColors.warning),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(

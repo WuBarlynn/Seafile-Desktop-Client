@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -382,6 +383,30 @@ class _AdminStatisticsPanelState extends State<AdminStatisticsPanel> {
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: Container(
+            height: 210,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: 16,
+                  children: [
+                    _legend(zh ? '新增' : 'Added', AppColors.success),
+                    _legend(zh ? '访问' : 'Visited', AppColors.primary),
+                    _legend(zh ? '修改' : 'Modified', const Color(0xFF5B8FF9)),
+                    _legend(zh ? '删除' : 'Deleted', AppColors.danger),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Expanded(child: CustomPaint(painter: _FileChartPainter(_fileOps), size: Size.infinite)),
+              ],
+            ),
+          ),
+        ),
         AdminTable(
           headers: [zh ? '日期' : 'Date', zh ? '新增' : 'Added', zh ? '访问' : 'Visited', zh ? '修改' : 'Modified', zh ? '删除' : 'Deleted'],
           rows: [
@@ -396,6 +421,17 @@ class _AdminStatisticsPanelState extends State<AdminStatisticsPanel> {
           ],
           emptyLabel: zh ? '暂无统计数据' : 'No statistics',
         ),
+      ],
+    );
+  }
+
+  Widget _legend(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
       ],
     );
   }
@@ -2680,13 +2716,32 @@ class _AdminSettingsPanelState extends State<AdminSettingsPanel> {
   }
 
   Widget _brandRow(String label, String kind, String size) {
+    final session = context.read<AppSession>();
+    final path = switch (kind) {
+      'logo' => '/media/img/seafile-logo.png',
+      'favicon' => '/media/favicons/favicon.png',
+      _ => '/media/img/login-bg.jpg',
+    };
+    final url = '${session.serverBase}$path?t=${DateTime.now().millisecondsSinceEpoch}';
     return Container(
-      constraints: const BoxConstraints(minHeight: 50),
+      constraints: const BoxConstraints(minHeight: 58),
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           SizedBox(width: 210, child: Text(label, style: const TextStyle(fontSize: 13))),
+          Container(
+            width: 122,
+            height: 42,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(color: AppColors.hover, borderRadius: BorderRadius.circular(5), border: Border.all(color: AppColors.border)),
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, size: 18, color: AppColors.muted),
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(child: Text(size, style: const TextStyle(fontSize: 11.5, color: AppColors.muted))),
           OutlinedButton(onPressed: () => _upload(kind), child: Text(L10n.of(context).zh ? '修改' : 'Change', style: const TextStyle(fontSize: 12))),
         ],
@@ -2697,4 +2752,69 @@ class _AdminSettingsPanelState extends State<AdminSettingsPanel> {
 
 extension<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+class _FileChartPainter extends CustomPainter {
+  _FileChartPainter(this.data);
+
+  final List<Map<String, dynamic>> data;
+
+  static const _series = [
+    ('added', AppColors.success),
+    ('visited', AppColors.primary),
+    ('modified', Color(0xFF5B8FF9)),
+    ('deleted', AppColors.danger),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final chartHeight = math.max(40.0, size.height - 14);
+    final gridPaint = Paint()
+      ..color = AppColors.border
+      ..strokeWidth = 1;
+    for (var index = 0; index <= 3; index++) {
+      final y = chartHeight * index / 3;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+    if (data.isEmpty) return;
+    var maxValue = 1;
+    for (final item in data) {
+      for (final series in _series) {
+        final value = (item[series.$1] as num?)?.toInt() ?? 0;
+        if (value > maxValue) maxValue = value;
+      }
+    }
+    final groupWidth = size.width / data.length;
+    final barWidth = math.min(8.0, math.max(2.0, groupWidth / 7));
+    final gap = math.max(1.0, barWidth * 0.3);
+    final labelStep = data.length <= 14 ? 1 : (data.length / 7).ceil();
+    for (var day = 0; day < data.length; day++) {
+      final center = groupWidth * day + groupWidth / 2;
+      final totalWidth = _series.length * barWidth + (_series.length - 1) * gap;
+      var x = center - totalWidth / 2;
+      for (final series in _series) {
+        final value = (data[day][series.$1] as num?)?.toInt() ?? 0;
+        final height = value == 0 ? 0.0 : math.max(1.0, (value / maxValue) * (chartHeight - 6));
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, chartHeight - height, barWidth, height),
+          const Radius.circular(2),
+        );
+        canvas.drawRRect(rect, Paint()..color = series.$2);
+        x += barWidth + gap;
+      }
+      if (day % labelStep == 0) {
+        final raw = data[day]['datetime']?.toString() ?? '';
+        final label = raw.length >= 10 ? raw.substring(5, 10) : raw;
+        final painter = TextPainter(
+          text: TextSpan(text: label, style: const TextStyle(fontSize: 9, color: AppColors.muted)),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+        )..layout(maxWidth: math.max(groupWidth, 34));
+        painter.paint(canvas, Offset(center - painter.width / 2, chartHeight + 3));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FileChartPainter oldDelegate) => oldDelegate.data != data;
 }

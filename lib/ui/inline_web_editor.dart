@@ -174,6 +174,13 @@ class _InlineWebEditorState extends State<InlineWebEditor> {
                           });
                           controller.evaluateJavascript(source: r"""
 (() => {
+  const styleId = 'seafile-desktop-file-chrome';
+  if (location.pathname.indexOf('/lib/') !== -1 && !document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = '.file-view-header,.onlyoffice-file-view-header-shown,.docx-view-header > .file-view-header,.sdoc-view-header{display:none!important}.sf-only-office{padding-top:0!important}';
+    document.head.appendChild(style);
+  }
   let tries = 0;
   const fit = () => {
     const iframe = document.querySelector('iframe');

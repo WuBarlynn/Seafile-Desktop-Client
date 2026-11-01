@@ -18,6 +18,7 @@ void main() {
     final session = AppSession();
     await session.restore();
     expect(session.hasSession, isTrue);
+    expect(session.accounts.any((account) => account.accountId == session.stored?.accountId), isTrue);
     String? openedPath;
 
     await tester.pumpWidget(

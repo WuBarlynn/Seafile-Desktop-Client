@@ -551,44 +551,39 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                       '${group['created_at'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
                     ],
                 ],
+                rowActions: (index) => _groupRowMenu(_groups[index], l10n),
               ),
-              if (_groups.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final group in _groups) ...[
-                        OutlinedButton(
-                          onPressed: () => _manageGroupLibraries(group),
-                          child: Text('${l10n.zh ? '资料库' : 'Libraries'} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _manageGroupMembers(group),
-                          child: Text('${l10n.zh ? '成员' : 'Members'} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _renameGroup(group),
-                          child: Text(l10n.zh ? '重命名' : 'Rename', style: const TextStyle(fontSize: 11.5)),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _transferGroup(group),
-                          child: Text(l10n.zh ? '转让' : 'Transfer', style: const TextStyle(fontSize: 11.5)),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _deleteGroup(group),
-                          child: Text('${l10n.delete} ${group['name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _groupRowMenu(Map<String, dynamic> group, L10n l10n) {
+    return PopupMenuButton<String>(
+      tooltip: l10n.zh ? '群组操作' : 'Group actions',
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.border)),
+      itemBuilder: (context) => [
+        PopupMenuItem(value: 'libraries', child: Text(l10n.zh ? '资料库' : 'Libraries', style: const TextStyle(fontSize: 13))),
+        PopupMenuItem(value: 'members', child: Text(l10n.zh ? '成员' : 'Members', style: const TextStyle(fontSize: 13))),
+        PopupMenuItem(value: 'rename', child: Text(l10n.zh ? '重命名' : 'Rename', style: const TextStyle(fontSize: 13))),
+        PopupMenuItem(value: 'transfer', child: Text(l10n.zh ? '转让' : 'Transfer', style: const TextStyle(fontSize: 13))),
+        const PopupMenuDivider(),
+        PopupMenuItem(value: 'delete', child: Text(l10n.zh ? '删除' : 'Delete', style: const TextStyle(fontSize: 13, color: AppColors.danger))),
+      ],
+      onSelected: (value) {
+        if (value == 'libraries') _manageGroupLibraries(group);
+        if (value == 'members') _manageGroupMembers(group);
+        if (value == 'rename') _renameGroup(group);
+        if (value == 'transfer') _transferGroup(group);
+        if (value == 'delete') _deleteGroup(group);
+      },
+      child: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: WebIcon('more-vertical', size: 16),
       ),
     );
   }
@@ -1121,34 +1116,37 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                         if (_libraryTab != 3) '${repo['last_modified'] ?? '—'}'.replaceFirst('T', ' ').split('+').first,
                       ],
                   ],
+                  rowActions: (index) => _libraryRowMenu(rows[index], l10n),
                 ),
-                if (rows.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final repo in rows) ...[
-                          if (_libraryTab != 3)
-                            OutlinedButton(
-                              onPressed: () => _transferLibrary(repo),
-                              child: Text('${l10n.zh ? '转让' : 'Transfer'} ${repo['name'] ?? repo['repo_name'] ?? ''}', style: const TextStyle(fontSize: 11.5)),
-                            ),
-                          OutlinedButton(
-                            onPressed: () => _libraryTab == 3 ? _deleteTrashLibrary(repo) : _deleteLibrary(repo),
-                            child: Text('${l10n.delete} ${repo['name'] ?? repo['repo_name'] ?? ''}', style: const TextStyle(fontSize: 11.5, color: AppColors.danger)),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _libraryRowMenu(Map<String, dynamic> repo, L10n l10n) {
+    return PopupMenuButton<String>(
+      tooltip: l10n.zh ? '资料库操作' : 'Library actions',
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.border)),
+      itemBuilder: (context) => [
+        if (_libraryTab != 3)
+          PopupMenuItem(value: 'transfer', child: Text(l10n.zh ? '转让' : 'Transfer', style: const TextStyle(fontSize: 13))),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text(l10n.zh ? '删除' : 'Delete', style: const TextStyle(fontSize: 13, color: AppColors.danger)),
+        ),
+      ],
+      onSelected: (value) {
+        if (value == 'transfer') _transferLibrary(repo);
+        if (value == 'delete') _libraryTab == 3 ? _deleteTrashLibrary(repo) : _deleteLibrary(repo);
+      },
+      child: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: WebIcon('more-vertical', size: 16),
       ),
     );
   }
@@ -1563,7 +1561,11 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     }
   }
 
-  Widget _table({required List<String> headers, required List<List<String>> rows}) {
+  Widget _table({
+    required List<String> headers,
+    required List<List<String>> rows,
+    Widget Function(int index)? rowActions,
+  }) {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
       clipBehavior: Clip.antiAlias,
@@ -1577,6 +1579,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
               children: [
                 for (final header in headers)
                   Expanded(flex: header == headers.first ? 3 : 2, child: Text(header, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))),
+                if (rowActions != null) const SizedBox(width: 44),
               ],
             ),
           ),
@@ -1606,6 +1609,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  if (rowActions != null) SizedBox(width: 44, child: rowActions(index)),
                 ],
               ),
             ),

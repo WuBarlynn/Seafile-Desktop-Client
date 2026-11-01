@@ -308,6 +308,81 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  Future<void> _showAccountSwitcher() async {
+    final l10n = L10n.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final session = context.read<AppSession>();
+          final accounts = session.accounts;
+          return AlertDialog(
+            title: Text(l10n.zh ? '切换账户' : 'Switch account'),
+            content: SizedBox(
+              width: 440,
+              child: accounts.isEmpty
+                  ? Text(l10n.zh ? '还没有保存的账户' : 'No saved accounts', style: const TextStyle(fontSize: 13))
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: accounts.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                      itemBuilder: (context, index) {
+                        final account = accounts[index];
+                        final current = account.accountId == session.stored?.accountId;
+                        final host = Uri.tryParse(account.serverUrl)?.host ?? account.serverUrl;
+                        final name = account.displayName.isNotEmpty ? account.displayName : account.username;
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                          leading: AvatarCircle(name: name, size: 34),
+                          title: Row(
+                            children: [
+                              Flexible(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5))),
+                              if (current) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(3)),
+                                  child: Text(l10n.zh ? '当前' : 'Current', style: const TextStyle(fontSize: 10, color: AppColors.primaryDark)),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text('${account.email.isNotEmpty ? account.email : account.username} · $host', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5)),
+                          trailing: IconButton(
+                            tooltip: l10n.delete,
+                            onPressed: () async {
+                              await session.removeAccount(account);
+                              if (dialogContext.mounted) setDialogState(() {});
+                            },
+                            icon: const Icon(Icons.delete_outline, size: 17, color: AppColors.danger),
+                          ),
+                          onTap: current
+                              ? () => Navigator.pop(dialogContext)
+                              : () async {
+                                  await session.switchAccount(account);
+                                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                                },
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  final session = context.read<AppSession>();
+                  Navigator.pop(dialogContext);
+                  await session.addAccount();
+                },
+                child: Text(l10n.zh ? '添加账户' : 'Add account'),
+              ),
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(l10n.zh ? '关闭' : 'Close')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _search() async {
     final workspace = context.read<WorkspaceController>();
     final result = await showGlobalSearchDialog(context, workspace);
@@ -341,6 +416,7 @@ class _AppShellState extends State<AppShell> {
                     onSearch: _search,
                     onAbout: () => showSeafileAboutDialog(context),
                     onRefresh: session.refreshLibraries,
+                    onSwitchAccount: _showAccountSwitcher,
                     onLogout: _logout,
                     onAccountSettings: _openAccountSettings,
                     onSystemSettings: _openSystemSettings,
@@ -640,6 +716,7 @@ class _TabChip extends StatefulWidget {
 class _TabChipState extends State<_TabChip> {
   bool _hovered = false;
   bool _closeHovered = false;
+  bool _closePressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -658,7 +735,8 @@ class _TabChipState extends State<_TabChip> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
           width: widget.width,
           height: 38,
           padding: const EdgeInsets.only(left: 10, right: 4),
@@ -674,7 +752,7 @@ class _TabChipState extends State<_TabChip> {
             children: [
               _tabIcon(tab),
               const SizedBox(width: 7),
-              Flexible(
+              Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
@@ -693,15 +771,28 @@ class _TabChipState extends State<_TabChip> {
                   onEnter: (_) => setState(() => _closeHovered = true),
                   onExit: (_) => setState(() => _closeHovered = false),
                   child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (_) => setState(() => _closePressed = true),
+                    onTapUp: (_) => setState(() => _closePressed = false),
+                    onTapCancel: () => setState(() => _closePressed = false),
                     onTap: widget.onClose,
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: _closeHovered ? AppColors.hover : Colors.transparent,
-                        borderRadius: BorderRadius.circular(3),
+                    child: AnimatedScale(
+                      scale: _closePressed ? 0.85 : 1,
+                      duration: const Duration(milliseconds: 90),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: _closePressed
+                              ? AppColors.primary.withValues(alpha: 0.14)
+                              : _closeHovered
+                                  ? AppColors.hover
+                                  : Colors.transparent,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: const Icon(Icons.close, size: 13, color: AppColors.muted),
                       ),
-                      child: const Icon(Icons.close, size: 13, color: AppColors.muted),
                     ),
                   ),
                 )
@@ -733,6 +824,7 @@ class _GlobalHeader extends StatelessWidget {
     required this.onSearch,
     required this.onAbout,
     required this.onRefresh,
+    required this.onSwitchAccount,
     required this.onLogout,
     required this.onAccountSettings,
     required this.onSystemSettings,
@@ -745,6 +837,7 @@ class _GlobalHeader extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onAbout;
   final VoidCallback onRefresh;
+  final VoidCallback onSwitchAccount;
   final VoidCallback onLogout;
   final VoidCallback onAccountSettings;
   final VoidCallback onSystemSettings;
@@ -849,6 +942,7 @@ class _GlobalHeader extends StatelessWidget {
                       ),
                       const PopupMenuDivider(),
                       _menuItem('refresh', 'refresh', l10n.refreshLibraries),
+                      _menuItem('switch', 'user', l10n.zh ? '切换账户' : 'Switch account'),
                       _menuItem('settings', 'settings', l10n.accountSettings),
                       _menuItem('webapp', 'link', l10n.fullWebApp),
                       if (session.accountInfo?.isStaff == true) _menuItem('admin', 'admin-logs', l10n.systemSettings),
@@ -858,6 +952,7 @@ class _GlobalHeader extends StatelessWidget {
                     ],
                     onSelected: (value) {
                       if (value == 'refresh') onRefresh();
+                      if (value == 'switch') onSwitchAccount();
                       if (value == 'settings') onAccountSettings();
                       if (value == 'admin') onSystemSettings();
                       if (value == 'webapp') onOpenWebPage('/libraries/', L10n.of(context).fullWebApp);
