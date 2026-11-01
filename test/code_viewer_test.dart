@@ -186,6 +186,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('typing a longer line widens the editor and keeps the gutter aligned', (tester) async {
+    final controller = CodeEditingController(fileName: 'sample.py', text: 'x\nb\nc');
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MaterialApp(
+      theme: buildAppTheme(),
+      home: Scaffold(
+        body: SizedBox(
+          width: 640,
+          height: 320,
+          child: CodeEditor(controller: controller, fileName: 'sample.py'),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    controller.text = '${'x' * 400}\nb\nc';
+    await tester.pumpAndSettle();
+    final gutterSize = tester.getSize(find.byKey(const ValueKey('code-editor-gutter')));
+    final fieldSize = tester.getSize(find.byKey(const ValueKey('code-editor-field')));
+    expect((gutterSize.height - fieldSize.height).abs(), lessThan(2.0));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('large code edits keep line numbers past 1000 lines', (tester) async {
     final source = List<String>.generate(1500, (index) => 'line ${index + 1}').join('\n');
     final controller = CodeEditingController(fileName: 'sample.py', text: source);

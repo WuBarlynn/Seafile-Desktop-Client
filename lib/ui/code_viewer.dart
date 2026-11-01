@@ -107,6 +107,9 @@ class _CodeEditorState extends State<CodeEditor> {
   double _charWidth = 8;
   String? _gutter;
   int _gutterCount = 0;
+  String _lastText = '';
+  int _lastTextLength = 0;
+  double _codeWidth = 0;
 
   static const _lineHeight = 13 * 1.65;
 
@@ -114,6 +117,8 @@ class _CodeEditorState extends State<CodeEditor> {
   void initState() {
     super.initState();
     widget.controller.addListener(_handleControllerChange);
+    _lastText = widget.controller.text;
+    _lastTextLength = _lastText.length;
     _charWidth = _measure('M');
   }
 
@@ -144,6 +149,37 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   void _handleControllerChange() {
+    final text = widget.controller.text;
+    if (text != _lastText) {
+      final delta = text.length - _lastTextLength;
+      var widen = delta.abs() > 120;
+      if (!widen && text.isNotEmpty) {
+        final selection = widget.controller.selection;
+        final offset = selection.isValid ? selection.extentOffset.clamp(0, text.length) : text.length;
+        var start = offset;
+        while (start > 0 && text[start - 1] != '\n') {
+          start--;
+        }
+        var end = offset;
+        while (end < text.length && text[end] != '\n') {
+          end++;
+        }
+        var estimate = 0.0;
+        for (final rune in text.substring(start, end).runes) {
+          if (rune == 9) {
+            estimate += 8 * 7.8;
+          } else if (rune >= 0x2E80) {
+            estimate += 13.0;
+          } else {
+            estimate += 7.8;
+          }
+        }
+        widen = estimate + 80 > _codeWidth;
+      }
+      _lastText = text;
+      _lastTextLength = text.length;
+      if (widen) setState(() {});
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToCaret());
   }
 
@@ -221,8 +257,9 @@ class _CodeEditorState extends State<CodeEditor> {
       builder: (context, constraints) {
         final codeWidth = math.max(
           math.max(0.0, constraints.maxWidth - gutterWidth),
-          measured + 16 + 24 + 120,
+          measured * 1.15 + 16 + 24 + 120,
         ).toDouble();
+        _codeWidth = codeWidth;
         return Scrollbar(
           controller: _vertical,
           child: SingleChildScrollView(
